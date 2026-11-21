@@ -3,6 +3,8 @@ import type { AppEnv } from '../../lib/app-env';
 import { requireAuth } from '../../middleware/auth';
 import { commerceCartRoutes } from './carts';
 import { commerceChannelRoutes } from './channels';
+import { commerceOrderRoutes } from './orders';
+import { commerceReturnRoutes } from './returns';
 import { commerceStorefrontRoutes } from './storefronts';
 
 export { commerceMarketplaceRoutes } from './public';
@@ -13,3 +15,5 @@ commerceRoutes.use('*', requireAuth);
 commerceRoutes.route('/', commerceChannelRoutes);
 commerceRoutes.route('/', commerceStorefrontRoutes);
 commerceRoutes.route('/', commerceCartRoutes);
+commerceRoutes.route('/', commerceOrderRoutes);
+commerceRoutes.route('/', commerceReturnRoutes);

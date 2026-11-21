@@ -3,6 +3,7 @@ import { db } from '../db';
 import {
   merchantMemberships,
   merchants,
+  orders,
   organizationMembers,
   organizations,
   storefronts,
@@ -233,5 +234,85 @@ export function storefrontScopeCondition(
     .where(and(condition, isNull(merchants.deletedAt)));
 
   return inArray(storefronts.merchantId, ids);
+}
+
+type Order = InferSelectModel<typeof orders>;
+
+/**
+ * Akses order diberikan kepada:
+ * - platform admin,
+ * - customer pemilik order,
+ * - merchant pemilik order (owner/manager/member sesuai aturan merchant).
+ */
+export async function assertOrderAccess(
+  orderId: string,
+  user: AuthUser,
+  permissions: Set<string>,
+): Promise<{
+  order: Order;
+  merchant: Merchant | null;
+  role: string;
+  via: 'admin' | 'customer' | 'owner' | 'organization' | 'membership';
+}> {
+  const order = await db.query.orders.findFirst({
+    where: eq(orders.id, orderId),
+  });
+  if (!order) throw ApiError.notFound('Order not found');
+
+  if (isPlatformAdmin(permissions)) {
+    const merchant = await db.query.merchants.findFirst({
+      where: eq(merchants.id, order.merchantId),
+    });
+    return {
+      order,
+      merchant: merchant ?? null,
+      role: 'admin',
+      via: 'admin',
+    };
+  }
+
+  if (order.userId === user.id) {
+    const merchant = await db.query.merchants.findFirst({
+      where: eq(merchants.id, order.merchantId),
+    });
+    return {
+      order,
+      merchant: merchant ?? null,
+      role: 'customer',
+      via: 'customer',
+    };
+  }
+
+  const access = await assertMerchantAccess(order.merchantId, user, permissions);
+  return {
+    order,
+    merchant: access.merchant,
+    role: access.role,
+    via: access.via,
+  };
+}
+
+/**
+ * Filter daftar order: customer melihat order sendiri, merchant melihat order
+ * merchant yang boleh diakses, platform admin melihat semua.
+ */
+export function orderScopeCondition(
+  user: AuthUser,
+  permissions: Set<string>,
+): SQL | undefined {
+  if (isPlatformAdmin(permissions)) return undefined;
+
+  const merchantCondition = merchantScopeCondition(user, permissions);
+  const merchantIds = merchantCondition
+    ? db
+        .select({ id: merchants.id })
+        .from(merchants)
+        .where(and(merchantCondition, isNull(merchants.deletedAt)))
+    : undefined;
+
+  return or(
+    eq(orders.userId, user.id),
+    merchantIds ? inArray(orders.merchantId, merchantIds) : undefined,
+  );
 }
 

@@ -91,6 +91,10 @@
         <path d="M4 9.5 6.6 4h10.8L20 9.5V19a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
         <path d="M4 9.5h4.2l1.3 2h5l1.3-2H20" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
       </symbol>
+      <symbol id="i-receipt" viewBox="0 0 24 24">
+        <path d="M6 3.5h12v17l-2.4-1.5-2.4 1.5-1.2-.8-1.2.8-2.4-1.5L6 20.5v-17Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+        <path d="M9 8h6M9 12h6M9 16h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      </symbol>
       <symbol id="i-store" viewBox="0 0 24 24">
         <path d="M5 10v10h14V10M3.5 10 5.4 4h13.2l1.9 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
         <path d="M9 20v-6h6v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
@@ -149,6 +153,10 @@
           <button class="nav-item" type="button" data-view="commerce">
             <svg class="icon"><use href="#i-store"></use></svg>
             <span>Commerce</span>
+          </button>
+          <button class="nav-item" type="button" data-view="orders">
+            <svg class="icon"><use href="#i-receipt"></use></svg>
+            <span>Pesanan</span>
           </button>
           <button class="nav-item" type="button" data-view="audit">
             <svg class="icon"><use href="#i-audit"></use></svg>
@@ -525,6 +533,83 @@
               </div>
               <div class="table-host" id="channels-table">
                 <div class="table-loading">
+                  <span class="skeleton skeleton-row"></span>
+                  <span class="skeleton skeleton-row"></span>
+                </div>
+              </div>
+            </article>
+          </section>
+
+          <section class="view" id="view-orders" hidden>
+            <div class="section-head">
+              <div>
+                <p class="panel-kicker">Order & transaction management</p>
+                <h2>Pesanan</h2>
+                <p class="section-text">Pantau pesanan, status, pembatalan, retur, dan ledger penjualan.</p>
+              </div>
+              <span class="section-badge neutral" id="order-completed-badge" hidden>0 selesai</span>
+            </div>
+
+            <article class="panel">
+              <div class="toolbar">
+                <label class="search-box">
+                  <svg class="icon"><use href="#i-search"></use></svg>
+                  <input id="order-search" type="search" placeholder="Cari nomor pesanan, pedagang, atau pelanggan..." autocomplete="off" />
+                </label>
+                <label class="select-box">
+                  <span class="sr-only">Filter status pesanan</span>
+                  <select id="order-status-filter">
+                    <option value="">Semua status</option>
+                    <option value="pending">Menunggu</option>
+                    <option value="confirmed">Dikonfirmasi</option>
+                    <option value="processing">Diproses</option>
+                    <option value="completed">Selesai</option>
+                    <option value="cancelled">Dibatalkan</option>
+                    <option value="returned">Dikembalikan</option>
+                  </select>
+                  <svg class="icon"><use href="#i-chevron-down"></use></svg>
+                </label>
+                <span class="toolbar-count" id="order-count">Memuat...</span>
+                <button class="icon-button toolbar-refresh" id="refresh-orders" type="button" aria-label="Segarkan pesanan" title="Segarkan">
+                  <svg class="icon"><use href="#i-refresh"></use></svg>
+                </button>
+              </div>
+              <div class="table-host" id="orders-table">
+                <div class="table-loading">
+                  <span class="skeleton skeleton-row"></span>
+                  <span class="skeleton skeleton-row"></span>
+                  <span class="skeleton skeleton-row"></span>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Return management</p>
+                  <h3>Retur</h3>
+                </div>
+                <span class="section-badge neutral" id="return-count-badge" hidden>0 retur</span>
+              </div>
+              <div class="table-host" id="returns-table">
+                <div class="table-loading">
+                  <span class="skeleton skeleton-row"></span>
+                  <span class="skeleton skeleton-row"></span>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Sales ledger</p>
+                  <h3>Transaksi penjualan</h3>
+                </div>
+                <span class="section-badge neutral" id="transaction-count-badge" hidden>0 transaksi</span>
+              </div>
+              <div class="table-host" id="transactions-table">
+                <div class="table-loading">
+                  <span class="skeleton skeleton-row"></span>
                   <span class="skeleton skeleton-row"></span>
                   <span class="skeleton skeleton-row"></span>
                 </div>

@@ -8,6 +8,7 @@ const VIEW_TITLES = {
   merchants: 'Pedagang',
   products: 'Produk',
   commerce: 'Commerce',
+  orders: 'Pesanan',
   audit: 'Audit log',
 };
 
@@ -27,8 +28,19 @@ const STATUS_LABELS = {
   paused: 'Dijeda',
   ended: 'Berakhir',
   pending: 'Menunggu',
+  confirmed: 'Dikonfirmasi',
+  processing: 'Diproses',
+  requested: 'Diajukan',
+  approved: 'Disetujui',
+  received: 'Diterima',
+  unopened: 'Belum dibuka',
+  opened: 'Sudah dibuka',
+  damaged: 'Rusak',
+  defective: 'Cacat',
+  other: 'Lainnya',
   cancelled: 'Dibatalkan',
   completed: 'Selesai',
+  returned: 'Dikembalikan',
   expired: 'Kedaluwarsa',
 };
 
@@ -66,6 +78,12 @@ const ACTION_LABELS = {
   'sales_channel.deactivate': 'Kanal penjualan dinonaktifkan',
   'channel_listing.create': 'Listing kanal dibuat',
   'checkout.create': 'Checkout dibuat',
+  'order.create': 'Pesanan dibuat dari checkout',
+  'order.status.update': 'Status pesanan diperbarui',
+  'order.cancel': 'Pesanan dibatalkan',
+  'order.note.create': 'Catatan pesanan ditambahkan',
+  'return.create': 'Pengajuan retur dibuat',
+  'return.status.update': 'Status retur diperbarui',
   'organization.create': 'Organisasi baru dibuat',
   'occupancy.create': 'Okupansi unit dibuat',
   'occupancy.end': 'Okupansi unit diakhiri',
@@ -85,6 +103,9 @@ const ENTITY_LABELS = {
   sales_channel: 'Sales channel',
   channel_listing: 'Channel listing',
   checkout_session: 'Checkout',
+  order: 'Pesanan',
+  return: 'Retur',
+  sales_transaction: 'Transaksi penjualan',
 };
 
 const state = {
@@ -96,16 +117,18 @@ const state = {
   merchants: null,
   products: null,
   commerce: null,
+  orders: null,
   audit: null,
   pendingCount: 0,
   canWriteCommerce: false,
   canManageCommerce: false,
-  sequences: { overview: 0, markets: 0, merchants: 0, products: 0, commerce: 0, audit: 0 },
+  sequences: { overview: 0, markets: 0, merchants: 0, products: 0, commerce: 0, orders: 0, audit: 0 },
   filters: {
     markets: { search: '', status: '' },
     merchants: { search: '', status: '' },
     products: { search: '', status: '' },
     commerce: { search: '', status: '' },
+    orders: { search: '', status: '' },
     audit: { search: '', entityType: '' },
   },
 };
@@ -385,6 +408,8 @@ function applyProfile(profile) {
   state.canManageCommerce = permissions.includes('*') || permissions.includes('commerce:manage');
   const commerceNav = $('[data-view="commerce"]');
   if (commerceNav) commerceNav.hidden = !canCommerce;
+  const ordersNav = $('[data-view="orders"]');
+  if (ordersNav) ordersNav.hidden = !canCommerce;
   const createChannelButton = $('#create-channel-button');
   if (createChannelButton) createChannelButton.hidden = !state.canManageCommerce;
 
@@ -502,6 +527,7 @@ function loadView(view) {
   if (view === 'merchants') return loadMerchants();
   if (view === 'products') return loadProducts();
   if (view === 'commerce') return loadCommerce();
+  if (view === 'orders') return loadOrders();
   if (view === 'audit') return loadAudit();
   return undefined;
 }
@@ -1718,6 +1744,593 @@ function openCreateChannelModal() {
   });
 }
 
+/* ------------------------------- Pesanan ------------------------------ */
+
+const ORDER_ACTIONS = {
+  pending: { status: 'confirmed', label: 'Konfirmasi' },
+  confirmed: { status: 'processing', label: 'Proses' },
+  processing: { status: 'completed', label: 'Selesaikan' },
+};
+
+const CANCELLABLE_ORDER_STATUSES = ['pending', 'confirmed', 'processing'];
+
+const RETURN_ACTIONS = {
+  requested: [
+    { status: 'approved', label: 'Setujui' },
+    { status: 'rejected', label: 'Tolak' },
+    { status: 'cancelled', label: 'Batalkan' },
+  ],
+  approved: [
+    { status: 'received', label: 'Barang diterima' },
+    { status: 'cancelled', label: 'Batalkan' },
+  ],
+  received: [{ status: 'completed', label: 'Selesaikan retur' }],
+};
+
+const TRANSACTION_TYPE_LABELS = {
+  sale: 'Penjualan',
+  cancellation: 'Pembatalan',
+  return: 'Retur',
+};
+
+function detailRow(label, value) {
+  return `<div class="detail-row"><dt>${escapeHtml(label)}</dt><dd>${value}</dd></div>`;
+}
+
+async function loadOrders(force = false) {
+  const sequence = ++state.sequences.orders;
+  const filters = state.filters.orders;
+
+  if (!state.orders || force) {
+    $('#orders-table').innerHTML = tableLoading(5);
+    $('#returns-table').innerHTML = tableLoading(3);
+    $('#transactions-table').innerHTML = tableLoading(4);
+  }
+  $('#order-count').textContent = 'Memuat...';
+  setSpinner('#refresh-orders', true);
+
+  try {
+    const [orders, returns, transactions] = await Promise.all([
+      api(
+        `/commerce/orders${buildQuery({
+          page: 1,
+          limit: 100,
+          search: filters.search,
+          status: filters.status,
+        })}`,
+      ),
+      api('/commerce/returns?page=1&limit=100'),
+      api('/commerce/transactions?page=1&limit=100'),
+    ]);
+    if (sequence !== state.sequences.orders) return;
+    state.orders = { orders, returns, transactions };
+    renderOrders();
+  } catch (error) {
+    if (sequence !== state.sequences.orders) return;
+    $('#order-count').textContent = 'Gagal memuat';
+    $('#orders-table').innerHTML = errorState(error.message, 'data-retry-orders');
+    $('#returns-table').innerHTML = errorState(error.message, 'data-retry-orders');
+    $('#transactions-table').innerHTML = errorState(error.message, 'data-retry-orders');
+  } finally {
+    if (sequence === state.sequences.orders) setSpinner('#refresh-orders', false);
+  }
+}
+
+function renderOrders() {
+  const data = state.orders;
+  if (!data) return;
+
+  const orders = data.orders.data ?? [];
+  const returns = data.returns.data ?? [];
+  const transactions = data.transactions.data ?? [];
+  const totalOrders = Number(data.orders.meta?.total ?? orders.length);
+  const completed = orders.filter((row) => row.status === 'completed').length;
+  const totalReturns = Number(data.returns.meta?.total ?? returns.length);
+  const totalTransactions = Number(data.transactions.meta?.total ?? transactions.length);
+
+  $('#order-count').textContent = `${formatNumber(totalOrders)} pesanan`;
+  const completedBadge = $('#order-completed-badge');
+  if (completedBadge) {
+    completedBadge.hidden = orders.length === 0;
+    completedBadge.textContent = `${formatNumber(completed)} selesai`;
+  }
+  const returnBadge = $('#return-count-badge');
+  if (returnBadge) {
+    returnBadge.hidden = returns.length === 0;
+    returnBadge.textContent = `${formatNumber(totalReturns)} retur`;
+  }
+  const transactionBadge = $('#transaction-count-badge');
+  if (transactionBadge) {
+    transactionBadge.hidden = transactions.length === 0;
+    transactionBadge.textContent = `${formatNumber(totalTransactions)} transaksi`;
+  }
+
+  if (!orders.length) {
+    $('#orders-table').innerHTML = emptyState(
+      'Belum ada pesanan',
+      state.filters.orders.search || state.filters.orders.status
+        ? 'Coba ubah kata kunci atau filter status.'
+        : 'Pesanan muncul setelah checkout pelanggan dikonversi menjadi order.',
+    );
+  } else {
+    $('#orders-table').innerHTML = `
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Pesanan</th>
+              <th>Pelanggan</th>
+              <th>Pedagang</th>
+              <th>Status</th>
+              <th>Total</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${orders
+              .map((row) => {
+                const next = ORDER_ACTIONS[row.status];
+                const canCancel = CANCELLABLE_ORDER_STATUSES.includes(row.status);
+                return `
+                  <tr>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.orderNumber)}</div>
+                      <div class="cell-muted">${escapeHtml(formatDateTime(row.placedAt))}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.customerName ?? row.contactName ?? '-')}</div>
+                      <div class="cell-muted">${escapeHtml(row.contactPhone ?? '')}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.merchantName ?? '-')}</div>
+                      <div class="cell-muted">${escapeHtml(row.storefrontName ?? '-')}</div>
+                    </td>
+                    <td>${statusBadge(row.status)}</td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(formatMoney(row.grandTotal, row.currency))}</div>
+                      <div class="cell-muted">${formatNumber(row.itemCount)} item</div>
+                    </td>
+                    <td>
+                      <div class="row-actions">
+                        <button class="action-link" type="button" data-order-detail="${escapeHtml(row.id)}">
+                          ${icon('arrow-right')} Detail
+                        </button>
+                        ${
+                          state.canWriteCommerce && next
+                            ? `<button
+                                class="action-link"
+                                type="button"
+                                data-order-status="${escapeHtml(row.id)}"
+                                data-next-status="${next.status}"
+                                data-order-number="${escapeHtml(row.orderNumber)}"
+                              >${escapeHtml(next.label)}</button>`
+                            : ''
+                        }
+                        ${
+                          state.canWriteCommerce && canCancel
+                            ? `<button
+                                class="action-link"
+                                type="button"
+                                data-order-cancel="${escapeHtml(row.id)}"
+                                data-order-number="${escapeHtml(row.orderNumber)}"
+                              >Batalkan</button>`
+                            : ''
+                        }
+                      </div>
+                    </td>
+                  </tr>
+                `;
+              })
+              .join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  if (!returns.length) {
+    $('#returns-table').innerHTML = emptyState(
+      'Belum ada retur',
+      'Pengajuan retur dari pesanan yang sudah selesai akan tampil di sini.',
+    );
+  } else {
+    $('#returns-table').innerHTML = `
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Retur</th>
+              <th>Pesanan</th>
+              <th>Pelanggan</th>
+              <th>Status</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${returns
+              .map(
+                (row) => `
+                  <tr>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.returnNumber)}</div>
+                      <div class="cell-muted">${escapeHtml(formatDateTime(row.requestedAt))}</div>
+                    </td>
+                    <td>${escapeHtml(row.orderNumber)}</td>
+                    <td>${escapeHtml(row.customerName ?? '-')}</td>
+                    <td>${statusBadge(row.status)}</td>
+                    <td>
+                      <button class="action-link" type="button" data-return-detail="${escapeHtml(row.id)}">
+                        ${icon('arrow-right')} Detail
+                      </button>
+                    </td>
+                  </tr>
+                `,
+              )
+              .join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  if (!transactions.length) {
+    $('#transactions-table').innerHTML = emptyState(
+      'Belum ada transaksi',
+      'Ledger penjualan mencatat nilai order, pembatalan, dan retur.',
+    );
+  } else {
+    $('#transactions-table').innerHTML = `
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Transaksi</th>
+              <th>Pesanan</th>
+              <th>Pedagang</th>
+              <th>Tipe</th>
+              <th>Nominal</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${transactions
+              .map(
+                (row) => `
+                  <tr>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.transactionNumber)}</div>
+                      <div class="cell-muted">${escapeHtml(formatDateTime(row.occurredAt))}</div>
+                    </td>
+                    <td>${escapeHtml(row.orderNumber)}</td>
+                    <td>${escapeHtml(row.merchantName ?? '-')}</td>
+                    <td>${escapeHtml(TRANSACTION_TYPE_LABELS[row.type] ?? row.type)}</td>
+                    <td>${escapeHtml(formatMoney(row.amount, row.currency))}</td>
+                  </tr>
+                `,
+              )
+              .join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+}
+
+async function openOrderDetail(orderId) {
+  openModal({
+    title: 'Detail pesanan',
+    kicker: 'Order',
+    subtitle: 'Memuat informasi pesanan...',
+    body: tableLoading(5),
+  });
+
+  try {
+    const result = await api(`/commerce/orders/${orderId}`);
+    const order = result.data;
+    const address = order.addresses?.[0];
+    const next = ORDER_ACTIONS[order.status];
+    const canCancel = CANCELLABLE_ORDER_STATUSES.includes(order.status);
+    const items = order.items ?? [];
+    const returns = order.returns ?? [];
+    const transactions = order.transactions ?? [];
+    const statusHistory = order.statusHistory ?? [];
+    const notes = order.notes ?? [];
+
+    const itemsTable = items.length
+      ? `
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Produk</th><th>SKU</th><th>Qty</th><th>Harga</th><th>Total</th></tr></thead>
+            <tbody>
+              ${items
+                .map(
+                  (item) => `
+                    <tr>
+                      <td>${escapeHtml(item.productName)}</td>
+                      <td>${escapeHtml(item.skuCode ?? '-')}</td>
+                      <td>${formatNumber(item.quantity)}</td>
+                      <td>${escapeHtml(formatMoney(item.unitPrice, item.currency))}</td>
+                      <td>${escapeHtml(formatMoney(item.lineTotal, item.currency))}</td>
+                    </tr>
+                  `,
+                )
+                .join('')}
+            </tbody>
+          </table>
+        </div>`
+      : '<p class="cell-muted">Tidak ada item.</p>';
+
+    const returnsBlock = returns.length
+      ? `<div class="detail-list">${returns
+          .map(
+            (row) =>
+              detailRow(
+                row.returnNumber,
+                `${statusBadge(row.status)} - ${escapeHtml(formatDateTime(row.requestedAt))} - ${escapeHtml(row.reason)}`,
+              ),
+          )
+          .join('')}</div>`
+      : '<p class="cell-muted">Belum ada retur.</p>';
+
+    const transactionsBlock = transactions.length
+      ? `<div class="detail-list">${transactions
+          .map(
+            (row) =>
+              detailRow(
+                row.transactionNumber,
+                `${escapeHtml(TRANSACTION_TYPE_LABELS[row.type] ?? row.type)} - ${escapeHtml(formatMoney(row.amount, row.currency))} - ${escapeHtml(formatDateTime(row.occurredAt))}`,
+              ),
+          )
+          .join('')}</div>`
+      : '<p class="cell-muted">Belum ada transaksi.</p>';
+
+    const notesBlock = notes.length
+      ? `<div class="detail-list">${notes
+          .map(
+            (note) =>
+              detailRow(
+                note.visibility === 'internal' ? 'Internal' : 'Pelanggan',
+                `${escapeHtml(note.body)} <span class="cell-muted">(${escapeHtml(note.authorName ?? '-')} - ${escapeHtml(formatDateTime(note.createdAt))})</span>`,
+              ),
+          )
+          .join('')}</div>`
+      : '<p class="cell-muted">Belum ada catatan.</p>';
+
+    const historyBlock = statusHistory.length
+      ? `<div class="detail-list">${statusHistory
+          .map(
+            (row) =>
+              detailRow(
+                formatDateTime(row.createdAt),
+                `${row.fromStatus ? `${escapeHtml(statusLabel(row.fromStatus))} &rarr; ` : ''}${statusBadge(row.toStatus)}${row.note ? ` - ${escapeHtml(row.note)}` : ''}`,
+              ),
+          )
+          .join('')}</div>`
+      : '<p class="cell-muted">Belum ada riwayat status.</p>';
+
+    openModal({
+      title: order.orderNumber,
+      kicker: 'Detail pesanan',
+      subtitle: `${order.merchantName ?? 'Pedagang'} - ${formatDateTime(order.placedAt)}`,
+      wide: true,
+      body: `
+        <dl class="detail-list">
+          ${detailRow('Status', statusBadge(order.status))}
+          ${detailRow('Pelanggan', escapeHtml(order.customerName ?? order.contactName ?? '-'))}
+          ${detailRow('Kontak', `${escapeHtml(order.contactPhone ?? '-')} ${order.contactEmail ? `- ${escapeHtml(order.contactEmail)}` : ''}`)}
+          ${detailRow('Pedagang', escapeHtml(order.merchantName ?? '-'))}
+          ${detailRow('Storefront', escapeHtml(order.storefrontName ?? '-'))}
+          ${detailRow('Total', `${escapeHtml(formatMoney(order.grandTotal, order.currency))} (${formatNumber(order.itemCount)} item)`)}
+          ${detailRow(
+            'Alamat kirim',
+            address
+              ? escapeHtml(
+                  `${address.recipientName}, ${address.phone}, ${address.addressLine1}${address.addressLine2 ? `, ${address.addressLine2}` : ''}, ${address.city}, ${address.province} ${address.postalCode ?? ''}`,
+                )
+              : '-',
+          )}
+        </dl>
+        <div class="panel-header" style="margin-top:24px">
+          <div><p class="panel-kicker">Line item</p><h3>Item pesanan</h3></div>
+        </div>
+        ${itemsTable}
+        <div class="panel-header" style="margin-top:24px">
+          <div><p class="panel-kicker">Riwayat</p><h3>Status pesanan</h3></div>
+        </div>
+        ${historyBlock}
+        <div class="panel-header" style="margin-top:24px">
+          <div><p class="panel-kicker">Retur</p><h3>Pengajuan retur</h3></div>
+        </div>
+        ${returnsBlock}
+        <div class="panel-header" style="margin-top:24px">
+          <div><p class="panel-kicker">Ledger</p><h3>Transaksi</h3></div>
+        </div>
+        ${transactionsBlock}
+        <div class="panel-header" style="margin-top:24px">
+          <div><p class="panel-kicker">Catatan</p><h3>Catatan pesanan</h3></div>
+        </div>
+        ${notesBlock}
+      `,
+      footer: `
+        <button class="button button-ghost" type="button" data-modal-close>Tutup</button>
+        ${
+          state.canWriteCommerce && next
+            ? `<button class="button button-primary" type="button" data-order-status="${escapeHtml(order.id)}" data-next-status="${next.status}" data-order-number="${escapeHtml(order.orderNumber)}">${escapeHtml(next.label)}</button>`
+            : ''
+        }
+        ${
+          state.canWriteCommerce && canCancel
+            ? `<button class="button button-ghost" type="button" data-order-cancel="${escapeHtml(order.id)}" data-order-number="${escapeHtml(order.orderNumber)}">Batalkan pesanan</button>`
+            : ''
+        }
+      `,
+    });
+  } catch (error) {
+    showToast('Gagal memuat pesanan', error.message, 'error');
+    closeModal();
+  }
+}
+
+async function updateOrderStatus(orderId, status, orderNumber) {
+  try {
+    await api(`/commerce/orders/${orderId}/status`, {
+      method: 'PATCH',
+      body: { status },
+    });
+    closeModal();
+    showToast('Status pesanan diperbarui', `${orderNumber} sekarang ${statusLabel(status).toLowerCase()}.`);
+    await loadOrders(true);
+  } catch (error) {
+    showToast('Gagal memperbarui pesanan', error.message, 'error');
+  }
+}
+
+function openCancelOrderModal(orderId, orderNumber) {
+  const modal = openModal({
+    title: 'Batalkan pesanan',
+    kicker: 'Order',
+    subtitle: `${orderNumber} akan dibatalkan dan dicatat di ledger penjualan.`,
+    body: `
+      <form id="cancel-order-form" class="form-grid">
+        <label class="field field-span">
+          <span>Alasan pembatalan</span>
+          <textarea name="reason" rows="3" maxlength="1000" required placeholder="Tuliskan alasan pembatalan..."></textarea>
+        </label>
+        <label class="field field-span">
+          <span>Catatan internal (opsional)</span>
+          <textarea name="notes" rows="2" maxlength="2000" placeholder="Catatan tambahan untuk tim..."></textarea>
+        </label>
+      </form>
+    `,
+    footer: `
+      <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+      <button class="button button-primary" id="cancel-order-submit" type="submit" form="cancel-order-form">Batalkan pesanan</button>
+    `,
+  });
+
+  const form = modal.querySelector('#cancel-order-form');
+  const submit = modal.querySelector('#cancel-order-submit');
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const reason = String(data.get('reason') ?? '').trim();
+    const notes = String(data.get('notes') ?? '').trim();
+    if (reason.length < 3) {
+      form.querySelector('[name="reason"]').focus();
+      return;
+    }
+
+    submit.disabled = true;
+    submit.innerHTML = `<span class="spinner"></span> Memproses...`;
+    try {
+      await api(`/commerce/orders/${orderId}/cancel`, {
+        method: 'POST',
+        body: { reason, ...(notes ? { notes } : {}) },
+      });
+      closeModal();
+      showToast('Pesanan dibatalkan', `${orderNumber} sudah dibatalkan.`);
+      await loadOrders(true);
+    } catch (error) {
+      showToast('Gagal membatalkan pesanan', error.message, 'error');
+    } finally {
+      submit.disabled = false;
+      submit.innerHTML = 'Batalkan pesanan';
+    }
+  });
+}
+
+async function openReturnDetail(returnId) {
+  openModal({
+    title: 'Detail retur',
+    kicker: 'Return',
+    subtitle: 'Memuat informasi retur...',
+    body: tableLoading(4),
+  });
+
+  try {
+    const result = await api(`/commerce/returns/${returnId}`);
+    const ret = result.data;
+    const items = ret.items ?? [];
+    const actions = state.canWriteCommerce ? RETURN_ACTIONS[ret.status] ?? [] : [];
+
+    const itemsTable = items.length
+      ? `
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Produk</th><th>Qty</th><th>Kondisi</th><th>Total</th></tr></thead>
+            <tbody>
+              ${items
+                .map(
+                  (item) => `
+                    <tr>
+                      <td>
+                        <div class="cell-title">${escapeHtml(item.productName)}</div>
+                        <div class="cell-muted">${escapeHtml(item.skuCode ?? '-')}${item.reason ? ` - ${escapeHtml(item.reason)}` : ''}</div>
+                      </td>
+                      <td>${formatNumber(item.quantity)}</td>
+                      <td>${escapeHtml(statusLabel(item.condition))}</td>
+                      <td>${escapeHtml(formatMoney(item.lineTotal, ret.currency ?? 'IDR'))}</td>
+                    </tr>
+                  `,
+                )
+                .join('')}
+            </tbody>
+          </table>
+        </div>`
+      : '<p class="cell-muted">Tidak ada item retur.</p>';
+
+    openModal({
+      title: ret.returnNumber,
+      kicker: 'Detail retur',
+      subtitle: `${ret.orderNumber} - ${ret.customerName ?? '-'}`,
+      wide: true,
+      body: `
+        <dl class="detail-list">
+          ${detailRow('Status', statusBadge(ret.status))}
+          ${detailRow('Pesanan', escapeHtml(ret.orderNumber))}
+          ${detailRow('Pedagang', escapeHtml(ret.merchantName ?? '-'))}
+          ${detailRow('Pelanggan', escapeHtml(ret.customerName ?? '-'))}
+          ${detailRow('Diajukan', escapeHtml(formatDateTime(ret.requestedAt)))}
+          ${detailRow('Alasan', escapeHtml(ret.reason))}
+          ${detailRow('Catatan resolusi', escapeHtml(ret.resolutionNote ?? '-'))}
+          ${detailRow('Disetujui', escapeHtml(formatDateTime(ret.approvedAt)))}
+          ${detailRow('Diterima', escapeHtml(formatDateTime(ret.receivedAt)))}
+          ${detailRow('Selesai', escapeHtml(formatDateTime(ret.completedAt)))}
+        </dl>
+        <div class="panel-header" style="margin-top:24px">
+          <div><p class="panel-kicker">Return item</p><h3>Item retur</h3></div>
+        </div>
+        ${itemsTable}
+      `,
+      footer: `
+        <button class="button button-ghost" type="button" data-modal-close>Tutup</button>
+        ${actions
+          .map(
+            (action) =>
+              `<button class="button ${action.status === 'rejected' || action.status === 'cancelled' ? 'button-ghost' : 'button-primary'}" type="button" data-return-status="${escapeHtml(ret.id)}" data-next-status="${action.status}" data-return-number="${escapeHtml(ret.returnNumber)}">${escapeHtml(action.label)}</button>`,
+          )
+          .join('')}
+      `,
+    });
+  } catch (error) {
+    showToast('Gagal memuat retur', error.message, 'error');
+    closeModal();
+  }
+}
+
+async function updateReturnStatus(returnId, status, returnNumber) {
+  try {
+    await api(`/commerce/returns/${returnId}/status`, {
+      method: 'PATCH',
+      body: { status },
+    });
+    closeModal();
+    showToast('Status retur diperbarui', `${returnNumber} sekarang ${statusLabel(status).toLowerCase()}.`);
+    await loadOrders(true);
+  } catch (error) {
+    showToast('Gagal memperbarui retur', error.message, 'error');
+  }
+}
+
 /* --------------------------------- Audit ------------------------------ */
 
 async function loadAudit(force = false) {
@@ -1960,6 +2573,19 @@ function bindEvents() {
   });
   $('#refresh-commerce').addEventListener('click', () => loadCommerce(true));
 
+  $('#order-search').addEventListener(
+    'input',
+    debounce((event) => {
+      state.filters.orders.search = event.target.value.trim();
+      loadOrders(true);
+    }),
+  );
+  $('#order-status-filter').addEventListener('change', (event) => {
+    state.filters.orders.status = event.target.value;
+    loadOrders(true);
+  });
+  $('#refresh-orders').addEventListener('click', () => loadOrders(true));
+
   $('#audit-search').addEventListener(
     'input',
     debounce((event) => {
@@ -2007,6 +2633,50 @@ function bindEvents() {
     const retryCommerce = event.target.closest('[data-retry-commerce]');
     if (retryCommerce) {
       loadCommerce(true);
+      return;
+    }
+
+    const retryOrders = event.target.closest('[data-retry-orders]');
+    if (retryOrders) {
+      loadOrders(true);
+      return;
+    }
+
+    const orderDetail = event.target.closest('[data-order-detail]');
+    if (orderDetail) {
+      openOrderDetail(orderDetail.dataset.orderDetail);
+      return;
+    }
+
+    const orderStatus = event.target.closest('[data-order-status]');
+    if (orderStatus) {
+      updateOrderStatus(
+        orderStatus.dataset.orderStatus,
+        orderStatus.dataset.nextStatus,
+        orderStatus.dataset.orderNumber,
+      );
+      return;
+    }
+
+    const orderCancel = event.target.closest('[data-order-cancel]');
+    if (orderCancel) {
+      openCancelOrderModal(orderCancel.dataset.orderCancel, orderCancel.dataset.orderNumber);
+      return;
+    }
+
+    const returnDetail = event.target.closest('[data-return-detail]');
+    if (returnDetail) {
+      openReturnDetail(returnDetail.dataset.returnDetail);
+      return;
+    }
+
+    const returnStatus = event.target.closest('[data-return-status]');
+    if (returnStatus) {
+      updateReturnStatus(
+        returnStatus.dataset.returnStatus,
+        returnStatus.dataset.nextStatus,
+        returnStatus.dataset.returnNumber,
+      );
       return;
     }
 

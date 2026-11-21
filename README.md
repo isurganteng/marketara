@@ -11,6 +11,7 @@ Fokus tahap ini adalah fondasi database dan API (Bagian 17 dokumen):
 4. **MKT-02** Vendor & Merchant Management (+ Store)
 5. **MKT-03** Product & Catalog Management
 6. **MKT-04** Marketplace & Omnichannel Commerce
+7. **MKT-05** Order & Transaction Management
 
 Stack: **Bun + Hono + Drizzle ORM + PostgreSQL + Zod**.
 
@@ -95,8 +96,9 @@ Login memakai akun admin hasil seed:
 Setelah masuk, dashboard tersedia di **`http://localhost:3000/admin`** dan
 menampilkan ringkasan pasar, pedagang, produk, audit log, verifikasi pedagang,
 serta form tambah pasar. Menu **Commerce** menampilkan storefront, status
-publikasi, detail produk storefront, dan pengelolaan kanal penjualan. UI
-disajikan langsung oleh Bun/Hono tanpa build step tambahan.
+publikasi, detail produk storefront, dan pengelolaan kanal penjualan. Menu
+**Pesanan** menampilkan order, status, pembatalan, retur, dan ledger transaksi
+penjualan. UI disajikan langsung oleh Bun/Hono tanpa build step tambahan.
 
 Katalog marketplace publik MKT-04 tersedia lewat API:
 
@@ -147,7 +149,7 @@ src/
     index.ts                # Drizzle client (postgres-js)
     schema/core.ts          # 24 tabel: identity, org, market, merchant
     schema/catalog.ts       # 12 tabel: kategori, produk, varian, SKU, katalog
-    schema/commerce.ts      # 8 tabel: kanal, storefront, cart, checkout
+    schema/commerce.ts      # 17 tabel: kanal, storefront, cart, checkout, order, retur
     migrate.ts              # Migration runner
     seed.ts                 # Seed role/permission/reference
   lib/
@@ -172,12 +174,14 @@ src/
       reference.ts          # Kategori, brand, satuan, atribut
       products.ts           # Produk, varian, SKU, gambar, atribut
       collections.ts        # Katalog merchant & item katalog
-    commerce/               # Marketplace, cart, checkout (MKT-04)
+    commerce/               # Marketplace, cart, checkout, order (MKT-04/MKT-05)
       index.ts              # Mount route privat + auth
       public.ts             # Storefront & katalog publik tanpa login
       channels.ts           # Master sales channel
       storefronts.ts        # Storefront, produk storefront, channel listing
       carts.ts              # Alamat, cart, checkout session
+      orders.ts             # Konversi checkout, order, catatan, transaksi
+      returns.ts            # Pengajuan retur dan status retur
       shared.ts             # Helper harga, gambar, numeric
     reference.ts            # Master reference data
     audit.ts                # Audit log viewer
@@ -189,7 +193,8 @@ public/
 drizzle/                    # SQL migration hasil drizzle-kit
 docs/core-database.md       # Detail desain database core
 docs/catalog-database.md    # Detail desain database catalog
-docs/commerce-database.md   # Detail desain database commerce
+docs/commerce-database.md   # Detail desain database commerce (MKT-04)
+docs/order-database.md      # Detail desain database order & transaksi (MKT-05)
 ```
 
 ---
@@ -353,6 +358,17 @@ Base URL: `/api/v1`
 | POST | `/checkout` | `commerce:write` | Buat sesi checkout dari cart |
 | GET/PATCH | `/checkout/:id` | `commerce:read` / `commerce:write` | Detail / update kontak & alamat |
 | POST | `/checkout/:id/cancel` | `commerce:write` | Batalkan checkout |
+| POST | `/orders/from-checkout/:checkoutId` | `commerce:write` | Konversi checkout menjadi order per merchant |
+| GET | `/orders` | `commerce:read` | Daftar order sesuai akses customer/merchant |
+| GET | `/orders/:orderId` | `commerce:read` | Detail order, item, status, retur, transaksi |
+| PATCH | `/orders/:orderId/status` | `commerce:write` | Konfirmasi/proses/selesaikan order |
+| POST | `/orders/:orderId/cancel` | `commerce:write` | Batalkan order + catat alasan |
+| POST | `/orders/:orderId/notes` | `commerce:write` | Tambah catatan order |
+| POST | `/orders/:orderId/returns` | `commerce:write` | Ajukan retur |
+| GET | `/returns` | `commerce:read` | Daftar retur sesuai akses |
+| GET | `/returns/:returnId` | `commerce:read` | Detail retur + item |
+| PATCH | `/returns/:returnId/status` | `commerce:write` | Setujui/tolak/terima/selesaikan retur |
+| GET | `/transactions` | `commerce:read` | Ledger penjualan, pembatalan, retur |
 
 ### Marketplace publik — `/api/v1/commerce/marketplace`
 
@@ -447,17 +463,19 @@ Satu database PostgreSQL dengan schema logis:
 - `core` — identity, organization, market, merchant, store (24 tabel).
 - `catalog` — kategori, brand, produk, varian, SKU, gambar, atribut, katalog
   merchant (12 tabel).
-- `commerce` — sales channel, storefront, listing, alamat, cart, checkout
-  (8 tabel).
+- `commerce` — sales channel, storefront, listing, alamat, cart, checkout,
+  order, item, status history, catatan, pembatalan, retur, dan ledger
+  transaksi (17 tabel).
 - `governance` — `audit_logs` (1 tabel).
 
 Detail tabel, relasi, enum, dan keputusan desain ada di
 [`docs/core-database.md`](docs/core-database.md),
-[`docs/catalog-database.md`](docs/catalog-database.md), dan
-[`docs/commerce-database.md`](docs/commerce-database.md).
+[`docs/catalog-database.md`](docs/catalog-database.md),
+[`docs/commerce-database.md`](docs/commerce-database.md), dan
+[`docs/order-database.md`](docs/order-database.md).
 
 Migration SQL: `drizzle/0000_*.sql` (core), `drizzle/0001_*.sql` (catalog),
-dan `drizzle/0002_*.sql` (commerce).
+`drizzle/0002_*.sql` (commerce), dan `drizzle/0003_*.sql` (order).
 
 ---
 
@@ -474,7 +492,7 @@ dan `drizzle/0002_*.sql` (commerce).
 - Dashboard admin hanya menerima role dengan permission `*` atau `audit:read`
   (`platform_admin` / `market_admin`). Permission tetap ditegakkan di API.
 - Audit trail mencatat aksi penting (register, create/update market, merchant,
-  occupancy, store, organisasi).
+  occupancy, store, organisasi, checkout, order, pembatalan, dan retur).
 - Belum termasuk: email verification, MFA, refresh token, rate limiting.
   Semua ini masuk roadmap SYS-01/SYS-06.
 
@@ -482,19 +500,19 @@ dan `drizzle/0002_*.sql` (commerce).
 
 ## 9. Roadmap Modul Berikutnya
 
-**MKT-04 Marketplace & Omnichannel Commerce** sudah diimplementasikan
-(storefront, katalog publik, cart, checkout, channel listing) beserta menu
-Commerce di dashboard admin untuk memantau storefront dan kanal. Urutan
-berikutnya:
+**MKT-04 Marketplace & Omnichannel Commerce** dan **MKT-05 Order &
+Transaction Management** sudah diimplementasikan. MKT-04 mencakup storefront,
+katalog publik, cart, checkout, dan channel listing. MKT-05 mencakup konversi
+checkout menjadi order per merchant, status order, pembatalan, retur, dan
+ledger transaksi penjualan. Dashboard admin memiliki menu **Commerce** dan
+**Pesanan**. Urutan berikutnya:
 
-1. **MKT-05 Order & Transaction** — order, order items, status history, retur,
-   konversi checkout menjadi order.
-2. **MKT-06 Payment** — payment method/provider, transaksi, refund, settlement.
-3. **MKT-08 Inventory** — stok per lokasi, movement, opname, batch/expiry.
-4. **SCM-01/SCM-02 Supply Chain** — supplier, PR/PO, receiving, fulfillment.
-5. **MKT-12/MKT-13 Marketing & CRM** — campaign, voucher, loyalty, complaint.
-6. **2MD** — business performance/profile, proposal, funding, financing.
-7. **SYS-03/04/05/07/08** — integration, notification, config, AI, warehouse.
+1. **MKT-06 Payment** - payment method/provider, transaksi, refund, settlement.
+2. **MKT-08 Inventory** - stok per lokasi, movement, opname, batch/expiry.
+3. **SCM-01/SCM-02 Supply Chain** - supplier, PR/PO, receiving, fulfillment.
+4. **MKT-12/MKT-13 Marketing & CRM** - campaign, voucher, loyalty, complaint.
+5. **2MD** - business performance/profile, proposal, funding, financing.
+6. **SYS-03/04/05/07/08** - integration, notification, config, AI, warehouse.
 
 Schema PostgreSQL sudah disiapkan untuk ditambah per domain (`catalog`,
 `commerce`, `payment`, `inventory`, `supply_chain`, `marketing`, `business`,

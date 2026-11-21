@@ -16,12 +16,12 @@ import { productSkus, products } from './catalog';
 import { merchants, stores, users } from './core';
 
 /**
- * MKT-04 Marketplace & Omnichannel Commerce.
+ * MKT-04 Marketplace & Omnichannel Commerce dan MKT-05 Order & Transaction.
  *
  * Schema ini menyimpan kanal penjualan, storefront publik, katalog yang
  * ditampilkan di storefront, listing marketplace eksternal, alamat pelanggan,
- * keranjang, dan sesi checkout. Order/pembayaran berada di modul berikutnya
- * (MKT-05/MKT-06) dan akan mereferensikan checkout_session.
+ * keranjang, sesi checkout, pesanan, retur, dan ledger transaksi penjualan.
+ * Pembayaran dan refund tetap berada di MKT-06.
  */
 export const commerce = pgSchema('commerce');
 
@@ -76,6 +76,48 @@ export const addressTypeEnum = commerce.enum('address_type', [
   'home',
   'office',
   'other',
+]);
+
+export const orderStatusEnum = commerce.enum('order_status', [
+  'pending',
+  'confirmed',
+  'processing',
+  'completed',
+  'cancelled',
+  'returned',
+]);
+
+export const orderAddressTypeEnum = commerce.enum('order_address_type', [
+  'shipping',
+  'billing',
+]);
+
+export const orderNoteVisibilityEnum = commerce.enum('order_note_visibility', [
+  'internal',
+  'customer',
+]);
+
+export const returnStatusEnum = commerce.enum('return_status', [
+  'requested',
+  'approved',
+  'rejected',
+  'received',
+  'completed',
+  'cancelled',
+]);
+
+export const returnItemConditionEnum = commerce.enum('return_item_condition', [
+  'unopened',
+  'opened',
+  'damaged',
+  'defective',
+  'other',
+]);
+
+export const salesTransactionTypeEnum = commerce.enum('sales_transaction_type', [
+  'sale',
+  'cancellation',
+  'return',
 ]);
 
 /* ------------------------------------------------------------------ */
@@ -331,5 +373,286 @@ export const checkoutSessions = commerce.table(
     uniqueIndex('checkout_sessions_active_cart_uq')
       .on(t.cartId)
       .where(sql`status in ('draft', 'pending', 'ready')`),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
+/* Order & transaction (MKT-05)                                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Satu checkout dapat berisi produk dari beberapa merchant. Saat checkout
+ * dikonversi, order dipecah per merchant agar setiap merchant memiliki siklus
+ * status dan retur sendiri.
+ */
+export const orders = commerce.table(
+  'orders',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orderNumber: varchar('order_number', { length: 32 }).notNull(),
+    checkoutSessionId: uuid('checkout_session_id')
+      .notNull()
+      .references(() => checkoutSessions.id, { onDelete: 'restrict' }),
+    merchantId: uuid('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'restrict' }),
+    storefrontId: uuid('storefront_id').references(() => storefronts.id, {
+      onDelete: 'set null',
+    }),
+    salesChannelId: uuid('sales_channel_id').references(() => salesChannels.id, {
+      onDelete: 'set null',
+    }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    status: orderStatusEnum('status').default('pending').notNull(),
+    currency: varchar('currency', { length: 3 }).default('IDR').notNull(),
+    itemCount: integer('item_count').default(0).notNull(),
+    subtotal: numeric('subtotal', { precision: 16, scale: 2 }).default('0').notNull(),
+    discountTotal: numeric('discount_total', { precision: 16, scale: 2 }).default('0').notNull(),
+    shippingTotal: numeric('shipping_total', { precision: 16, scale: 2 }).default('0').notNull(),
+    grandTotal: numeric('grand_total', { precision: 16, scale: 2 }).default('0').notNull(),
+    contactName: varchar('contact_name', { length: 255 }),
+    contactPhone: varchar('contact_phone', { length: 32 }),
+    contactEmail: varchar('contact_email', { length: 255 }),
+    placedAt: timestamp('placed_at', { withTimezone: true }).defaultNow().notNull(),
+    confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+    processingAt: timestamp('processing_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    returnedAt: timestamp('returned_at', { withTimezone: true }),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [
+    uniqueIndex('orders_number_uq').on(t.orderNumber),
+    uniqueIndex('orders_checkout_merchant_uq').on(t.checkoutSessionId, t.merchantId),
+    index('orders_customer_idx').on(t.userId),
+    index('orders_merchant_idx').on(t.merchantId),
+    index('orders_storefront_idx').on(t.storefrontId),
+    index('orders_status_idx').on(t.status),
+    index('orders_placed_idx').on(t.placedAt),
+  ],
+);
+
+export const orderItems = commerce.table(
+  'order_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orderId: uuid('order_id')
+      .notNull()
+      .references(() => orders.id, { onDelete: 'cascade' }),
+    productId: uuid('product_id').references(() => products.id, { onDelete: 'set null' }),
+    skuId: uuid('sku_id').references(() => productSkus.id, { onDelete: 'set null' }),
+    storefrontProductId: uuid('storefront_product_id').references(
+      () => storefrontProducts.id,
+      { onDelete: 'set null' },
+    ),
+    storefrontId: uuid('storefront_id').references(() => storefronts.id, {
+      onDelete: 'set null',
+    }),
+    productName: varchar('product_name', { length: 255 }).notNull(),
+    productSlug: varchar('product_slug', { length: 255 }),
+    skuCode: varchar('sku_code', { length: 100 }),
+    quantity: integer('quantity').notNull(),
+    unitPrice: numeric('unit_price', { precision: 16, scale: 2 }).notNull(),
+    lineTotal: numeric('line_total', { precision: 16, scale: 2 }).notNull(),
+    currency: varchar('currency', { length: 3 }).default('IDR').notNull(),
+    itemSnapshot: jsonb('item_snapshot').$type<Record<string, unknown>>().notNull(),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [
+    index('order_items_order_idx').on(t.orderId),
+    index('order_items_product_idx').on(t.productId),
+    index('order_items_sku_idx').on(t.skuId),
+  ],
+);
+
+export const orderStatusHistories = commerce.table(
+  'order_status_histories',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orderId: uuid('order_id')
+      .notNull()
+      .references(() => orders.id, { onDelete: 'cascade' }),
+    fromStatus: orderStatusEnum('from_status'),
+    toStatus: orderStatusEnum('to_status').notNull(),
+    note: text('note'),
+    changedBy: uuid('changed_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt,
+  },
+  (t) => [
+    index('order_status_histories_order_idx').on(t.orderId),
+    index('order_status_histories_created_idx').on(t.createdAt),
+  ],
+);
+
+export const orderAddresses = commerce.table(
+  'order_addresses',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orderId: uuid('order_id')
+      .notNull()
+      .references(() => orders.id, { onDelete: 'cascade' }),
+    type: orderAddressTypeEnum('type').default('shipping').notNull(),
+    recipientName: varchar('recipient_name', { length: 255 }).notNull(),
+    phone: varchar('phone', { length: 32 }).notNull(),
+    addressLine1: text('address_line1').notNull(),
+    addressLine2: text('address_line2'),
+    city: varchar('city', { length: 128 }).notNull(),
+    province: varchar('province', { length: 128 }).notNull(),
+    postalCode: varchar('postal_code', { length: 16 }),
+    country: varchar('country', { length: 2 }).default('ID').notNull(),
+    latitude: numeric('latitude', { precision: 10, scale: 7 }),
+    longitude: numeric('longitude', { precision: 10, scale: 7 }),
+    createdAt,
+  },
+  (t) => [
+    index('order_addresses_order_idx').on(t.orderId),
+    uniqueIndex('order_addresses_order_type_uq').on(t.orderId, t.type),
+  ],
+);
+
+export const orderNotes = commerce.table(
+  'order_notes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orderId: uuid('order_id')
+      .notNull()
+      .references(() => orders.id, { onDelete: 'cascade' }),
+    authorUserId: uuid('author_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    visibility: orderNoteVisibilityEnum('visibility').default('internal').notNull(),
+    body: text('body').notNull(),
+    createdAt,
+  },
+  (t) => [
+    index('order_notes_order_idx').on(t.orderId),
+    index('order_notes_created_idx').on(t.createdAt),
+  ],
+);
+
+export const orderCancellations = commerce.table(
+  'order_cancellations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orderId: uuid('order_id')
+      .notNull()
+      .references(() => orders.id, { onDelete: 'cascade' }),
+    reason: text('reason').notNull(),
+    notes: text('notes'),
+    cancelledBy: uuid('cancelled_by').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    createdAt,
+  },
+  (t) => [
+    uniqueIndex('order_cancellations_order_uq').on(t.orderId),
+    index('order_cancellations_created_idx').on(t.createdAt),
+  ],
+);
+
+export const returns = commerce.table(
+  'returns',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    returnNumber: varchar('return_number', { length: 32 }).notNull(),
+    orderId: uuid('order_id')
+      .notNull()
+      .references(() => orders.id, { onDelete: 'cascade' }),
+    merchantId: uuid('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'restrict' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    status: returnStatusEnum('status').default('requested').notNull(),
+    reason: text('reason').notNull(),
+    resolutionNote: text('resolution_note'),
+    requestedBy: uuid('requested_by').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    reviewedBy: uuid('reviewed_by').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    requestedAt: timestamp('requested_at', { withTimezone: true }).defaultNow().notNull(),
+    approvedAt: timestamp('approved_at', { withTimezone: true }),
+    rejectedAt: timestamp('rejected_at', { withTimezone: true }),
+    receivedAt: timestamp('received_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [
+    uniqueIndex('returns_number_uq').on(t.returnNumber),
+    index('returns_order_idx').on(t.orderId),
+    index('returns_merchant_idx').on(t.merchantId),
+    index('returns_customer_idx').on(t.userId),
+    index('returns_status_idx').on(t.status),
+    index('returns_requested_idx').on(t.requestedAt),
+  ],
+);
+
+export const returnItems = commerce.table(
+  'return_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    returnId: uuid('return_id')
+      .notNull()
+      .references(() => returns.id, { onDelete: 'cascade' }),
+    orderItemId: uuid('order_item_id')
+      .notNull()
+      .references(() => orderItems.id, { onDelete: 'cascade' }),
+    quantity: integer('quantity').notNull(),
+    unitPrice: numeric('unit_price', { precision: 16, scale: 2 }).notNull(),
+    lineTotal: numeric('line_total', { precision: 16, scale: 2 }).notNull(),
+    condition: returnItemConditionEnum('condition').default('other').notNull(),
+    reason: text('reason'),
+    createdAt,
+  },
+  (t) => [
+    uniqueIndex('return_items_return_order_item_uq').on(t.returnId, t.orderItemId),
+    index('return_items_return_idx').on(t.returnId),
+    index('return_items_order_item_idx').on(t.orderItemId),
+  ],
+);
+
+/**
+ * Ledger penjualan sederhana untuk MKT-05. Ini bukan tabel pembayaran:
+ * `sale` mencatat nilai pesanan, `cancellation` dan `return` mencatat koreksi
+ * negatif. Settlement/refund tetap ditangani MKT-06.
+ */
+export const salesTransactions = commerce.table(
+  'sales_transactions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    transactionNumber: varchar('transaction_number', { length: 32 }).notNull(),
+    orderId: uuid('order_id')
+      .notNull()
+      .references(() => orders.id, { onDelete: 'cascade' }),
+    returnId: uuid('return_id').references(() => returns.id, { onDelete: 'set null' }),
+    merchantId: uuid('merchant_id')
+      .notNull()
+      .references(() => merchants.id, { onDelete: 'restrict' }),
+    type: salesTransactionTypeEnum('type').notNull(),
+    amount: numeric('amount', { precision: 16, scale: 2 }).notNull(),
+    currency: varchar('currency', { length: 3 }).default('IDR').notNull(),
+    description: text('description'),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).defaultNow().notNull(),
+    createdBy: uuid('created_by').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    createdAt,
+  },
+  (t) => [
+    uniqueIndex('sales_transactions_number_uq').on(t.transactionNumber),
+    uniqueIndex('sales_transactions_return_uq').on(t.returnId),
+    index('sales_transactions_order_idx').on(t.orderId),
+    index('sales_transactions_merchant_idx').on(t.merchantId),
+    index('sales_transactions_type_idx').on(t.type),
+    index('sales_transactions_occurred_idx').on(t.occurredAt),
   ],
 );

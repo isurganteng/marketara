@@ -1279,28 +1279,41 @@ svg {
 
 .status-active,
 .status-verified,
-.status-published {
+.status-published,
+.status-completed {
   color: #147052;
   background: #e5f6ed;
 }
 
 .status-planned,
 .status-draft,
-.status-pending_verification {
+.status-pending,
+.status-pending_verification,
+.status-processing,
+.status-requested {
   color: #9b6a13;
   background: #fcf3df;
 }
 
+.status-confirmed,
+.status-approved,
+.status-received {
+  color: #1f5f9e;
+  background: #e8f1fb;
+}
+
 .status-maintenance,
 .status-inactive,
-.status-suspended {
+.status-suspended,
+.status-returned {
   color: #6e6a5c;
   background: #f1f1e9;
 }
 
 .status-closed,
 .status-rejected,
-.status-archived {
+.status-archived,
+.status-cancelled {
   color: #a44848;
   background: #fbeceb;
 }

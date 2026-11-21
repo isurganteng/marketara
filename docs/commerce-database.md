@@ -5,9 +5,10 @@ Dokumen ini menjelaskan schema `commerce` yang menjadi fondasi modul
 penjualan, storefront publik, katalog yang tampil di storefront, listing
 marketplace eksternal, alamat pelanggan, keranjang, dan sesi checkout.
 
-Order, pembayaran, pengiriman, dan retur **belum** masuk modul ini. Entitas
-tersebut akan ditambahkan pada MKT-05/MKT-06 dan mereferensikan
-`commerce.checkout_sessions`.
+Order, item, status history, pembatalan, retur, dan ledger transaksi sudah
+diimplementasikan pada MKT-05 dan dijelaskan di
+[`order-database.md`](order-database.md). Pembayaran, refund, dan pengiriman
+belum masuk kedua modul ini dan akan ditambahkan pada MKT-06/MKT-09.
 
 - Schema PostgreSQL: `commerce`
 - Jumlah tabel: **8**

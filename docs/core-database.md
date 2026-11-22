@@ -319,12 +319,13 @@ Status modul lanjutan:
   [`catalog-database.md`](catalog-database.md).
 - **MKT-04** — sudah diimplementasikan di schema `commerce`; lihat
   [`commerce-database.md`](commerce-database.md).
-- **MKT-05** — kandidat tabel: `orders`, `order_items`,
-  `order_status_histories`, `order_addresses`, `order_notes`,
-  `order_cancellations`, `returns`, `return_items`, `sales_transactions`.
-- **MKT-06** — kandidat tabel: `payment_methods`, `payment_providers`,
-  `payment_transactions`, `payment_attempts`, `refunds`, `settlements`,
-  `reconciliations`.
+- **MKT-05** — sudah diimplementasikan di schema `commerce`; lihat
+  [`order-database.md`](order-database.md).
+- **MKT-06** — sudah diimplementasikan di schema `payment` dengan tabel
+  `payment_providers`, `payment_methods`, `merchant_payment_accounts`,
+  `payments`, `payment_attempts`, `payment_events`, `refunds`, `settlements`,
+  `settlement_items`, dan `reconciliations`; lihat
+  [`payment-database.md`](payment-database.md).
 - **MKT-08** — kandidat tabel: `warehouses`, `warehouse_locations`,
   `inventory_items`, `stock_balances`, `stock_movements`, `stock_counts`,
   `inventory_batches`.

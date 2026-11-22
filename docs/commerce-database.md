@@ -7,8 +7,10 @@ marketplace eksternal, alamat pelanggan, keranjang, dan sesi checkout.
 
 Order, item, status history, pembatalan, retur, dan ledger transaksi sudah
 diimplementasikan pada MKT-05 dan dijelaskan di
-[`order-database.md`](order-database.md). Pembayaran, refund, dan pengiriman
-belum masuk kedua modul ini dan akan ditambahkan pada MKT-06/MKT-09.
+[`order-database.md`](order-database.md). Pembayaran dan refund
+diimplementasikan pada MKT-06 dan dijelaskan di
+[`payment-database.md`](payment-database.md). Pengiriman dan fulfillment
+belum masuk modul ini dan akan ditambahkan pada MKT-09.
 
 - Schema PostgreSQL: `commerce`
 - Jumlah tabel: **8**
@@ -336,8 +338,9 @@ curl -X POST http://localhost:3000/api/v1/commerce/checkout \
 - Total checkout dihitung ulang dari harga terbaru; cart item diperbarui.
 - Sesi checkout aktif lama otomatis dibatalkan saat checkout baru dibuat untuk
   cart yang sama.
-- Belum ada pemotongan stok, pembuatan order, pembayaran, ongkir, atau
-  penjualan POS. Itu batas MKT-05/MKT-06/MKT-07/MKT-08.
+- Belum ada pemotongan stok, ongkir, atau penjualan POS. Order dan pembayaran
+  ditangani modul terpisah (MKT-05 dan MKT-06). Batas berikutnya adalah
+  MKT-07/MKT-08.
 
 ---
 

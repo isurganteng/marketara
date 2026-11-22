@@ -3,6 +3,8 @@ import { client, db } from './index';
 import {
   merchantCategories,
   organizationTypes,
+  paymentMethods,
+  paymentProviders,
   permissions as permissionsTable,
   rolePermissions,
   roles,
@@ -44,6 +46,13 @@ const PERMISSIONS: PermissionSeed[] = [
   { code: 'commerce:read', name: 'View storefronts, carts, and checkout', module: 'commerce' },
   { code: 'commerce:write', name: 'Manage own storefronts, carts, and checkout', module: 'commerce' },
   { code: 'commerce:manage', name: 'Manage sales channels and commerce settings', module: 'commerce' },
+  { code: 'payment:read', name: 'View payments and refunds', module: 'payment' },
+  { code: 'payment:write', name: 'Create payments and manage refunds/settlements', module: 'payment' },
+  {
+    code: 'payment:manage',
+    name: 'Manage payment providers, methods, and reconciliation',
+    module: 'payment',
+  },
   { code: 'audit:read', name: 'View audit logs', module: 'governance' },
 ];
 
@@ -57,6 +66,8 @@ const MEMBER_PERMISSIONS = [
   'catalog:write',
   'commerce:read',
   'commerce:write',
+  'payment:read',
+  'payment:write',
   'organization:read',
   'organization:write',
   'organization:member:manage',
@@ -84,6 +95,7 @@ const ROLE_SEEDS: Array<{ code: string; name: string; description: string; permi
       'catalog:manage',
       'commerce:read',
       'commerce:manage',
+      'payment:read',
       'organization:read',
       'audit:read',
     ],
@@ -113,6 +125,70 @@ const MERCHANT_CATEGORIES = [
   { code: 'handicraft', name: 'Kerajinan' },
   { code: 'health_beauty', name: 'Kesehatan & Kecantikan' },
   { code: 'other', name: 'Lainnya' },
+];
+
+const PAYMENT_PROVIDERS = [
+  {
+    code: 'simulator',
+    name: 'Simulator Gateway',
+    type: 'gateway' as const,
+    description:
+      'Gateway pembayaran lokal untuk pengembangan. Konfirmasi pembayaran dilakukan melalui endpoint simulasi.',
+    sortOrder: 0,
+  },
+];
+
+const PAYMENT_METHODS = [
+  {
+    providerCode: 'simulator',
+    code: 'qris',
+    name: 'QRIS',
+    type: 'qris' as const,
+    description: 'Pembayaran QRIS melalui aplikasi bank atau e-wallet.',
+    feeFlat: '0',
+    feePercent: '0.70',
+    sortOrder: 0,
+  },
+  {
+    providerCode: 'simulator',
+    code: 'ewallet',
+    name: 'E-Wallet',
+    type: 'ewallet' as const,
+    description: 'GoPay, OVO, DANA, ShopeePay, dan e-wallet lain.',
+    feeFlat: '0',
+    feePercent: '1.50',
+    sortOrder: 10,
+  },
+  {
+    providerCode: 'simulator',
+    code: 'bank_transfer',
+    name: 'Transfer Bank',
+    type: 'bank_transfer' as const,
+    description: 'Transfer manual ke rekening merchant dengan verifikasi admin.',
+    feeFlat: '0',
+    feePercent: '0',
+    sortOrder: 20,
+  },
+  {
+    providerCode: 'simulator',
+    code: 'virtual_account',
+    name: 'Virtual Account',
+    type: 'virtual_account' as const,
+    description: 'Nomor virtual account per pembayaran.',
+    feeFlat: '4000',
+    feePercent: '0',
+    sortOrder: 30,
+  },
+  {
+    providerCode: 'simulator',
+    code: 'cash',
+    name: 'Tunai',
+    type: 'cash' as const,
+    description: 'Pembayaran tunai di toko atau titik serah.',
+    feeFlat: '0',
+    feePercent: '0',
+    sortOrder: 40,
+  },
 ];
 
 const SALES_CHANNELS = [
@@ -171,6 +247,49 @@ async function main() {
         sortOrder: sql`excluded.sort_order`,
       },
     });
+
+  await db
+    .insert(paymentProviders)
+    .values(PAYMENT_PROVIDERS)
+    .onConflictDoUpdate({
+      target: paymentProviders.code,
+      set: {
+        name: sql`excluded.name`,
+        type: sql`excluded.type`,
+        description: sql`excluded.description`,
+        sortOrder: sql`excluded.sort_order`,
+      },
+    });
+
+  const providerRows = await db.select().from(paymentProviders);
+  const providerIdByCode = new Map(providerRows.map((row) => [row.code, row.id]));
+  for (const method of PAYMENT_METHODS) {
+    const providerId = providerIdByCode.get(method.providerCode);
+    if (!providerId) continue;
+    await db
+      .insert(paymentMethods)
+      .values({
+        providerId,
+        code: method.code,
+        name: method.name,
+        type: method.type,
+        description: method.description,
+        feeFlat: method.feeFlat,
+        feePercent: method.feePercent,
+        sortOrder: method.sortOrder,
+      })
+      .onConflictDoUpdate({
+        target: [paymentMethods.providerId, paymentMethods.code],
+        set: {
+          name: sql`excluded.name`,
+          type: sql`excluded.type`,
+          description: sql`excluded.description`,
+          feeFlat: sql`excluded.fee_flat`,
+          feePercent: sql`excluded.fee_percent`,
+          sortOrder: sql`excluded.sort_order`,
+        },
+      });
+  }
 
   await db
     .insert(permissionsTable)

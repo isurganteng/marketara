@@ -5,9 +5,10 @@ Transaction Management**. Modul ini mengubah sesi checkout menjadi pesanan,
 mengelola item, status, alamat, catatan, pembatalan, retur, dan ledger
 transaksi penjualan.
 
-Pembayaran, refund, settlement, pengiriman, dan fulfillment **belum** masuk
-modul ini. Entitas tersebut akan ditambahkan pada MKT-06/MKT-09 dan
-mereferensikan `commerce.orders`.
+Pembayaran, refund, dan settlement berada di schema `payment` pada modul
+MKT-06 dan dijelaskan di [`payment-database.md`](payment-database.md).
+Pengiriman dan fulfillment **belum** masuk modul ini dan akan ditambahkan pada
+MKT-09 dengan mereferensikan `commerce.orders`.
 
 - Schema PostgreSQL: `commerce`
 - Tabel baru: **9**

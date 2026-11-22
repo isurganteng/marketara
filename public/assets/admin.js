@@ -9,6 +9,7 @@ const VIEW_TITLES = {
   products: 'Produk',
   commerce: 'Commerce',
   orders: 'Pesanan',
+  payments: 'Pembayaran',
   audit: 'Audit log',
 };
 
@@ -42,6 +43,12 @@ const STATUS_LABELS = {
   completed: 'Selesai',
   returned: 'Dikembalikan',
   expired: 'Kedaluwarsa',
+  authorized: 'Diotorisasi',
+  paid: 'Lunas',
+  failed: 'Gagal',
+  partially_refunded: 'Refund sebagian',
+  refunded: 'Direfund',
+  discrepancy: 'Selisih',
 };
 
 const STATUS_COLORS = {
@@ -84,6 +91,21 @@ const ACTION_LABELS = {
   'order.note.create': 'Catatan pesanan ditambahkan',
   'return.create': 'Pengajuan retur dibuat',
   'return.status.update': 'Status retur diperbarui',
+  'payment.create': 'Pembayaran dibuat',
+  'payment.retry': 'Percobaan pembayaran diulang',
+  'payment.confirm': 'Pembayaran dikonfirmasi',
+  'payment.cancel': 'Pembayaran dibatalkan',
+  'payment_provider.create': 'Provider pembayaran dibuat',
+  'payment_provider.update': 'Provider pembayaran diperbarui',
+  'payment_method.create': 'Metode pembayaran dibuat',
+  'payment_method.update': 'Metode pembayaran diperbarui',
+  'payment_account.create': 'Akun pembayaran merchant dibuat',
+  'payment_account.update': 'Akun pembayaran merchant diperbarui',
+  'refund.create': 'Refund diajukan',
+  'refund.status.update': 'Status refund diperbarui',
+  'settlement.create': 'Settlement dibuat',
+  'settlement.status.update': 'Status settlement diperbarui',
+  'reconciliation.create': 'Rekonsiliasi dibuat',
   'organization.create': 'Organisasi baru dibuat',
   'occupancy.create': 'Okupansi unit dibuat',
   'occupancy.end': 'Okupansi unit diakhiri',
@@ -106,6 +128,13 @@ const ENTITY_LABELS = {
   order: 'Pesanan',
   return: 'Retur',
   sales_transaction: 'Transaksi penjualan',
+  payment: 'Pembayaran',
+  payment_provider: 'Provider pembayaran',
+  payment_method: 'Metode pembayaran',
+  payment_account: 'Akun pembayaran',
+  refund: 'Refund',
+  settlement: 'Settlement',
+  reconciliation: 'Rekonsiliasi',
 };
 
 const state = {
@@ -118,17 +147,30 @@ const state = {
   products: null,
   commerce: null,
   orders: null,
+  payments: null,
   audit: null,
   pendingCount: 0,
   canWriteCommerce: false,
   canManageCommerce: false,
-  sequences: { overview: 0, markets: 0, merchants: 0, products: 0, commerce: 0, orders: 0, audit: 0 },
+  canWritePayments: false,
+  canManagePayments: false,
+  sequences: {
+    overview: 0,
+    markets: 0,
+    merchants: 0,
+    products: 0,
+    commerce: 0,
+    orders: 0,
+    payments: 0,
+    audit: 0,
+  },
   filters: {
     markets: { search: '', status: '' },
     merchants: { search: '', status: '' },
     products: { search: '', status: '' },
     commerce: { search: '', status: '' },
     orders: { search: '', status: '' },
+    payments: { search: '', status: '' },
     audit: { search: '', entityType: '' },
   },
 };
@@ -404,14 +446,32 @@ function applyProfile(profile) {
 
   const permissions = Array.isArray(profile.permissions) ? profile.permissions : [];
   const canCommerce = permissions.includes('*') || permissions.includes('commerce:read');
+  const canPayments = permissions.includes('*') || permissions.includes('payment:read');
   state.canWriteCommerce = permissions.includes('*') || permissions.includes('commerce:write');
   state.canManageCommerce = permissions.includes('*') || permissions.includes('commerce:manage');
+  state.canWritePayments = permissions.includes('*') || permissions.includes('payment:write');
+  state.canManagePayments = permissions.includes('*') || permissions.includes('payment:manage');
   const commerceNav = $('[data-view="commerce"]');
   if (commerceNav) commerceNav.hidden = !canCommerce;
   const ordersNav = $('[data-view="orders"]');
   if (ordersNav) ordersNav.hidden = !canCommerce;
+  const paymentsNav = $('[data-view="payments"]');
+  if (paymentsNav) paymentsNav.hidden = !canPayments;
   const createChannelButton = $('#create-channel-button');
   if (createChannelButton) createChannelButton.hidden = !state.canManageCommerce;
+
+  const createSettlementButton = $('#create-settlement-button');
+  if (createSettlementButton) createSettlementButton.hidden = !state.canWritePayments;
+  const createMethodButton = $('#create-payment-method-button');
+  if (createMethodButton) createMethodButton.hidden = !state.canManagePayments;
+  const createProviderButton = $('#create-payment-provider-button');
+  if (createProviderButton) createProviderButton.hidden = !state.canManagePayments;
+  const createReconciliationButton = $('#create-reconciliation-button');
+  if (createReconciliationButton) {
+    createReconciliationButton.hidden = !state.canManagePayments;
+  }
+  const reconciliationPanel = $('#reconciliation-panel');
+  if (reconciliationPanel) reconciliationPanel.hidden = !state.canManagePayments;
 
   const hour = new Date().getHours();
   const greeting =
@@ -528,6 +588,7 @@ function loadView(view) {
   if (view === 'products') return loadProducts();
   if (view === 'commerce') return loadCommerce();
   if (view === 'orders') return loadOrders();
+  if (view === 'payments') return loadPayments();
   if (view === 'audit') return loadAudit();
   return undefined;
 }
@@ -2015,6 +2076,1069 @@ function renderOrders() {
   }
 }
 
+/* ------------------------------- Payments ----------------------------- */
+
+const PAYMENT_METHOD_TYPE_LABELS = {
+  qris: 'QRIS',
+  ewallet: 'E-wallet',
+  bank_transfer: 'Transfer bank',
+  virtual_account: 'Virtual account',
+  credit_card: 'Kartu kredit',
+  cash: 'Tunai',
+  other: 'Lainnya',
+};
+
+const PAYMENT_EVENT_LABELS = {
+  created: 'Dibuat',
+  authorized: 'Diotorisasi',
+  paid: 'Lunas',
+  failed: 'Gagal',
+  expired: 'Kedaluwarsa',
+  cancelled: 'Dibatalkan',
+  refund: 'Refund',
+  settlement: 'Settlement',
+  callback: 'Callback',
+  other: 'Lainnya',
+};
+
+const REFUND_NEXT_ACTIONS = {
+  requested: [
+    ['approved', 'Setujui'],
+    ['rejected', 'Tolak'],
+    ['cancelled', 'Batalkan'],
+  ],
+  approved: [
+    ['processing', 'Proses'],
+    ['cancelled', 'Batalkan'],
+  ],
+  processing: [
+    ['completed', 'Selesaikan'],
+    ['failed', 'Tandai gagal'],
+  ],
+  failed: [
+    ['processing', 'Proses ulang'],
+    ['cancelled', 'Batalkan'],
+  ],
+};
+
+const SETTLEMENT_NEXT_ACTIONS = {
+  draft: [
+    ['pending', 'Ajukan'],
+    ['cancelled', 'Batalkan'],
+  ],
+  pending: [
+    ['processing', 'Proses'],
+    ['cancelled', 'Batalkan'],
+  ],
+  processing: [
+    ['completed', 'Selesaikan'],
+    ['cancelled', 'Batalkan'],
+  ],
+};
+
+function dateTimeLocalValue(value) {
+  const date = value ? new Date(value) : new Date();
+  const pad = (number) => String(number).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+async function loadPayments(force = false) {
+  const sequence = ++state.sequences.payments;
+  const filters = state.filters.payments;
+
+  if (!state.payments || force) {
+    $('#payments-table').innerHTML = tableLoading(5);
+    $('#refunds-table').innerHTML = tableLoading(3);
+    $('#settlements-table').innerHTML = tableLoading(3);
+    $('#reconciliations-table').innerHTML = tableLoading(3);
+    $('#payment-methods-table').innerHTML = tableLoading(3);
+  }
+  $('#payment-count').textContent = 'Memuat...';
+  setSpinner('#refresh-payments', true);
+
+  try {
+    const [payments, refunds, settlements, reconciliations, methods, providers] =
+      await Promise.all([
+        api(
+          `/payments${buildQuery({
+            page: 1,
+            limit: 100,
+            search: filters.search,
+            status: filters.status,
+          })}`,
+        ),
+        api('/payments/refunds?page=1&limit=100'),
+        api('/payments/settlements?page=1&limit=100'),
+        state.canManagePayments
+          ? api('/payments/reconciliations?page=1&limit=100')
+          : Promise.resolve({ data: [], meta: { total: 0 } }),
+        api('/payments/methods?page=1&limit=100'),
+        api('/payments/providers?page=1&limit=100'),
+      ]);
+    if (sequence !== state.sequences.payments) return;
+    state.payments = {
+      payments,
+      refunds,
+      settlements,
+      reconciliations,
+      methods,
+      providers,
+    };
+    renderPayments();
+  } catch (error) {
+    if (sequence !== state.sequences.payments) return;
+    $('#payment-count').textContent = 'Gagal memuat';
+    for (const selector of [
+      '#payments-table',
+      '#refunds-table',
+      '#settlements-table',
+      '#reconciliations-table',
+      '#payment-methods-table',
+    ]) {
+      $(selector).innerHTML = errorState(error.message, 'data-retry-payments');
+    }
+  } finally {
+    if (sequence === state.sequences.payments) setSpinner('#refresh-payments', false);
+  }
+}
+
+function renderPayments() {
+  const data = state.payments;
+  if (!data) return;
+
+  const payments = data.payments.data ?? [];
+  const refunds = data.refunds.data ?? [];
+  const settlements = data.settlements.data ?? [];
+  const reconciliations = data.reconciliations.data ?? [];
+  const methods = data.methods.data ?? [];
+  const totalPayments = Number(data.payments.meta?.total ?? payments.length);
+  const paidCount = payments.filter((row) => row.status === 'paid').length;
+
+  $('#payment-count').textContent = `${formatNumber(totalPayments)} pembayaran`;
+  const paidBadge = $('#payment-paid-badge');
+  if (paidBadge) {
+    paidBadge.hidden = payments.length === 0;
+    paidBadge.textContent = `${formatNumber(paidCount)} lunas`;
+  }
+  const setBadge = (selector, count, label) => {
+    const badge = $(selector);
+    if (badge) {
+      badge.hidden = count === 0;
+      badge.textContent = `${formatNumber(count)} ${label}`;
+    }
+  };
+  setBadge('#refund-count-badge', Number(data.refunds.meta?.total ?? refunds.length), 'refund');
+  setBadge(
+    '#settlement-count-badge',
+    Number(data.settlements.meta?.total ?? settlements.length),
+    'settlement',
+  );
+  setBadge(
+    '#reconciliation-count-badge',
+    Number(data.reconciliations.meta?.total ?? reconciliations.length),
+    'rekonsiliasi',
+  );
+  setBadge(
+    '#payment-method-count-badge',
+    Number(data.methods.meta?.total ?? methods.length),
+    'metode',
+  );
+
+  if (!payments.length) {
+    $('#payments-table').innerHTML = emptyState(
+      'Belum ada pembayaran',
+      state.filters.payments.search || state.filters.payments.status
+        ? 'Coba ubah kata kunci atau filter status.'
+        : 'Pembayaran muncul setelah dibuat dari pesanan.',
+    );
+  } else {
+    $('#payments-table').innerHTML = `
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Pembayaran</th>
+              <th>Pesanan / pelanggan</th>
+              <th>Metode</th>
+              <th>Nominal</th>
+              <th>Status</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${payments
+              .map(
+                (row) => `
+                  <tr>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.paymentNumber)}</div>
+                      <div class="cell-muted">${escapeHtml(formatDateTime(row.createdAt))}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.orderNumber)}</div>
+                      <div class="cell-muted">${escapeHtml(row.customerName ?? row.merchantName ?? '-')}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.methodName ?? '-')}</div>
+                      <div class="cell-muted">${escapeHtml(row.providerName ?? '-')}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(formatMoney(row.amount, row.currency))}</div>
+                      <div class="cell-muted">Biaya ${escapeHtml(formatMoney(row.feeAmount, row.currency))}</div>
+                    </td>
+                    <td>${statusBadge(row.status)}</td>
+                    <td>
+                      <div class="row-actions">
+                        <button class="action-link" type="button" data-payment-detail="${escapeHtml(row.id)}">
+                          ${icon('arrow-right')} Detail
+                        </button>
+                        ${
+                          state.canWritePayments && ['pending', 'authorized'].includes(row.status)
+                            ? `<button class="action-link" type="button" data-payment-confirm="${escapeHtml(row.id)}" data-payment-number="${escapeHtml(row.paymentNumber)}">Lunas</button>`
+                            : ''
+                        }
+                      </div>
+                    </td>
+                  </tr>
+                `,
+              )
+              .join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  if (!refunds.length) {
+    $('#refunds-table').innerHTML = emptyState(
+      'Belum ada refund',
+      'Refund untuk pembayaran lunas akan tampil di sini.',
+    );
+  } else {
+    $('#refunds-table').innerHTML = `
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Refund</th><th>Pembayaran</th><th>Pedagang</th><th>Nominal</th><th>Status</th><th>Aksi</th></tr></thead>
+          <tbody>
+            ${refunds
+              .map(
+                (row) => `
+                  <tr>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.refundNumber)}</div>
+                      <div class="cell-muted">${escapeHtml(formatDateTime(row.requestedAt))}</div>
+                    </td>
+                    <td>${escapeHtml(row.paymentNumber)}</td>
+                    <td>${escapeHtml(row.merchantName ?? '-')}</td>
+                    <td>${escapeHtml(formatMoney(row.amount, row.currency))}</td>
+                    <td>${statusBadge(row.status)}</td>
+                    <td>
+                      <button class="action-link" type="button" data-refund-detail="${escapeHtml(row.id)}">
+                        ${icon('arrow-right')} Detail
+                      </button>
+                    </td>
+                  </tr>
+                `,
+              )
+              .join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  if (!settlements.length) {
+    $('#settlements-table').innerHTML = emptyState(
+      'Belum ada settlement',
+      'Settlement dibuat dari pembayaran lunas pada periode tertentu.',
+    );
+  } else {
+    $('#settlements-table').innerHTML = `
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Settlement</th><th>Pedagang</th><th>Periode</th><th>Net</th><th>Status</th><th>Aksi</th></tr></thead>
+          <tbody>
+            ${settlements
+              .map(
+                (row) => `
+                  <tr>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.settlementNumber)}</div>
+                      <div class="cell-muted">${formatNumber(row.paymentCount)} pembayaran</div>
+                    </td>
+                    <td>${escapeHtml(row.merchantName ?? '-')}</td>
+                    <td>${escapeHtml(formatDate(row.periodStart))} - ${escapeHtml(formatDate(row.periodEnd))}</td>
+                    <td>${escapeHtml(formatMoney(row.netAmount, row.currency))}</td>
+                    <td>${statusBadge(row.status)}</td>
+                    <td>
+                      <button class="action-link" type="button" data-settlement-detail="${escapeHtml(row.id)}">
+                        ${icon('arrow-right')} Detail
+                      </button>
+                    </td>
+                  </tr>
+                `,
+              )
+              .join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  if (state.canManagePayments) {
+    if (!reconciliations.length) {
+      $('#reconciliations-table').innerHTML = emptyState(
+        'Belum ada rekonsiliasi',
+        'Buat rekonsiliasi untuk membandingkan pembayaran internal dengan data provider.',
+      );
+    } else {
+      $('#reconciliations-table').innerHTML = `
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Rekonsiliasi</th><th>Provider</th><th>Periode</th><th>Selisih</th><th>Status</th><th>Aksi</th></tr></thead>
+            <tbody>
+              ${reconciliations
+                .map(
+                  (row) => `
+                    <tr>
+                      <td>
+                        <div class="cell-title">${escapeHtml(row.reconciliationNumber)}</div>
+                        <div class="cell-muted">${escapeHtml(formatDateTime(row.createdAt))}</div>
+                      </td>
+                      <td>${escapeHtml(row.providerName ?? '-')}</td>
+                      <td>${escapeHtml(formatDate(row.periodStart))} - ${escapeHtml(formatDate(row.periodEnd))}</td>
+                      <td>${escapeHtml(formatMoney(row.differenceAmount, row.currency))}</td>
+                      <td>${statusBadge(row.status)}</td>
+                      <td>
+                        <button class="action-link" type="button" data-reconciliation-detail="${escapeHtml(row.id)}">
+                          ${icon('arrow-right')} Detail
+                        </button>
+                      </td>
+                    </tr>
+                  `,
+                )
+                .join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+  }
+
+  if (!methods.length) {
+    $('#payment-methods-table').innerHTML = emptyState(
+      'Belum ada metode pembayaran',
+      'Tambahkan provider dan metode pembayaran untuk mulai menerima pembayaran.',
+    );
+  } else {
+    $('#payment-methods-table').innerHTML = `
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Metode</th><th>Provider</th><th>Tipe</th><th>Biaya</th><th>Status</th><th>Aksi</th></tr></thead>
+          <tbody>
+            ${methods
+              .map(
+                (row) => `
+                  <tr>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.name)}</div>
+                      <div class="cell-muted">${escapeHtml(row.code)}</div>
+                    </td>
+                    <td>${escapeHtml(row.providerName ?? '-')}</td>
+                    <td>${escapeHtml(PAYMENT_METHOD_TYPE_LABELS[row.type] ?? row.type)}</td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(formatMoney(row.feeFlat, 'IDR'))}</div>
+                      <div class="cell-muted">${escapeHtml(String(row.feePercent ?? '0'))}%</div>
+                    </td>
+                    <td>${statusBadge(row.status)}</td>
+                    <td>
+                      ${
+                        state.canManagePayments
+                          ? `<button class="action-link" type="button" data-payment-method-toggle="${escapeHtml(row.id)}" data-next-status="${row.status === 'active' ? 'inactive' : 'active'}" data-method-name="${escapeHtml(row.name)}">${row.status === 'active' ? 'Nonaktifkan' : 'Aktifkan'}</button>`
+                          : '<span class="cell-muted">-</span>'
+                      }
+                    </td>
+                  </tr>
+                `,
+              )
+              .join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+}
+
+function paymentActionButtons(payment) {
+  if (!state.canWritePayments) return '';
+  const actions = [];
+  if (['pending', 'authorized'].includes(payment.status)) {
+    actions.push(
+      `<button class="button button-primary" type="button" data-payment-confirm="${escapeHtml(payment.id)}" data-payment-number="${escapeHtml(payment.paymentNumber)}">Tandai lunas</button>`,
+    );
+    actions.push(
+      `<button class="button button-ghost" type="button" data-payment-cancel="${escapeHtml(payment.id)}" data-payment-number="${escapeHtml(payment.paymentNumber)}">Batalkan</button>`,
+    );
+  }
+  if (['failed', 'expired', 'cancelled'].includes(payment.status)) {
+    actions.push(
+      `<button class="button button-primary" type="button" data-payment-retry="${escapeHtml(payment.id)}" data-payment-number="${escapeHtml(payment.paymentNumber)}">Coba lagi</button>`,
+    );
+  }
+  if (['paid', 'partially_refunded'].includes(payment.status)) {
+    actions.push(
+      `<button class="button button-primary" type="button" data-payment-refund="${escapeHtml(payment.id)}" data-payment-amount="${escapeHtml(payment.amount)}" data-payment-refunded="${escapeHtml(payment.amountRefunded)}" data-payment-currency="${escapeHtml(payment.currency)}">Buat refund</button>`,
+    );
+  }
+  return actions.join('');
+}
+
+async function openPaymentDetail(paymentId) {
+  openModal({
+    title: 'Detail pembayaran',
+    kicker: 'Payment',
+    subtitle: 'Memuat informasi pembayaran...',
+    body: tableLoading(5),
+  });
+
+  try {
+    const result = await api(`/payments/${paymentId}`);
+    const payment = result.data;
+    const attempts = payment.attempts ?? [];
+    const events = payment.events ?? [];
+    const refunds = payment.refunds ?? [];
+
+    const attemptsTable = attempts.length
+      ? `
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Percobaan</th><th>Status</th><th>Reference</th><th>Waktu</th></tr></thead>
+            <tbody>
+              ${attempts
+                .map(
+                  (row) => `
+                    <tr>
+                      <td>#${formatNumber(row.attemptNumber)}</td>
+                      <td>${statusBadge(row.status)}</td>
+                      <td><span class="cell-code">${escapeHtml(row.providerReference ?? '-')}</span></td>
+                      <td>${escapeHtml(formatDateTime(row.createdAt))}</td>
+                    </tr>
+                  `,
+                )
+                .join('')}
+            </tbody>
+          </table>
+        </div>`
+      : '<p class="cell-muted">Belum ada percobaan pembayaran.</p>';
+
+    const eventsBlock = events.length
+      ? `<div class="detail-list">${events
+          .map(
+            (row) =>
+              detailRow(
+                formatDateTime(row.createdAt),
+                `${escapeHtml(PAYMENT_EVENT_LABELS[row.eventType] ?? row.eventType)}${row.note ? ` - ${escapeHtml(row.note)}` : ''}`,
+              ),
+          )
+          .join('')}</div>`
+      : '<p class="cell-muted">Belum ada event pembayaran.</p>';
+
+    const refundsBlock = refunds.length
+      ? `<div class="detail-list">${refunds
+          .map(
+            (row) =>
+              detailRow(
+                row.refundNumber,
+                `${statusBadge(row.status)} - ${escapeHtml(formatMoney(row.amount, payment.currency))} - ${escapeHtml(formatDateTime(row.requestedAt))}`,
+              ),
+          )
+          .join('')}</div>`
+      : '<p class="cell-muted">Belum ada refund.</p>';
+
+    openModal({
+      title: payment.paymentNumber,
+      kicker: 'Detail pembayaran',
+      subtitle: `${payment.merchantName ?? 'Pedagang'} - ${formatDateTime(payment.createdAt)}`,
+      wide: true,
+      body: `
+        <dl class="detail-list">
+          ${detailRow('Status', statusBadge(payment.status))}
+          ${detailRow('Pesanan', `${escapeHtml(payment.orderNumber ?? '-')} (${escapeHtml(statusLabel(payment.orderStatus))})`)}
+          ${detailRow('Pelanggan', escapeHtml(payment.customerName ?? '-'))}
+          ${detailRow('Kontak', `${escapeHtml(payment.customerPhone ?? '-')} ${payment.customerEmail ? `- ${escapeHtml(payment.customerEmail)}` : ''}`)}
+          ${detailRow('Metode', `${escapeHtml(payment.methodName ?? '-')} - ${escapeHtml(payment.providerName ?? '-')}`)}
+          ${detailRow('Nominal', escapeHtml(formatMoney(payment.amount, payment.currency)))}
+          ${detailRow('Biaya / net', `${escapeHtml(formatMoney(payment.feeAmount, payment.currency))} / ${escapeHtml(formatMoney(payment.netAmount, payment.currency))}`)}
+          ${detailRow('Dibayar / refund', `${escapeHtml(formatMoney(payment.amountPaid, payment.currency))} / ${escapeHtml(formatMoney(payment.amountRefunded, payment.currency))}`)}
+          ${detailRow('Kedaluwarsa', escapeHtml(formatDateTime(payment.expiresAt)))}
+          ${detailRow('Reference', escapeHtml(payment.externalReference ?? '-'))}
+          ${payment.failureReason ? detailRow('Catatan gagal', escapeHtml(payment.failureReason)) : ''}
+        </dl>
+        <div class="panel-header" style="margin-top:24px"><div><p class="panel-kicker">Gateway</p><h3>Percobaan pembayaran</h3></div></div>
+        ${attemptsTable}
+        <div class="panel-header" style="margin-top:24px"><div><p class="panel-kicker">Timeline</p><h3>Event pembayaran</h3></div></div>
+        ${eventsBlock}
+        <div class="panel-header" style="margin-top:24px"><div><p class="panel-kicker">Refund</p><h3>Refund terkait</h3></div></div>
+        ${refundsBlock}
+      `,
+      footer: `<button class="button button-ghost" type="button" data-modal-close>Tutup</button>${paymentActionButtons(payment)}`,
+    });
+  } catch (error) {
+    showToast('Gagal memuat pembayaran', error.message, 'error');
+    closeModal();
+  }
+}
+
+async function confirmPayment(paymentId, paymentNumber) {
+  try {
+    await api(`/payments/${paymentId}/confirm`, {
+      method: 'POST',
+      body: { status: 'succeeded' },
+    });
+    closeModal();
+    showToast('Pembayaran lunas', `${paymentNumber} berhasil dikonfirmasi.`);
+    await loadPayments(true);
+  } catch (error) {
+    showToast('Gagal mengonfirmasi pembayaran', error.message, 'error');
+  }
+}
+
+async function cancelPayment(paymentId, paymentNumber) {
+  try {
+    await api(`/payments/${paymentId}/cancel`, {
+      method: 'POST',
+      body: { note: 'Dibatalkan dari dashboard admin' },
+    });
+    closeModal();
+    showToast('Pembayaran dibatalkan', `${paymentNumber} telah dibatalkan.`);
+    await loadPayments(true);
+  } catch (error) {
+    showToast('Gagal membatalkan pembayaran', error.message, 'error');
+  }
+}
+
+async function retryPayment(paymentId, paymentNumber) {
+  try {
+    await api(`/payments/${paymentId}/retry`, { method: 'POST', body: {} });
+    closeModal();
+    showToast('Percobaan baru dibuat', `${paymentNumber} siap dibayar kembali.`);
+    await loadPayments(true);
+  } catch (error) {
+    showToast('Gagal mengulang pembayaran', error.message, 'error');
+  }
+}
+
+function openRefundModal(paymentId, amount, refunded, currency) {
+  const remaining = Math.max(0, Number(amount) - Number(refunded));
+  const modal = openModal({
+    title: 'Buat refund',
+    kicker: 'Refund',
+    subtitle: `Sisa yang dapat direfund ${formatMoney(remaining, currency)}.`,
+    body: `
+      <form id="payment-refund-form" class="form-grid">
+        <label class="field field-span">
+          <span>Nominal refund</span>
+          <input name="amount" type="number" min="0.01" step="0.01" max="${remaining}" value="${remaining.toFixed(2)}" required />
+        </label>
+        <label class="field field-span">
+          <span>Alasan</span>
+          <textarea name="reason" rows="3" maxlength="2000" required placeholder="Jelaskan alasan refund..."></textarea>
+        </label>
+      </form>
+    `,
+    footer: `
+      <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+      <button class="button button-primary" type="submit" form="payment-refund-form">Ajukan refund</button>
+    `,
+  });
+  const form = modal?.querySelector('#payment-refund-form');
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const submit = modal.querySelector('button[type="submit"]');
+    const formData = new FormData(form);
+    submit.disabled = true;
+    try {
+      await api(`/payments/${paymentId}/refunds`, {
+        method: 'POST',
+        body: {
+          amount: String(formData.get('amount')),
+          reason: String(formData.get('reason')),
+        },
+      });
+      closeModal();
+      showToast('Refund diajukan', 'Refund berhasil dibuat dan menunggu persetujuan.');
+      await loadPayments(true);
+    } catch (error) {
+      showToast('Gagal membuat refund', error.message, 'error');
+    } finally {
+      submit.disabled = false;
+    }
+  });
+}
+
+async function openRefundDetail(refundId) {
+  openModal({
+    title: 'Detail refund',
+    kicker: 'Refund',
+    subtitle: 'Memuat informasi refund...',
+    body: tableLoading(4),
+  });
+  try {
+    const result = await api(`/payments/refunds/${refundId}`);
+    const refund = result.data;
+    const nextActions = state.canWritePayments ? (REFUND_NEXT_ACTIONS[refund.status] ?? []) : [];
+    openModal({
+      title: refund.refundNumber,
+      kicker: 'Detail refund',
+      subtitle: `${refund.merchantName ?? 'Pedagang'} - ${formatDateTime(refund.requestedAt)}`,
+      wide: true,
+      body: `
+        <dl class="detail-list">
+          ${detailRow('Status', statusBadge(refund.status))}
+          ${detailRow('Pembayaran', escapeHtml(refund.paymentNumber ?? '-'))}
+          ${detailRow('Pesanan', escapeHtml(refund.orderNumber ?? '-'))}
+          ${detailRow('Pelanggan', escapeHtml(refund.customerName ?? '-'))}
+          ${detailRow('Nominal', escapeHtml(formatMoney(refund.amount, refund.currency)))}
+          ${detailRow('Alasan', escapeHtml(refund.reason))}
+          ${detailRow('Retur', escapeHtml(refund.returnNumber ?? '-'))}
+          ${detailRow('Reference', escapeHtml(refund.externalReference ?? '-'))}
+          ${refund.failureReason ? detailRow('Catatan gagal', escapeHtml(refund.failureReason)) : ''}
+        </dl>
+      `,
+      footer: `
+        <button class="button button-ghost" type="button" data-modal-close>Tutup</button>
+        ${nextActions
+          .map(
+            ([status, label]) =>
+              `<button class="button ${status === 'cancelled' || status === 'rejected' || status === 'failed' ? 'button-ghost' : 'button-primary'}" type="button" data-refund-status="${escapeHtml(refund.id)}" data-next-status="${status}" data-refund-number="${escapeHtml(refund.refundNumber)}">${escapeHtml(label)}</button>`,
+          )
+          .join('')}
+      `,
+    });
+  } catch (error) {
+    showToast('Gagal memuat refund', error.message, 'error');
+    closeModal();
+  }
+}
+
+async function updateRefundStatus(refundId, status, refundNumber) {
+  try {
+    await api(`/payments/refunds/${refundId}/status`, {
+      method: 'PATCH',
+      body: { status },
+    });
+    closeModal();
+    showToast('Status refund diperbarui', `${refundNumber} sekarang ${statusLabel(status).toLowerCase()}.`);
+    await loadPayments(true);
+  } catch (error) {
+    showToast('Gagal memperbarui refund', error.message, 'error');
+  }
+}
+
+async function openSettlementDetail(settlementId) {
+  openModal({
+    title: 'Detail settlement',
+    kicker: 'Settlement',
+    subtitle: 'Memuat informasi settlement...',
+    body: tableLoading(5),
+  });
+  try {
+    const result = await api(`/payments/settlements/${settlementId}`);
+    const settlement = result.data;
+    const items = settlement.items ?? [];
+    const nextActions = state.canWritePayments
+      ? (SETTLEMENT_NEXT_ACTIONS[settlement.status] ?? [])
+      : [];
+    const itemsTable = items.length
+      ? `
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Pembayaran</th><th>Pesanan</th><th>Nominal</th><th>Biaya</th><th>Refund</th><th>Net</th></tr></thead>
+            <tbody>
+              ${items
+                .map(
+                  (row) => `
+                    <tr>
+                      <td>${escapeHtml(row.paymentNumber)}</td>
+                      <td>${escapeHtml(row.orderNumber)}</td>
+                      <td>${escapeHtml(formatMoney(row.amount, settlement.currency))}</td>
+                      <td>${escapeHtml(formatMoney(row.feeAmount, settlement.currency))}</td>
+                      <td>${escapeHtml(formatMoney(row.refundAmount, settlement.currency))}</td>
+                      <td>${escapeHtml(formatMoney(row.netAmount, settlement.currency))}</td>
+                    </tr>
+                  `,
+                )
+                .join('')}
+            </tbody>
+          </table>
+        </div>`
+      : '<p class="cell-muted">Tidak ada item settlement.</p>';
+
+    openModal({
+      title: settlement.settlementNumber,
+      kicker: 'Detail settlement',
+      subtitle: `${settlement.merchantName ?? 'Pedagang'} - ${formatDate(settlement.periodStart)} s.d. ${formatDate(settlement.periodEnd)}`,
+      wide: true,
+      body: `
+        <dl class="detail-list">
+          ${detailRow('Status', statusBadge(settlement.status))}
+          ${detailRow('Pedagang', escapeHtml(settlement.merchantName ?? '-'))}
+          ${detailRow('Akun', escapeHtml(settlement.accountName ? `${settlement.accountName} - ${settlement.accountNumber}` : '-'))}
+          ${detailRow('Gross / biaya', `${escapeHtml(formatMoney(settlement.grossAmount, settlement.currency))} / ${escapeHtml(formatMoney(settlement.feeAmount, settlement.currency))}`)}
+          ${detailRow('Refund', escapeHtml(formatMoney(settlement.refundAmount, settlement.currency)))}
+          ${detailRow('Net', escapeHtml(formatMoney(settlement.netAmount, settlement.currency)))}
+          ${detailRow('Jumlah pembayaran', formatNumber(settlement.paymentCount))}
+          ${settlement.notes ? detailRow('Catatan', escapeHtml(settlement.notes)) : ''}
+        </dl>
+        <div class="panel-header" style="margin-top:24px"><div><p class="panel-kicker">Rincian</p><h3>Pembayaran dalam settlement</h3></div></div>
+        ${itemsTable}
+      `,
+      footer: `
+        <button class="button button-ghost" type="button" data-modal-close>Tutup</button>
+        ${nextActions
+          .map(
+            ([status, label]) =>
+              `<button class="button ${status === 'cancelled' ? 'button-ghost' : 'button-primary'}" type="button" data-settlement-status="${escapeHtml(settlement.id)}" data-next-status="${status}" data-settlement-number="${escapeHtml(settlement.settlementNumber)}">${escapeHtml(label)}</button>`,
+          )
+          .join('')}
+      `,
+    });
+  } catch (error) {
+    showToast('Gagal memuat settlement', error.message, 'error');
+    closeModal();
+  }
+}
+
+async function updateSettlementStatus(settlementId, status, settlementNumber) {
+  try {
+    await api(`/payments/settlements/${settlementId}/status`, {
+      method: 'PATCH',
+      body: { status },
+    });
+    closeModal();
+    showToast('Status settlement diperbarui', `${settlementNumber} sekarang ${statusLabel(status).toLowerCase()}.`);
+    await loadPayments(true);
+  } catch (error) {
+    showToast('Gagal memperbarui settlement', error.message, 'error');
+  }
+}
+
+async function openSettlementCreateModal() {
+  let merchants = [];
+  try {
+    const result = await api('/merchants?page=1&limit=100&status=verified');
+    merchants = result.data ?? [];
+  } catch (error) {
+    showToast('Gagal memuat pedagang', error.message, 'error');
+    return;
+  }
+  if (!merchants.length) {
+    showToast('Belum ada pedagang terverifikasi', 'Verifikasi pedagang terlebih dahulu.', 'error');
+    return;
+  }
+  const now = new Date();
+  const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const modal = openModal({
+    title: 'Buat settlement',
+    kicker: 'Settlement',
+    subtitle: 'Pilih pedagang dan periode pembayaran yang akan disettlekan.',
+    body: `
+      <form id="settlement-form" class="form-grid">
+        <label class="field field-span">
+          <span>Pedagang</span>
+          <select name="merchantId" required>
+            ${merchants.map((row) => `<option value="${escapeHtml(row.id)}">${escapeHtml(row.businessName)}</option>`).join('')}
+          </select>
+        </label>
+        <label class="field">
+          <span>Periode mulai</span>
+          <input name="periodStart" type="datetime-local" value="${dateTimeLocalValue(start)}" required />
+        </label>
+        <label class="field">
+          <span>Periode akhir</span>
+          <input name="periodEnd" type="datetime-local" value="${dateTimeLocalValue(now)}" required />
+        </label>
+        <label class="field field-span">
+          <span>Catatan</span>
+          <textarea name="notes" rows="2" maxlength="2000" placeholder="Opsional"></textarea>
+        </label>
+      </form>
+    `,
+    footer: `
+      <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+      <button class="button button-primary" type="submit" form="settlement-form">Buat settlement</button>
+    `,
+  });
+  const form = modal?.querySelector('#settlement-form');
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const submit = modal.querySelector('button[type="submit"]');
+    const formData = new FormData(form);
+    submit.disabled = true;
+    try {
+      await api('/payments/settlements', {
+        method: 'POST',
+        body: {
+          merchantId: String(formData.get('merchantId')),
+          periodStart: new Date(String(formData.get('periodStart'))).toISOString(),
+          periodEnd: new Date(String(formData.get('periodEnd'))).toISOString(),
+          notes: String(formData.get('notes') || '') || undefined,
+        },
+      });
+      closeModal();
+      showToast('Settlement dibuat', 'Settlement berhasil dibuat sebagai draft.');
+      await loadPayments(true);
+    } catch (error) {
+      showToast('Gagal membuat settlement', error.message, 'error');
+    } finally {
+      submit.disabled = false;
+    }
+  });
+}
+
+async function openReconciliationCreateModal() {
+  const providers = state.payments?.providers?.data ?? [];
+  if (!providers.length) {
+    showToast('Provider belum tersedia', 'Tambahkan provider pembayaran terlebih dahulu.', 'error');
+    return;
+  }
+  const now = new Date();
+  const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const modal = openModal({
+    title: 'Buat rekonsiliasi',
+    kicker: 'Reconciliation',
+    subtitle: 'Bandingkan total pembayaran internal dengan laporan provider.',
+    body: `
+      <form id="reconciliation-form" class="form-grid">
+        <label class="field field-span">
+          <span>Provider</span>
+          <select name="providerId" required>
+            ${providers.map((row) => `<option value="${escapeHtml(row.id)}">${escapeHtml(row.name)}</option>`).join('')}
+          </select>
+        </label>
+        <label class="field">
+          <span>Periode mulai</span>
+          <input name="periodStart" type="datetime-local" value="${dateTimeLocalValue(start)}" required />
+        </label>
+        <label class="field">
+          <span>Periode akhir</span>
+          <input name="periodEnd" type="datetime-local" value="${dateTimeLocalValue(now)}" required />
+        </label>
+        <label class="field field-span">
+          <span>Total eksternal (opsional)</span>
+          <input name="externalAmount" type="number" min="0" step="0.01" placeholder="Kosongkan untuk memakai total internal" />
+        </label>
+        <label class="field field-span">
+          <span>Catatan</span>
+          <textarea name="notes" rows="2" maxlength="2000" placeholder="Opsional"></textarea>
+        </label>
+      </form>
+    `,
+    footer: `
+      <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+      <button class="button button-primary" type="submit" form="reconciliation-form">Buat rekonsiliasi</button>
+    `,
+  });
+  const form = modal?.querySelector('#reconciliation-form');
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const submit = modal.querySelector('button[type="submit"]');
+    const formData = new FormData(form);
+    const externalAmount = String(formData.get('externalAmount') || '').trim();
+    submit.disabled = true;
+    try {
+      await api('/payments/reconciliations', {
+        method: 'POST',
+        body: {
+          providerId: String(formData.get('providerId')),
+          periodStart: new Date(String(formData.get('periodStart'))).toISOString(),
+          periodEnd: new Date(String(formData.get('periodEnd'))).toISOString(),
+          externalAmount: externalAmount || undefined,
+          notes: String(formData.get('notes') || '') || undefined,
+        },
+      });
+      closeModal();
+      showToast('Rekonsiliasi dibuat', 'Rekonsiliasi berhasil dijalankan.');
+      await loadPayments(true);
+    } catch (error) {
+      showToast('Gagal membuat rekonsiliasi', error.message, 'error');
+    } finally {
+      submit.disabled = false;
+    }
+  });
+}
+
+async function openReconciliationDetail(reconciliationId) {
+  openModal({
+    title: 'Detail rekonsiliasi',
+    kicker: 'Reconciliation',
+    subtitle: 'Memuat informasi rekonsiliasi...',
+    body: tableLoading(4),
+  });
+  try {
+    const result = await api(`/payments/reconciliations/${reconciliationId}`);
+    const row = result.data;
+    const details = row.details ?? {};
+    const paymentRows = Array.isArray(details.payments) ? details.payments : [];
+    openModal({
+      title: row.reconciliationNumber,
+      kicker: 'Detail rekonsiliasi',
+      subtitle: `${formatDate(row.periodStart)} s.d. ${formatDate(row.periodEnd)}`,
+      wide: true,
+      body: `
+        <dl class="detail-list">
+          ${detailRow('Status', statusBadge(row.status))}
+          ${detailRow('Internal', escapeHtml(formatMoney(row.internalAmount, row.currency)))}
+          ${detailRow('Eksternal', escapeHtml(formatMoney(row.externalAmount, row.currency)))}
+          ${detailRow('Selisih', escapeHtml(formatMoney(row.differenceAmount, row.currency)))}
+          ${detailRow('Cocok / tidak cocok', `${formatNumber(row.matchedCount)} / ${formatNumber(row.unmatchedCount)}`)}
+          ${row.notes ? detailRow('Catatan', escapeHtml(row.notes)) : ''}
+        </dl>
+        <div class="panel-header" style="margin-top:24px"><div><p class="panel-kicker">Rincian</p><h3>Pembayaran dibandingkan</h3></div></div>
+        ${
+          paymentRows.length
+            ? `<div class="table-wrap"><table class="table"><thead><tr><th>Pembayaran</th><th>Reference</th><th>Nominal</th><th>Status</th></tr></thead><tbody>${paymentRows
+                .map(
+                  (item) => `<tr><td>${escapeHtml(item.paymentNumber)}</td><td>${escapeHtml(item.externalReference ?? '-')}</td><td>${escapeHtml(formatMoney(item.amount, row.currency))}</td><td>${item.matched ? statusBadge('completed') : statusBadge('discrepancy')}</td></tr>`,
+                )
+                .join('')}</tbody></table></div>`
+            : '<p class="cell-muted">Tidak ada pembayaran pada periode ini.</p>'
+        }
+      `,
+      footer: '<button class="button button-ghost" type="button" data-modal-close>Tutup</button>',
+    });
+  } catch (error) {
+    showToast('Gagal memuat rekonsiliasi', error.message, 'error');
+    closeModal();
+  }
+}
+
+async function openCreatePaymentProviderModal() {
+  const modal = openModal({
+    title: 'Tambah provider',
+    kicker: 'Payment gateway',
+    subtitle: 'Provider menjadi induk dari metode pembayaran.',
+    body: `
+      <form id="payment-provider-form" class="form-grid">
+        <label class="field"><span>Kode</span><input name="code" required maxlength="64" placeholder="contoh: gateway_baru" /></label>
+        <label class="field"><span>Nama</span><input name="name" required maxlength="128" placeholder="Nama provider" /></label>
+        <label class="field"><span>Tipe</span><select name="type"><option value="gateway">Gateway</option><option value="bank">Bank</option><option value="ewallet">E-wallet</option><option value="qris">QRIS</option><option value="manual">Manual</option><option value="other">Lainnya</option></select></label>
+        <label class="field"><span>Status</span><select name="status"><option value="active">Aktif</option><option value="inactive">Nonaktif</option></select></label>
+        <label class="field field-span"><span>Deskripsi</span><textarea name="description" rows="2" maxlength="2000" placeholder="Opsional"></textarea></label>
+      </form>
+    `,
+    footer: `
+      <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+      <button class="button button-primary" type="submit" form="payment-provider-form">Simpan provider</button>
+    `,
+  });
+  const form = modal?.querySelector('#payment-provider-form');
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const submit = modal.querySelector('button[type="submit"]');
+    const formData = new FormData(form);
+    submit.disabled = true;
+    try {
+      await api('/payments/providers', {
+        method: 'POST',
+        body: {
+          code: String(formData.get('code')),
+          name: String(formData.get('name')),
+          type: String(formData.get('type')),
+          status: String(formData.get('status')),
+          description: String(formData.get('description') || '') || undefined,
+        },
+      });
+      closeModal();
+      showToast('Provider dibuat', 'Provider pembayaran berhasil ditambahkan.');
+      await loadPayments(true);
+    } catch (error) {
+      showToast('Gagal membuat provider', error.message, 'error');
+    } finally {
+      submit.disabled = false;
+    }
+  });
+}
+
+async function openCreatePaymentMethodModal() {
+  const providers = state.payments?.providers?.data ?? [];
+  if (!providers.length) {
+    showToast('Provider belum tersedia', 'Tambahkan provider pembayaran terlebih dahulu.', 'error');
+    return;
+  }
+  const modal = openModal({
+    title: 'Tambah metode',
+    kicker: 'Payment method',
+    subtitle: 'Atur biaya dan batas nominal metode pembayaran.',
+    body: `
+      <form id="payment-method-form" class="form-grid">
+        <label class="field field-span"><span>Provider</span><select name="providerId" required>${providers.map((row) => `<option value="${escapeHtml(row.id)}">${escapeHtml(row.name)}</option>`).join('')}</select></label>
+        <label class="field"><span>Kode</span><input name="code" required maxlength="64" placeholder="contoh: qris_baru" /></label>
+        <label class="field"><span>Nama</span><input name="name" required maxlength="128" placeholder="Nama metode" /></label>
+        <label class="field"><span>Tipe</span><select name="type"><option value="qris">QRIS</option><option value="ewallet">E-wallet</option><option value="bank_transfer">Transfer bank</option><option value="virtual_account">Virtual account</option><option value="credit_card">Kartu kredit</option><option value="cash">Tunai</option><option value="other">Lainnya</option></select></label>
+        <label class="field"><span>Status</span><select name="status"><option value="active">Aktif</option><option value="inactive">Nonaktif</option></select></label>
+        <label class="field"><span>Biaya tetap</span><input name="feeFlat" type="number" min="0" step="0.01" value="0" /></label>
+        <label class="field"><span>Biaya persen</span><input name="feePercent" type="number" min="0" step="0.01" value="0" /></label>
+        <label class="field"><span>Minimum</span><input name="minimumAmount" type="number" min="0" step="0.01" value="0" /></label>
+        <label class="field"><span>Maksimum</span><input name="maximumAmount" type="number" min="0" step="0.01" placeholder="Opsional" /></label>
+        <label class="field field-span"><span>Instruksi</span><textarea name="instructions" rows="2" maxlength="4000" placeholder="Opsional"></textarea></label>
+      </form>
+    `,
+    footer: `
+      <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+      <button class="button button-primary" type="submit" form="payment-method-form">Simpan metode</button>
+    `,
+  });
+  const form = modal?.querySelector('#payment-method-form');
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const submit = modal.querySelector('button[type="submit"]');
+    const formData = new FormData(form);
+    const maximumAmount = String(formData.get('maximumAmount') || '').trim();
+    submit.disabled = true;
+    try {
+      await api('/payments/methods', {
+        method: 'POST',
+        body: {
+          providerId: String(formData.get('providerId')),
+          code: String(formData.get('code')),
+          name: String(formData.get('name')),
+          type: String(formData.get('type')),
+          status: String(formData.get('status')),
+          feeFlat: String(formData.get('feeFlat') || '0'),
+          feePercent: String(formData.get('feePercent') || '0'),
+          minimumAmount: String(formData.get('minimumAmount') || '0'),
+          maximumAmount: maximumAmount || undefined,
+          instructions: String(formData.get('instructions') || '') || undefined,
+        },
+      });
+      closeModal();
+      showToast('Metode dibuat', 'Metode pembayaran berhasil ditambahkan.');
+      await loadPayments(true);
+    } catch (error) {
+      showToast('Gagal membuat metode', error.message, 'error');
+    } finally {
+      submit.disabled = false;
+    }
+  });
+}
+
+async function togglePaymentMethod(methodId, nextStatus, methodName) {
+  try {
+    await api(`/payments/methods/${methodId}`, {
+      method: 'PATCH',
+      body: { status: nextStatus },
+    });
+    showToast(
+      nextStatus === 'active' ? 'Metode diaktifkan' : 'Metode dinonaktifkan',
+      `${methodName} sekarang ${statusLabel(nextStatus).toLowerCase()}.`,
+    );
+    await loadPayments(true);
+  } catch (error) {
+    showToast('Gagal memperbarui metode', error.message, 'error');
+  }
+}
+
 async function openOrderDetail(orderId) {
   openModal({
     title: 'Detail pesanan',
@@ -2586,6 +3710,23 @@ function bindEvents() {
   });
   $('#refresh-orders').addEventListener('click', () => loadOrders(true));
 
+  $('#payment-search').addEventListener(
+    'input',
+    debounce((event) => {
+      state.filters.payments.search = event.target.value.trim();
+      loadPayments(true);
+    }),
+  );
+  $('#payment-status-filter').addEventListener('change', (event) => {
+    state.filters.payments.status = event.target.value;
+    loadPayments(true);
+  });
+  $('#refresh-payments').addEventListener('click', () => loadPayments(true));
+  $('#create-settlement-button').addEventListener('click', openSettlementCreateModal);
+  $('#create-reconciliation-button').addEventListener('click', openReconciliationCreateModal);
+  $('#create-payment-method-button').addEventListener('click', openCreatePaymentMethodModal);
+  $('#create-payment-provider-button').addEventListener('click', openCreatePaymentProviderModal);
+
   $('#audit-search').addEventListener(
     'input',
     debounce((event) => {
@@ -2676,6 +3817,95 @@ function bindEvents() {
         returnStatus.dataset.returnStatus,
         returnStatus.dataset.nextStatus,
         returnStatus.dataset.returnNumber,
+      );
+      return;
+    }
+
+    const retryPayments = event.target.closest('[data-retry-payments]');
+    if (retryPayments) {
+      loadPayments(true);
+      return;
+    }
+
+    const paymentDetail = event.target.closest('[data-payment-detail]');
+    if (paymentDetail) {
+      openPaymentDetail(paymentDetail.dataset.paymentDetail);
+      return;
+    }
+
+    const paymentConfirm = event.target.closest('[data-payment-confirm]');
+    if (paymentConfirm) {
+      confirmPayment(paymentConfirm.dataset.paymentConfirm, paymentConfirm.dataset.paymentNumber);
+      return;
+    }
+
+    const paymentCancel = event.target.closest('[data-payment-cancel]');
+    if (paymentCancel) {
+      cancelPayment(paymentCancel.dataset.paymentCancel, paymentCancel.dataset.paymentNumber);
+      return;
+    }
+
+    const paymentRetry = event.target.closest('[data-payment-retry]');
+    if (paymentRetry) {
+      retryPayment(paymentRetry.dataset.paymentRetry, paymentRetry.dataset.paymentNumber);
+      return;
+    }
+
+    const paymentRefund = event.target.closest('[data-payment-refund]');
+    if (paymentRefund) {
+      openRefundModal(
+        paymentRefund.dataset.paymentRefund,
+        paymentRefund.dataset.paymentAmount,
+        paymentRefund.dataset.paymentRefunded,
+        paymentRefund.dataset.paymentCurrency,
+      );
+      return;
+    }
+
+    const refundDetail = event.target.closest('[data-refund-detail]');
+    if (refundDetail) {
+      openRefundDetail(refundDetail.dataset.refundDetail);
+      return;
+    }
+
+    const refundStatus = event.target.closest('[data-refund-status]');
+    if (refundStatus) {
+      updateRefundStatus(
+        refundStatus.dataset.refundStatus,
+        refundStatus.dataset.nextStatus,
+        refundStatus.dataset.refundNumber,
+      );
+      return;
+    }
+
+    const settlementDetail = event.target.closest('[data-settlement-detail]');
+    if (settlementDetail) {
+      openSettlementDetail(settlementDetail.dataset.settlementDetail);
+      return;
+    }
+
+    const settlementStatus = event.target.closest('[data-settlement-status]');
+    if (settlementStatus) {
+      updateSettlementStatus(
+        settlementStatus.dataset.settlementStatus,
+        settlementStatus.dataset.nextStatus,
+        settlementStatus.dataset.settlementNumber,
+      );
+      return;
+    }
+
+    const reconciliationDetail = event.target.closest('[data-reconciliation-detail]');
+    if (reconciliationDetail) {
+      openReconciliationDetail(reconciliationDetail.dataset.reconciliationDetail);
+      return;
+    }
+
+    const paymentMethodToggle = event.target.closest('[data-payment-method-toggle]');
+    if (paymentMethodToggle) {
+      togglePaymentMethod(
+        paymentMethodToggle.dataset.paymentMethodToggle,
+        paymentMethodToggle.dataset.nextStatus,
+        paymentMethodToggle.dataset.methodName,
       );
       return;
     }

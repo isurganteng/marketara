@@ -893,6 +893,21 @@ svg {
   letter-spacing: -0.025em;
 }
 
+.panel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.button-sm {
+  min-height: 32px;
+  padding: 0 11px;
+  font-size: 10px;
+  border-radius: 8px;
+}
+
 .panel-kicker {
   margin: 0;
   font-size: 8.5px;
@@ -1280,9 +1295,32 @@ svg {
 .status-active,
 .status-verified,
 .status-published,
-.status-completed {
+.status-completed,
+.status-paid {
   color: #147052;
   background: #e5f6ed;
+}
+
+.status-authorized,
+.status-partially_refunded {
+  color: #1f5f9e;
+  background: #e8f1fb;
+}
+
+.status-refunded {
+  color: #5b4b8a;
+  background: #efebfb;
+}
+
+.status-failed,
+.status-discrepancy {
+  color: #a44848;
+  background: #fbeceb;
+}
+
+.status-expired {
+  color: #6e6a5c;
+  background: #f1f1e9;
 }
 
 .status-planned,

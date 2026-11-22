@@ -99,6 +99,10 @@
         <path d="M5 10v10h14V10M3.5 10 5.4 4h13.2l1.9 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
         <path d="M9 20v-6h6v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
       </symbol>
+      <symbol id="i-wallet" viewBox="0 0 24 24">
+        <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18a2 2 0 0 1 2 2v2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+        <path d="M4 7.5V18a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2.5M20 9.5h-4.5a2.5 2.5 0 0 0 0 5H20v-5Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+      </symbol>
       <symbol id="i-user" viewBox="0 0 24 24">
         <circle cx="12" cy="8" r="3.5" stroke="currentColor" stroke-width="1.8" />
         <path d="M5.5 20c.5-3.7 2.9-6 6.5-6s6 2.3 6.5 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
@@ -157,6 +161,10 @@
           <button class="nav-item" type="button" data-view="orders">
             <svg class="icon"><use href="#i-receipt"></use></svg>
             <span>Pesanan</span>
+          </button>
+          <button class="nav-item" type="button" data-view="payments">
+            <svg class="icon"><use href="#i-wallet"></use></svg>
+            <span>Pembayaran</span>
           </button>
           <button class="nav-item" type="button" data-view="audit">
             <svg class="icon"><use href="#i-audit"></use></svg>
@@ -610,6 +618,138 @@
               <div class="table-host" id="transactions-table">
                 <div class="table-loading">
                   <span class="skeleton skeleton-row"></span>
+                  <span class="skeleton skeleton-row"></span>
+                  <span class="skeleton skeleton-row"></span>
+                </div>
+              </div>
+            </article>
+          </section>
+
+          <section class="view" id="view-payments" hidden>
+            <div class="section-head">
+              <div>
+                <p class="panel-kicker">Integrated payment management</p>
+                <h2>Pembayaran</h2>
+                <p class="section-text">Pantau pembayaran, refund, settlement, rekonsiliasi, dan metode pembayaran.</p>
+              </div>
+              <span class="section-badge neutral" id="payment-paid-badge" hidden>0 lunas</span>
+            </div>
+
+            <article class="panel">
+              <div class="toolbar">
+                <label class="search-box">
+                  <svg class="icon"><use href="#i-search"></use></svg>
+                  <input id="payment-search" type="search" placeholder="Cari nomor pembayaran, pesanan, pedagang, atau pelanggan..." autocomplete="off" />
+                </label>
+                <label class="select-box">
+                  <span class="sr-only">Filter status pembayaran</span>
+                  <select id="payment-status-filter">
+                    <option value="">Semua status</option>
+                    <option value="pending">Menunggu</option>
+                    <option value="authorized">Diotorisasi</option>
+                    <option value="paid">Lunas</option>
+                    <option value="failed">Gagal</option>
+                    <option value="expired">Kedaluwarsa</option>
+                    <option value="cancelled">Dibatalkan</option>
+                    <option value="partially_refunded">Refund sebagian</option>
+                    <option value="refunded">Direfund</option>
+                  </select>
+                  <svg class="icon"><use href="#i-chevron-down"></use></svg>
+                </label>
+                <span class="toolbar-count" id="payment-count">Memuat...</span>
+                <button class="icon-button toolbar-refresh" id="refresh-payments" type="button" aria-label="Segarkan pembayaran" title="Segarkan">
+                  <svg class="icon"><use href="#i-refresh"></use></svg>
+                </button>
+              </div>
+              <div class="table-host" id="payments-table">
+                <div class="table-loading">
+                  <span class="skeleton skeleton-row"></span>
+                  <span class="skeleton skeleton-row"></span>
+                  <span class="skeleton skeleton-row"></span>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Refund management</p>
+                  <h3>Refund</h3>
+                </div>
+                <span class="section-badge neutral" id="refund-count-badge" hidden>0 refund</span>
+              </div>
+              <div class="table-host" id="refunds-table">
+                <div class="table-loading">
+                  <span class="skeleton skeleton-row"></span>
+                  <span class="skeleton skeleton-row"></span>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Settlement</p>
+                  <h3>Settlement pedagang</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="settlement-count-badge" hidden>0 settlement</span>
+                  <button class="button button-primary button-sm" id="create-settlement-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Buat settlement
+                  </button>
+                </div>
+              </div>
+              <div class="table-host" id="settlements-table">
+                <div class="table-loading">
+                  <span class="skeleton skeleton-row"></span>
+                  <span class="skeleton skeleton-row"></span>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel" id="reconciliation-panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Reconciliation</p>
+                  <h3>Rekonsiliasi provider</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="reconciliation-count-badge" hidden>0 rekonsiliasi</span>
+                  <button class="button button-primary button-sm" id="create-reconciliation-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Buat rekonsiliasi
+                  </button>
+                </div>
+              </div>
+              <div class="table-host" id="reconciliations-table">
+                <div class="table-loading">
+                  <span class="skeleton skeleton-row"></span>
+                  <span class="skeleton skeleton-row"></span>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Payment method & gateway</p>
+                  <h3>Metode pembayaran</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="payment-method-count-badge" hidden>0 metode</span>
+                  <button class="button button-ghost button-sm" id="create-payment-provider-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Provider
+                  </button>
+                  <button class="button button-primary button-sm" id="create-payment-method-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Metode
+                  </button>
+                </div>
+              </div>
+              <div class="table-host" id="payment-methods-table">
+                <div class="table-loading">
                   <span class="skeleton skeleton-row"></span>
                   <span class="skeleton skeleton-row"></span>
                 </div>

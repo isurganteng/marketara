@@ -12,6 +12,7 @@ Fokus tahap ini adalah fondasi database dan API (Bagian 17 dokumen):
 5. **MKT-03** Product & Catalog Management
 6. **MKT-04** Marketplace & Omnichannel Commerce
 7. **MKT-05** Order & Transaction Management
+8. **MKT-06** Integrated Payment Management
 
 Stack: **Bun + Hono + Drizzle ORM + PostgreSQL + Zod**.
 
@@ -98,7 +99,9 @@ menampilkan ringkasan pasar, pedagang, produk, audit log, verifikasi pedagang,
 serta form tambah pasar. Menu **Commerce** menampilkan storefront, status
 publikasi, detail produk storefront, dan pengelolaan kanal penjualan. Menu
 **Pesanan** menampilkan order, status, pembatalan, retur, dan ledger transaksi
-penjualan. UI disajikan langsung oleh Bun/Hono tanpa build step tambahan.
+penjualan. Menu **Pembayaran** menampilkan pembayaran, refund, settlement,
+rekonsiliasi, serta pengelolaan provider dan metode pembayaran. UI disajikan
+langsung oleh Bun/Hono tanpa build step tambahan.
 
 Katalog marketplace publik MKT-04 tersedia lewat API:
 
@@ -150,6 +153,7 @@ src/
     schema/core.ts          # 24 tabel: identity, org, market, merchant
     schema/catalog.ts       # 12 tabel: kategori, produk, varian, SKU, katalog
     schema/commerce.ts      # 17 tabel: kanal, storefront, cart, checkout, order, retur
+    schema/payment.ts       # 10 tabel: provider, metode, payment, refund, settlement
     migrate.ts              # Migration runner
     seed.ts                 # Seed role/permission/reference
   lib/
@@ -183,6 +187,15 @@ src/
       orders.ts             # Konversi checkout, order, catatan, transaksi
       returns.ts            # Pengajuan retur dan status retur
       shared.ts             # Helper harga, gambar, numeric
+    payments/               # Integrated payment (MKT-06)
+      index.ts              # Mount route pembayaran + auth
+      providers.ts          # Provider dan metode pembayaran
+      accounts.ts           # Akun pencairan merchant
+      payments.ts           # Payment intent, attempt, konfirmasi, retry
+      refunds.ts            # Pengajuan dan status refund
+      settlements.ts        # Settlement pedagang
+      reconciliations.ts    # Rekonsiliasi provider
+      shared.ts             # Scoping, fee, dan detail payment
     reference.ts            # Master reference data
     audit.ts                # Audit log viewer
   services/auth.ts          # Session & profile service
@@ -195,6 +208,7 @@ docs/core-database.md       # Detail desain database core
 docs/catalog-database.md    # Detail desain database catalog
 docs/commerce-database.md   # Detail desain database commerce (MKT-04)
 docs/order-database.md      # Detail desain database order & transaksi (MKT-05)
+docs/payment-database.md    # Detail desain database pembayaran (MKT-06)
 ```
 
 ---
@@ -370,6 +384,41 @@ Base URL: `/api/v1`
 | PATCH | `/returns/:returnId/status` | `commerce:write` | Setujui/tolak/terima/selesaikan retur |
 | GET | `/transactions` | `commerce:read` | Ledger penjualan, pembatalan, retur |
 
+### Payment — `/api/v1/payments`
+
+| Method | Path | Permission | Keterangan |
+| --- | --- | --- | --- |
+| GET/POST | `/providers` | `payment:read` / `payment:manage` | Provider / gateway pembayaran |
+| PATCH | `/providers/:providerId` | `payment:manage` | Update provider |
+| GET/POST | `/methods` | `payment:read` / `payment:manage` | Metode pembayaran |
+| PATCH | `/methods/:methodId` | `payment:manage` | Update metode / status |
+| GET | `/accounts` | `payment:read` | Akun pencairan merchant sesuai akses |
+| POST | `/accounts` | `payment:write` | Tambah akun pencairan merchant |
+| PATCH | `/accounts/:accountId` | `payment:write` | Update akun pencairan |
+| GET | `/` | `payment:read` | Daftar pembayaran sesuai akses |
+| POST | `/orders/:orderId` | `payment:write` | Buat / ulangi payment intent untuk order |
+| GET | `/:paymentId` | `payment:read` | Detail payment, attempt, event, refund |
+| POST | `/:paymentId/retry` | `payment:write` | Buat percobaan pembayaran baru |
+| POST | `/:paymentId/confirm` | `payment:write` | Konfirmasi lunas / gagal / kedaluwarsa |
+| POST | `/:paymentId/cancel` | `payment:write` | Batalkan pembayaran yang belum lunas |
+| GET | `/refunds` | `payment:read` | Daftar refund sesuai akses |
+| GET | `/refunds/:refundId` | `payment:read` | Detail refund |
+| POST | `/:paymentId/refunds` | `payment:write` | Ajukan refund |
+| PATCH | `/refunds/:refundId/status` | `payment:write` | Setujui / proses / selesaikan refund |
+| GET | `/settlements` | `payment:read` | Daftar settlement sesuai akses |
+| GET | `/settlements/:settlementId` | `payment:read` | Detail settlement + item |
+| POST | `/settlements` | `payment:write` | Buat settlement dari pembayaran lunas |
+| PATCH | `/settlements/:settlementId/status` | `payment:write` | Ajukan / proses / selesaikan / batalkan |
+| GET | `/reconciliations` | `payment:manage` | Daftar rekonsiliasi provider |
+| GET | `/reconciliations/:reconciliationId` | `payment:manage` | Detail rekonsiliasi |
+| POST | `/reconciliations` | `payment:manage` | Jalankan rekonsiliasi provider |
+
+> Nilai uang pembayaran (`amount`, `feeAmount`, `netAmount`, `amountPaid`,
+> `amountRefunded`) juga dikembalikan sebagai string desimal. Customer hanya
+> dapat melihat pembayaran miliknya dan membatalkan refund yang masih
+> `requested`; pembuatan refund, settlement, provider, metode, dan rekonsiliasi
+> membutuhkan akses merchant/admin yang sesuai.
+
 ### Marketplace publik — `/api/v1/commerce/marketplace`
 
 Tidak memerlukan login. Hanya menampilkan storefront `published` milik merchant
@@ -400,15 +449,16 @@ Tidak memerlukan login. Hanya menampilkan storefront `published` milik merchant
 | Role | Ringkasan akses |
 | --- | --- |
 | `platform_admin` | Wildcard `*` (semua akses) |
-| `market_admin` | Kelola pasar/okupansi, verifikasi merchant, master katalog, kanal commerce, lihat audit |
-| `member` | Buat organisasi, kelola merchant/toko/produk/storefront miliknya, belanja |
+| `market_admin` | Kelola pasar/okupansi, verifikasi merchant, master katalog, kanal commerce, lihat pembayaran, lihat audit |
+| `member` | Buat organisasi, kelola merchant/toko/produk/storefront miliknya, belanja, kelola pembayaran/refund merchant |
 
 Permission yang tersedia: `user:read`, `user:write`, `role:manage`,
 `organization:read`, `organization:write`, `organization:member:manage`,
 `market:read`, `market:write`, `occupancy:manage`, `merchant:read`,
 `merchant:write`, `merchant:verify`, `store:read`, `store:write`,
 `catalog:read`, `catalog:write`, `catalog:manage`, `commerce:read`,
-`commerce:write`, `commerce:manage`, `audit:read`.
+`commerce:write`, `commerce:manage`, `payment:read`, `payment:write`,
+`payment:manage`, `audit:read`.
 
 ### Model otorisasi
 
@@ -466,16 +516,21 @@ Satu database PostgreSQL dengan schema logis:
 - `commerce` — sales channel, storefront, listing, alamat, cart, checkout,
   order, item, status history, catatan, pembatalan, retur, dan ledger
   transaksi (17 tabel).
+- `payment` — provider, metode, akun pencairan merchant, payment intent,
+  attempt, event, refund, settlement, item settlement, dan rekonsiliasi
+  (10 tabel).
 - `governance` — `audit_logs` (1 tabel).
 
 Detail tabel, relasi, enum, dan keputusan desain ada di
 [`docs/core-database.md`](docs/core-database.md),
 [`docs/catalog-database.md`](docs/catalog-database.md),
-[`docs/commerce-database.md`](docs/commerce-database.md), dan
-[`docs/order-database.md`](docs/order-database.md).
+[`docs/commerce-database.md`](docs/commerce-database.md),
+[`docs/order-database.md`](docs/order-database.md), dan
+[`docs/payment-database.md`](docs/payment-database.md).
 
 Migration SQL: `drizzle/0000_*.sql` (core), `drizzle/0001_*.sql` (catalog),
-`drizzle/0002_*.sql` (commerce), dan `drizzle/0003_*.sql` (order).
+`drizzle/0002_*.sql` (commerce), `drizzle/0003_*.sql` (order), dan
+`drizzle/0004_*.sql` (payment).
 
 ---
 
@@ -492,7 +547,8 @@ Migration SQL: `drizzle/0000_*.sql` (core), `drizzle/0001_*.sql` (catalog),
 - Dashboard admin hanya menerima role dengan permission `*` atau `audit:read`
   (`platform_admin` / `market_admin`). Permission tetap ditegakkan di API.
 - Audit trail mencatat aksi penting (register, create/update market, merchant,
-  occupancy, store, organisasi, checkout, order, pembatalan, dan retur).
+  occupancy, store, organisasi, checkout, order, pembatalan, retur, payment,
+  refund, settlement, dan rekonsiliasi).
 - Belum termasuk: email verification, MFA, refresh token, rate limiting.
   Semua ini masuk roadmap SYS-01/SYS-06.
 
@@ -500,19 +556,20 @@ Migration SQL: `drizzle/0000_*.sql` (core), `drizzle/0001_*.sql` (catalog),
 
 ## 9. Roadmap Modul Berikutnya
 
-**MKT-04 Marketplace & Omnichannel Commerce** dan **MKT-05 Order &
-Transaction Management** sudah diimplementasikan. MKT-04 mencakup storefront,
-katalog publik, cart, checkout, dan channel listing. MKT-05 mencakup konversi
-checkout menjadi order per merchant, status order, pembatalan, retur, dan
-ledger transaksi penjualan. Dashboard admin memiliki menu **Commerce** dan
-**Pesanan**. Urutan berikutnya:
+**MKT-04 Marketplace & Omnichannel Commerce**, **MKT-05 Order & Transaction
+Management**, dan **MKT-06 Integrated Payment Management** sudah
+diimplementasikan. MKT-04 mencakup storefront, katalog publik, cart, checkout,
+dan channel listing. MKT-05 mencakup konversi checkout menjadi order per
+merchant, status order, pembatalan, retur, dan ledger transaksi penjualan.
+MKT-06 mencakup provider/metode pembayaran, payment intent, attempt, refund,
+settlement merchant, dan rekonsiliasi provider. Dashboard admin memiliki menu
+**Commerce**, **Pesanan**, dan **Pembayaran**. Urutan berikutnya:
 
-1. **MKT-06 Payment** - payment method/provider, transaksi, refund, settlement.
-2. **MKT-08 Inventory** - stok per lokasi, movement, opname, batch/expiry.
-3. **SCM-01/SCM-02 Supply Chain** - supplier, PR/PO, receiving, fulfillment.
-4. **MKT-12/MKT-13 Marketing & CRM** - campaign, voucher, loyalty, complaint.
-5. **2MD** - business performance/profile, proposal, funding, financing.
-6. **SYS-03/04/05/07/08** - integration, notification, config, AI, warehouse.
+1. **MKT-08 Inventory** - stok per lokasi, movement, opname, batch/expiry.
+2. **SCM-01/SCM-02 Supply Chain** - supplier, PR/PO, receiving, fulfillment.
+3. **MKT-12/MKT-13 Marketing & CRM** - campaign, voucher, loyalty, complaint.
+4. **2MD** - business performance/profile, proposal, funding, financing.
+5. **SYS-03/04/05/07/08** - integration, notification, config, AI, warehouse.
 
 Schema PostgreSQL sudah disiapkan untuk ditambah per domain (`catalog`,
 `commerce`, `payment`, `inventory`, `supply_chain`, `marketing`, `business`,

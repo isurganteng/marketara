@@ -16,6 +16,7 @@ import { marketRoutes } from './routes/markets';
 import { merchantRoutes } from './routes/merchants';
 import { organizationRoutes } from './routes/organizations';
 import { paymentRoutesIndex } from './routes/payments';
+import { posRoutesIndex } from './routes/pos';
 import { referenceRoutes } from './routes/reference';
 
 export const app = new Hono<AppEnv>();
@@ -67,6 +68,7 @@ app.route('/api/v1/catalog', catalogRoutes);
 app.route('/api/v1/commerce/marketplace', commerceMarketplaceRoutes);
 app.route('/api/v1/commerce', commerceRoutes);
 app.route('/api/v1/payments', paymentRoutesIndex);
+app.route('/api/v1/pos', posRoutesIndex);
 app.route('/api/v1/reference', referenceRoutes);
 app.route('/api/v1/audit-logs', auditRoutes);
 

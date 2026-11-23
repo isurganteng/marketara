@@ -103,6 +103,10 @@
         <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18a2 2 0 0 1 2 2v2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
         <path d="M4 7.5V18a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2.5M20 9.5h-4.5a2.5 2.5 0 0 0 0 5H20v-5Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
       </symbol>
+      <symbol id="i-pos" viewBox="0 0 24 24">
+        <rect x="4" y="3.5" width="16" height="10" rx="2" stroke="currentColor" stroke-width="1.8" />
+        <path d="M8 7h8M8 10h4M5 16h14l-1.2 4.5H6.2L5 16Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+      </symbol>
       <symbol id="i-user" viewBox="0 0 24 24">
         <circle cx="12" cy="8" r="3.5" stroke="currentColor" stroke-width="1.8" />
         <path d="M5.5 20c.5-3.7 2.9-6 6.5-6s6 2.3 6.5 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
@@ -165,6 +169,10 @@
           <button class="nav-item" type="button" data-view="payments">
             <svg class="icon"><use href="#i-wallet"></use></svg>
             <span>Pembayaran</span>
+          </button>
+          <button class="nav-item" type="button" data-view="pos">
+            <svg class="icon"><use href="#i-pos"></use></svg>
+            <span>POS</span>
           </button>
           <button class="nav-item" type="button" data-view="audit">
             <svg class="icon"><use href="#i-audit"></use></svg>
@@ -749,6 +757,225 @@
                 </div>
               </div>
               <div class="table-host" id="payment-methods-table">
+                <div class="table-loading">
+                  <span class="skeleton skeleton-row"></span>
+                  <span class="skeleton skeleton-row"></span>
+                </div>
+              </div>
+            </article>
+          </section>
+
+          <section class="view" id="view-pos" hidden>
+            <div class="section-head">
+              <div>
+                <p class="panel-kicker">POS & offline transaction</p>
+                <h2>POS</h2>
+                <p class="section-text">Kelola terminal, cash register, shift kasir, transaksi toko fisik, dan sinkronisasi offline.</p>
+              </div>
+              <span class="section-badge neutral" id="pos-open-shift-badge" hidden>0 shift terbuka</span>
+            </div>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Perangkat kasir</p>
+                  <h3>Terminal POS</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="pos-terminal-count-badge" hidden>0 terminal</span>
+                  <button class="button button-primary button-sm" id="create-pos-terminal-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Terminal
+                  </button>
+                </div>
+              </div>
+              <div class="toolbar">
+                <label class="search-box">
+                  <svg class="icon"><use href="#i-search"></use></svg>
+                  <input id="pos-terminal-search" type="search" placeholder="Cari kode, nama terminal, pedagang, atau toko..." autocomplete="off" />
+                </label>
+                <label class="select-box">
+                  <span class="sr-only">Filter status terminal</span>
+                  <select id="pos-terminal-status-filter">
+                    <option value="">Semua status</option>
+                    <option value="active">Aktif</option>
+                    <option value="maintenance">Pemeliharaan</option>
+                    <option value="inactive">Nonaktif</option>
+                  </select>
+                  <svg class="icon"><use href="#i-chevron-down"></use></svg>
+                </label>
+                <span class="toolbar-count" id="pos-terminal-count">Memuat...</span>
+                <button class="icon-button toolbar-refresh" id="refresh-pos-terminals" type="button" aria-label="Segarkan terminal POS" title="Segarkan">
+                  <svg class="icon"><use href="#i-refresh"></use></svg>
+                </button>
+              </div>
+              <div class="table-host" id="pos-terminals-table">
+                <div class="table-loading">
+                  <span class="skeleton skeleton-row"></span>
+                  <span class="skeleton skeleton-row"></span>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Laci kas</p>
+                  <h3>Cash register</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="pos-register-count-badge" hidden>0 register</span>
+                  <button class="button button-primary button-sm" id="create-pos-register-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Register
+                  </button>
+                </div>
+              </div>
+              <div class="toolbar">
+                <label class="search-box">
+                  <svg class="icon"><use href="#i-search"></use></svg>
+                  <input id="pos-register-search" type="search" placeholder="Cari kode, nama register, pedagang, atau toko..." autocomplete="off" />
+                </label>
+                <span class="toolbar-count" id="pos-register-count">Memuat...</span>
+                <button class="icon-button toolbar-refresh" id="refresh-pos-registers" type="button" aria-label="Segarkan cash register" title="Segarkan">
+                  <svg class="icon"><use href="#i-refresh"></use></svg>
+                </button>
+              </div>
+              <div class="table-host" id="pos-registers-table">
+                <div class="table-loading">
+                  <span class="skeleton skeleton-row"></span>
+                  <span class="skeleton skeleton-row"></span>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Operasional kasir</p>
+                  <h3>Shift kasir</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="pos-shift-count-badge" hidden>0 shift</span>
+                  <button class="button button-primary button-sm" id="open-pos-shift-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Buka shift
+                  </button>
+                </div>
+              </div>
+              <div class="toolbar">
+                <label class="search-box">
+                  <svg class="icon"><use href="#i-search"></use></svg>
+                  <input id="pos-shift-search" type="search" placeholder="Cari nomor shift, kasir, terminal, atau register..." autocomplete="off" />
+                </label>
+                <label class="select-box">
+                  <span class="sr-only">Filter status shift</span>
+                  <select id="pos-shift-status-filter">
+                    <option value="">Semua status</option>
+                    <option value="open">Terbuka</option>
+                    <option value="closed">Ditutup</option>
+                    <option value="cancelled">Dibatalkan</option>
+                  </select>
+                  <svg class="icon"><use href="#i-chevron-down"></use></svg>
+                </label>
+                <span class="toolbar-count" id="pos-shift-count">Memuat...</span>
+                <button class="icon-button toolbar-refresh" id="refresh-pos-shifts" type="button" aria-label="Segarkan shift kasir" title="Segarkan">
+                  <svg class="icon"><use href="#i-refresh"></use></svg>
+                </button>
+              </div>
+              <div class="table-host" id="pos-shifts-table">
+                <div class="table-loading">
+                  <span class="skeleton skeleton-row"></span>
+                  <span class="skeleton skeleton-row"></span>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Penjualan toko fisik</p>
+                  <h3>Transaksi POS</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="pos-transaction-count-badge" hidden>0 transaksi</span>
+                  <button class="button button-ghost button-sm" id="sync-pos-offline-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-refresh"></use></svg>
+                    Sinkron offline
+                  </button>
+                  <button class="button button-primary button-sm" id="create-pos-transaction-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Transaksi
+                  </button>
+                </div>
+              </div>
+              <div class="toolbar">
+                <label class="search-box">
+                  <svg class="icon"><use href="#i-search"></use></svg>
+                  <input id="pos-transaction-search" type="search" placeholder="Cari nomor transaksi, pelanggan, terminal, atau kasir..." autocomplete="off" />
+                </label>
+                <label class="select-box">
+                  <span class="sr-only">Filter status transaksi</span>
+                  <select id="pos-transaction-status-filter">
+                    <option value="">Semua status</option>
+                    <option value="completed">Selesai</option>
+                    <option value="voided">Dibatalkan</option>
+                  </select>
+                  <svg class="icon"><use href="#i-chevron-down"></use></svg>
+                </label>
+                <label class="select-box">
+                  <span class="sr-only">Filter sinkronisasi</span>
+                  <select id="pos-transaction-sync-filter">
+                    <option value="">Semua sinkronisasi</option>
+                    <option value="synced">Tersinkronisasi</option>
+                    <option value="pending">Menunggu</option>
+                    <option value="failed">Gagal</option>
+                    <option value="conflict">Konflik</option>
+                  </select>
+                  <svg class="icon"><use href="#i-chevron-down"></use></svg>
+                </label>
+                <span class="toolbar-count" id="pos-transaction-count">Memuat...</span>
+                <button class="icon-button toolbar-refresh" id="refresh-pos-transactions" type="button" aria-label="Segarkan transaksi POS" title="Segarkan">
+                  <svg class="icon"><use href="#i-refresh"></use></svg>
+                </button>
+              </div>
+              <div class="table-host" id="pos-transactions-table">
+                <div class="table-loading">
+                  <span class="skeleton skeleton-row"></span>
+                  <span class="skeleton skeleton-row"></span>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Offline sync</p>
+                  <h3>Log sinkronisasi</h3>
+                </div>
+                <span class="section-badge neutral" id="pos-sync-count-badge" hidden>0 log</span>
+              </div>
+              <div class="toolbar">
+                <label class="search-box">
+                  <svg class="icon"><use href="#i-search"></use></svg>
+                  <input id="pos-sync-search" type="search" placeholder="Cari pesan, terminal, pedagang, atau transaksi..." autocomplete="off" />
+                </label>
+                <label class="select-box">
+                  <span class="sr-only">Filter status sinkronisasi</span>
+                  <select id="pos-sync-status-filter">
+                    <option value="">Semua status</option>
+                    <option value="success">Berhasil</option>
+                    <option value="failed">Gagal</option>
+                    <option value="conflict">Konflik</option>
+                  </select>
+                  <svg class="icon"><use href="#i-chevron-down"></use></svg>
+                </label>
+                <span class="toolbar-count" id="pos-sync-count">Memuat...</span>
+                <button class="icon-button toolbar-refresh" id="refresh-pos-sync" type="button" aria-label="Segarkan log sinkronisasi" title="Segarkan">
+                  <svg class="icon"><use href="#i-refresh"></use></svg>
+                </button>
+              </div>
+              <div class="table-host" id="pos-sync-table">
                 <div class="table-loading">
                   <span class="skeleton skeleton-row"></span>
                   <span class="skeleton skeleton-row"></span>

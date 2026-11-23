@@ -53,6 +53,17 @@ const PERMISSIONS: PermissionSeed[] = [
     name: 'Manage payment providers, methods, and reconciliation',
     module: 'payment',
   },
+  { code: 'pos:read', name: 'View POS terminals, shifts, and transactions', module: 'pos' },
+  {
+    code: 'pos:write',
+    name: 'Operate POS shifts and create transactions',
+    module: 'pos',
+  },
+  {
+    code: 'pos:manage',
+    name: 'Manage POS terminals, registers, and synchronization',
+    module: 'pos',
+  },
   { code: 'audit:read', name: 'View audit logs', module: 'governance' },
 ];
 
@@ -68,6 +79,9 @@ const MEMBER_PERMISSIONS = [
   'commerce:write',
   'payment:read',
   'payment:write',
+  'pos:read',
+  'pos:write',
+  'pos:manage',
   'organization:read',
   'organization:write',
   'organization:member:manage',
@@ -96,6 +110,7 @@ const ROLE_SEEDS: Array<{ code: string; name: string; description: string; permi
       'commerce:read',
       'commerce:manage',
       'payment:read',
+      'pos:read',
       'organization:read',
       'audit:read',
     ],

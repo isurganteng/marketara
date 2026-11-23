@@ -13,6 +13,7 @@ Fokus tahap ini adalah fondasi database dan API (Bagian 17 dokumen):
 6. **MKT-04** Marketplace & Omnichannel Commerce
 7. **MKT-05** Order & Transaction Management
 8. **MKT-06** Integrated Payment Management
+9. **MKT-07** POS & Offline Transaction Management
 
 Stack: **Bun + Hono + Drizzle ORM + PostgreSQL + Zod**.
 
@@ -100,8 +101,10 @@ serta form tambah pasar. Menu **Commerce** menampilkan storefront, status
 publikasi, detail produk storefront, dan pengelolaan kanal penjualan. Menu
 **Pesanan** menampilkan order, status, pembatalan, retur, dan ledger transaksi
 penjualan. Menu **Pembayaran** menampilkan pembayaran, refund, settlement,
-rekonsiliasi, serta pengelolaan provider dan metode pembayaran. UI disajikan
-langsung oleh Bun/Hono tanpa build step tambahan.
+rekonsiliasi, serta pengelolaan provider dan metode pembayaran. Menu **POS**
+menampilkan terminal, cash register, shift kasir, transaksi toko fisik,
+pembatalan transaksi, pergerakan kas, dan sinkronisasi transaksi offline. UI
+disajikan langsung oleh Bun/Hono tanpa build step tambahan.
 
 Katalog marketplace publik MKT-04 tersedia lewat API:
 
@@ -154,6 +157,7 @@ src/
     schema/catalog.ts       # 12 tabel: kategori, produk, varian, SKU, katalog
     schema/commerce.ts      # 17 tabel: kanal, storefront, cart, checkout, order, retur
     schema/payment.ts       # 10 tabel: provider, metode, payment, refund, settlement
+    schema/pos.ts           # 7 tabel: terminal, register, shift, transaksi, kas, sync
     migrate.ts              # Migration runner
     seed.ts                 # Seed role/permission/reference
   lib/
@@ -196,6 +200,12 @@ src/
       settlements.ts        # Settlement pedagang
       reconciliations.ts    # Rekonsiliasi provider
       shared.ts             # Scoping, fee, dan detail payment
+    pos/                    # POS & offline transaction (MKT-07)
+      index.ts              # Mount route POS + auth
+      resources.ts          # Terminal POS dan cash register
+      shifts.ts             # Shift kasir, tutup shift, pergerakan kas
+      transactions.ts       # Transaksi POS, void, batch sync, log sync
+      shared.ts             # Scoping, saldo kas, total shift, detail
     reference.ts            # Master reference data
     audit.ts                # Audit log viewer
   services/auth.ts          # Session & profile service
@@ -209,6 +219,7 @@ docs/catalog-database.md    # Detail desain database catalog
 docs/commerce-database.md   # Detail desain database commerce (MKT-04)
 docs/order-database.md      # Detail desain database order & transaksi (MKT-05)
 docs/payment-database.md    # Detail desain database pembayaran (MKT-06)
+docs/pos-database.md        # Detail desain database POS (MKT-07)
 ```
 
 ---
@@ -419,6 +430,34 @@ Base URL: `/api/v1`
 > `requested`; pembuatan refund, settlement, provider, metode, dan rekonsiliasi
 > membutuhkan akses merchant/admin yang sesuai.
 
+### POS — `/api/v1/pos`
+
+| Method | Path | Permission | Keterangan |
+| --- | --- | --- | --- |
+| GET | `/terminals` | `pos:read` | Daftar terminal POS sesuai akses |
+| POST | `/terminals` | `pos:manage` | Buat terminal POS |
+| PATCH | `/terminals/:terminalId` | `pos:manage` | Update terminal / status |
+| GET | `/registers` | `pos:read` | Daftar cash register |
+| POST | `/registers` | `pos:manage` | Buat cash register |
+| PATCH | `/registers/:registerId` | `pos:manage` | Update cash register |
+| GET | `/shifts` | `pos:read` | Daftar shift kasir |
+| POST | `/shifts` | `pos:write` | Buka shift kasir |
+| GET | `/shifts/:shiftId` | `pos:read` | Detail shift + pergerakan kas |
+| POST | `/shifts/:shiftId/close` | `pos:write` | Tutup shift + rekonsiliasi kas |
+| POST | `/shifts/:shiftId/cash-movements` | `pos:write` | Catat kas masuk/keluar/penyesuaian |
+| GET | `/transactions` | `pos:read` | Daftar transaksi POS |
+| POST | `/transactions` | `pos:write` | Buat transaksi POS langsung |
+| GET | `/transactions/:transactionId` | `pos:read` | Detail transaksi + item |
+| POST | `/transactions/:transactionId/void` | `pos:write` | Batalkan transaksi |
+| POST | `/transactions/:transactionId/sync` | `pos:manage` | Tandai transaksi tersinkronisasi |
+| POST | `/sync` | `pos:manage` | Batch upload transaksi offline |
+| GET | `/sync-logs` | `pos:read` | Daftar log sinkronisasi |
+
+> Transaksi POS terpisah dari order marketplace dan tidak mengubah stok.
+> Transaksi offline bersifat idempoten berdasarkan pasangan
+> `(terminalId, clientTransactionId)`. Nilai uang transaksi dan kas
+> dikembalikan sebagai string desimal.
+
 ### Marketplace publik — `/api/v1/commerce/marketplace`
 
 Tidak memerlukan login. Hanya menampilkan storefront `published` milik merchant
@@ -449,8 +488,8 @@ Tidak memerlukan login. Hanya menampilkan storefront `published` milik merchant
 | Role | Ringkasan akses |
 | --- | --- |
 | `platform_admin` | Wildcard `*` (semua akses) |
-| `market_admin` | Kelola pasar/okupansi, verifikasi merchant, master katalog, kanal commerce, lihat pembayaran, lihat audit |
-| `member` | Buat organisasi, kelola merchant/toko/produk/storefront miliknya, belanja, kelola pembayaran/refund merchant |
+| `market_admin` | Kelola pasar/okupansi, verifikasi merchant, master katalog, kanal commerce, lihat pembayaran, lihat POS, lihat audit |
+| `member` | Buat organisasi, kelola merchant/toko/produk/storefront miliknya, belanja, kelola pembayaran/refund merchant, kelola POS merchant |
 
 Permission yang tersedia: `user:read`, `user:write`, `role:manage`,
 `organization:read`, `organization:write`, `organization:member:manage`,
@@ -458,7 +497,7 @@ Permission yang tersedia: `user:read`, `user:write`, `role:manage`,
 `merchant:write`, `merchant:verify`, `store:read`, `store:write`,
 `catalog:read`, `catalog:write`, `catalog:manage`, `commerce:read`,
 `commerce:write`, `commerce:manage`, `payment:read`, `payment:write`,
-`payment:manage`, `audit:read`.
+`payment:manage`, `pos:read`, `pos:write`, `pos:manage`, `audit:read`.
 
 ### Model otorisasi
 
@@ -514,8 +553,9 @@ Satu database PostgreSQL dengan schema logis:
 - `catalog` — kategori, brand, produk, varian, SKU, gambar, atribut, katalog
   merchant (12 tabel).
 - `commerce` — sales channel, storefront, listing, alamat, cart, checkout,
-  order, item, status history, catatan, pembatalan, retur, dan ledger
-  transaksi (17 tabel).
+  order, item, status history, catatan, pembatalan, retur, ledger transaksi,
+  terminal POS, cash register, shift kasir, transaksi POS, item POS,
+  pergerakan kas, dan log sinkronisasi (24 tabel).
 - `payment` — provider, metode, akun pencairan merchant, payment intent,
   attempt, event, refund, settlement, item settlement, dan rekonsiliasi
   (10 tabel).
@@ -525,12 +565,13 @@ Detail tabel, relasi, enum, dan keputusan desain ada di
 [`docs/core-database.md`](docs/core-database.md),
 [`docs/catalog-database.md`](docs/catalog-database.md),
 [`docs/commerce-database.md`](docs/commerce-database.md),
-[`docs/order-database.md`](docs/order-database.md), dan
-[`docs/payment-database.md`](docs/payment-database.md).
+[`docs/order-database.md`](docs/order-database.md),
+[`docs/payment-database.md`](docs/payment-database.md), dan
+[`docs/pos-database.md`](docs/pos-database.md).
 
 Migration SQL: `drizzle/0000_*.sql` (core), `drizzle/0001_*.sql` (catalog),
-`drizzle/0002_*.sql` (commerce), `drizzle/0003_*.sql` (order), dan
-`drizzle/0004_*.sql` (payment).
+`drizzle/0002_*.sql` (commerce), `drizzle/0003_*.sql` (order),
+`drizzle/0004_*.sql` (payment), dan `drizzle/0005_*.sql` (POS).
 
 ---
 
@@ -548,7 +589,8 @@ Migration SQL: `drizzle/0000_*.sql` (core), `drizzle/0001_*.sql` (catalog),
   (`platform_admin` / `market_admin`). Permission tetap ditegakkan di API.
 - Audit trail mencatat aksi penting (register, create/update market, merchant,
   occupancy, store, organisasi, checkout, order, pembatalan, retur, payment,
-  refund, settlement, dan rekonsiliasi).
+  refund, settlement, rekonsiliasi, terminal POS, register, shift kasir,
+  transaksi POS, pembatalan POS, dan sinkronisasi offline).
 - Belum termasuk: email verification, MFA, refresh token, rate limiting.
   Semua ini masuk roadmap SYS-01/SYS-06.
 
@@ -557,13 +599,16 @@ Migration SQL: `drizzle/0000_*.sql` (core), `drizzle/0001_*.sql` (catalog),
 ## 9. Roadmap Modul Berikutnya
 
 **MKT-04 Marketplace & Omnichannel Commerce**, **MKT-05 Order & Transaction
-Management**, dan **MKT-06 Integrated Payment Management** sudah
-diimplementasikan. MKT-04 mencakup storefront, katalog publik, cart, checkout,
-dan channel listing. MKT-05 mencakup konversi checkout menjadi order per
-merchant, status order, pembatalan, retur, dan ledger transaksi penjualan.
-MKT-06 mencakup provider/metode pembayaran, payment intent, attempt, refund,
-settlement merchant, dan rekonsiliasi provider. Dashboard admin memiliki menu
-**Commerce**, **Pesanan**, dan **Pembayaran**. Urutan berikutnya:
+Management**, **MKT-06 Integrated Payment Management**, dan **MKT-07 POS &
+Offline Transaction Management** sudah diimplementasikan. MKT-04 mencakup
+storefront, katalog publik, cart, checkout, dan channel listing. MKT-05
+mencakup konversi checkout menjadi order per merchant, status order,
+pembatalan, retur, dan ledger transaksi penjualan. MKT-06 mencakup
+provider/metode pembayaran, payment intent, attempt, refund, settlement
+merchant, dan rekonsiliasi provider. MKT-07 mencakup terminal POS, cash
+register, shift kasir, transaksi toko fisik, pergerakan kas, pembatalan
+transaksi, dan sinkronisasi offline. Dashboard admin memiliki menu **Commerce**,
+**Pesanan**, **Pembayaran**, dan **POS**. Urutan berikutnya:
 
 1. **MKT-08 Inventory** - stok per lokasi, movement, opname, batch/expiry.
 2. **SCM-01/SCM-02 Supply Chain** - supplier, PR/PO, receiving, fulfillment.

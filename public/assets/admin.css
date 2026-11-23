@@ -1296,7 +1296,10 @@ svg {
 .status-verified,
 .status-published,
 .status-completed,
-.status-paid {
+.status-paid,
+.status-open,
+.status-synced,
+.status-success {
   color: #147052;
   background: #e5f6ed;
 }
@@ -1328,7 +1331,8 @@ svg {
 .status-pending,
 .status-pending_verification,
 .status-processing,
-.status-requested {
+.status-requested,
+.status-conflict {
   color: #9b6a13;
   background: #fcf3df;
 }
@@ -1351,7 +1355,8 @@ svg {
 .status-closed,
 .status-rejected,
 .status-archived,
-.status-cancelled {
+.status-cancelled,
+.status-voided {
   color: #a44848;
   background: #fbeceb;
 }

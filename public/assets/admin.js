@@ -10,6 +10,7 @@ const VIEW_TITLES = {
   commerce: 'Commerce',
   orders: 'Pesanan',
   payments: 'Pembayaran',
+  pos: 'POS',
   audit: 'Audit log',
 };
 
@@ -49,6 +50,11 @@ const STATUS_LABELS = {
   partially_refunded: 'Refund sebagian',
   refunded: 'Direfund',
   discrepancy: 'Selisih',
+  open: 'Terbuka',
+  voided: 'Dibatalkan',
+  synced: 'Tersinkronisasi',
+  conflict: 'Konflik',
+  success: 'Berhasil',
 };
 
 const STATUS_COLORS = {
@@ -106,6 +112,17 @@ const ACTION_LABELS = {
   'settlement.create': 'Settlement dibuat',
   'settlement.status.update': 'Status settlement diperbarui',
   'reconciliation.create': 'Rekonsiliasi dibuat',
+  'pos_terminal.create': 'Terminal POS dibuat',
+  'pos_terminal.update': 'Terminal POS diperbarui',
+  'pos_register.create': 'Cash register dibuat',
+  'pos_register.update': 'Cash register diperbarui',
+  'pos_shift.open': 'Shift kasir dibuka',
+  'pos_shift.close': 'Shift kasir ditutup',
+  'pos_cash_movement.create': 'Pergerakan kas dicatat',
+  'pos_transaction.create': 'Transaksi POS dibuat',
+  'pos_transaction.void': 'Transaksi POS dibatalkan',
+  'pos_transaction.sync': 'Transaksi POS disinkronkan',
+  'pos_sync.upload': 'Sinkronisasi offline diunggah',
   'organization.create': 'Organisasi baru dibuat',
   'occupancy.create': 'Okupansi unit dibuat',
   'occupancy.end': 'Okupansi unit diakhiri',
@@ -135,6 +152,11 @@ const ENTITY_LABELS = {
   refund: 'Refund',
   settlement: 'Settlement',
   reconciliation: 'Rekonsiliasi',
+  pos_terminal: 'Terminal POS',
+  pos_register: 'Cash register',
+  pos_shift: 'Shift kasir',
+  pos_cash_movement: 'Pergerakan kas',
+  pos_transaction: 'Transaksi POS',
 };
 
 const state = {
@@ -148,12 +170,15 @@ const state = {
   commerce: null,
   orders: null,
   payments: null,
+  pos: null,
   audit: null,
   pendingCount: 0,
   canWriteCommerce: false,
   canManageCommerce: false,
   canWritePayments: false,
   canManagePayments: false,
+  canWritePos: false,
+  canManagePos: false,
   sequences: {
     overview: 0,
     markets: 0,
@@ -162,6 +187,7 @@ const state = {
     commerce: 0,
     orders: 0,
     payments: 0,
+    pos: 0,
     audit: 0,
   },
   filters: {
@@ -171,6 +197,18 @@ const state = {
     commerce: { search: '', status: '' },
     orders: { search: '', status: '' },
     payments: { search: '', status: '' },
+    pos: {
+      terminalSearch: '',
+      terminalStatus: '',
+      registerSearch: '',
+      shiftSearch: '',
+      shiftStatus: '',
+      transactionSearch: '',
+      transactionStatus: '',
+      transactionSync: '',
+      syncSearch: '',
+      syncStatus: '',
+    },
     audit: { search: '', entityType: '' },
   },
 };
@@ -447,16 +485,21 @@ function applyProfile(profile) {
   const permissions = Array.isArray(profile.permissions) ? profile.permissions : [];
   const canCommerce = permissions.includes('*') || permissions.includes('commerce:read');
   const canPayments = permissions.includes('*') || permissions.includes('payment:read');
+  const canPos = permissions.includes('*') || permissions.includes('pos:read');
   state.canWriteCommerce = permissions.includes('*') || permissions.includes('commerce:write');
   state.canManageCommerce = permissions.includes('*') || permissions.includes('commerce:manage');
   state.canWritePayments = permissions.includes('*') || permissions.includes('payment:write');
   state.canManagePayments = permissions.includes('*') || permissions.includes('payment:manage');
+  state.canWritePos = permissions.includes('*') || permissions.includes('pos:write');
+  state.canManagePos = permissions.includes('*') || permissions.includes('pos:manage');
   const commerceNav = $('[data-view="commerce"]');
   if (commerceNav) commerceNav.hidden = !canCommerce;
   const ordersNav = $('[data-view="orders"]');
   if (ordersNav) ordersNav.hidden = !canCommerce;
   const paymentsNav = $('[data-view="payments"]');
   if (paymentsNav) paymentsNav.hidden = !canPayments;
+  const posNav = $('[data-view="pos"]');
+  if (posNav) posNav.hidden = !canPos;
   const createChannelButton = $('#create-channel-button');
   if (createChannelButton) createChannelButton.hidden = !state.canManageCommerce;
 
@@ -472,6 +515,23 @@ function applyProfile(profile) {
   }
   const reconciliationPanel = $('#reconciliation-panel');
   if (reconciliationPanel) reconciliationPanel.hidden = !state.canManagePayments;
+
+  const canCreatePos = state.canManagePos || state.canWritePos;
+  for (const selector of [
+    '#create-pos-terminal-button',
+    '#create-pos-register-button',
+    '#open-pos-shift-button',
+    '#create-pos-transaction-button',
+  ]) {
+    const button = $(selector);
+    if (!button) continue;
+    button.hidden =
+      selector === '#create-pos-terminal-button' || selector === '#create-pos-register-button'
+        ? !state.canManagePos
+        : !canCreatePos;
+  }
+  const syncOfflineButton = $('#sync-pos-offline-button');
+  if (syncOfflineButton) syncOfflineButton.hidden = !state.canManagePos;
 
   const hour = new Date().getHours();
   const greeting =
@@ -589,6 +649,7 @@ function loadView(view) {
   if (view === 'commerce') return loadCommerce();
   if (view === 'orders') return loadOrders();
   if (view === 'payments') return loadPayments();
+  if (view === 'pos') return loadPos();
   if (view === 'audit') return loadAudit();
   return undefined;
 }
@@ -3455,6 +3516,1434 @@ async function updateReturnStatus(returnId, status, returnNumber) {
   }
 }
 
+/* ---------------------------------- POS ------------------------------- */
+
+const POS_PAYMENT_METHOD_LABELS = {
+  cash: 'Tunai',
+  qris: 'QRIS',
+  debit_card: 'Kartu debit',
+  credit_card: 'Kartu kredit',
+  ewallet: 'E-wallet',
+  bank_transfer: 'Transfer bank',
+  other: 'Lainnya',
+};
+
+const POS_CASH_MOVEMENT_LABELS = {
+  opening: 'Saldo awal',
+  sale: 'Penjualan tunai',
+  refund: 'Refund / pembatalan',
+  cash_in: 'Kas masuk',
+  cash_out: 'Kas keluar',
+  adjustment: 'Penyesuaian',
+};
+
+function posPaymentMethodLabel(value) {
+  return POS_PAYMENT_METHOD_LABELS[value] ?? value ?? '-';
+}
+
+function posCashMovementLabel(value) {
+  return POS_CASH_MOVEMENT_LABELS[value] ?? value ?? '-';
+}
+
+function posProductOptions(productList, selectedId = '') {
+  return (
+    '<option value="">Pilih produk</option>' +
+    productList
+      .map(
+        (product) =>
+          `<option value="${escapeHtml(product.id)}" ${product.id === selectedId ? 'selected' : ''}>${escapeHtml(product.name)} - ${escapeHtml(product.merchantName ?? '')}</option>`,
+      )
+      .join('')
+  );
+}
+
+function posTerminalOptions(terminalList, selectedId = '') {
+  return (
+    '<option value="">Pilih terminal</option>' +
+    terminalList
+      .map(
+        (terminal) =>
+          `<option value="${escapeHtml(terminal.id)}" ${terminal.id === selectedId ? 'selected' : ''}>${escapeHtml(terminal.code)} - ${escapeHtml(terminal.name)}</option>`,
+      )
+      .join('')
+  );
+}
+
+function posRegisterOptions(registerList, selectedId = '', terminalId = '') {
+  const filtered = terminalId
+    ? registerList.filter(
+        (register) => !register.terminalId || register.terminalId === terminalId,
+      )
+    : registerList;
+  return (
+    '<option value="">Pilih cash register</option>' +
+    filtered
+      .map(
+        (register) =>
+          `<option value="${escapeHtml(register.id)}" ${register.id === selectedId ? 'selected' : ''}>${escapeHtml(register.code)} - ${escapeHtml(register.name)}</option>`,
+      )
+      .join('')
+  );
+}
+
+async function loadPos(force = false) {
+  const sequence = ++state.sequences.pos;
+  const filters = state.filters.pos;
+
+  if (!state.pos || force) {
+    $('#pos-terminals-table').innerHTML = tableLoading(3);
+    $('#pos-registers-table').innerHTML = tableLoading(3);
+    $('#pos-shifts-table').innerHTML = tableLoading(3);
+    $('#pos-transactions-table').innerHTML = tableLoading(4);
+    $('#pos-sync-table').innerHTML = tableLoading(3);
+  }
+  $('#pos-terminal-count').textContent = 'Memuat...';
+  $('#pos-register-count').textContent = 'Memuat...';
+  $('#pos-shift-count').textContent = 'Memuat...';
+  $('#pos-transaction-count').textContent = 'Memuat...';
+  $('#pos-sync-count').textContent = 'Memuat...';
+  setSpinner('#refresh-pos-transactions', true);
+
+  try {
+    const [terminals, registers, shifts, transactions, syncLogs] = await Promise.all([
+      api(
+        `/pos/terminals${buildQuery({
+          limit: 100,
+          search: filters.terminalSearch,
+          status: filters.terminalStatus,
+        })}`,
+      ),
+      api(
+        `/pos/registers${buildQuery({
+          limit: 100,
+          search: filters.registerSearch,
+        })}`,
+      ),
+      api(
+        `/pos/shifts${buildQuery({
+          limit: 100,
+          search: filters.shiftSearch,
+          status: filters.shiftStatus,
+        })}`,
+      ),
+      api(
+        `/pos/transactions${buildQuery({
+          limit: 100,
+          search: filters.transactionSearch,
+          status: filters.transactionStatus,
+          syncStatus: filters.transactionSync,
+        })}`,
+      ),
+      api(
+        `/pos/sync-logs${buildQuery({
+          limit: 100,
+          search: filters.syncSearch,
+          status: filters.syncStatus,
+        })}`,
+      ),
+    ]);
+    if (sequence !== state.sequences.pos) return;
+    state.pos = { terminals, registers, shifts, transactions, syncLogs };
+    renderPos();
+  } catch (error) {
+    if (sequence !== state.sequences.pos) return;
+    for (const selector of [
+      '#pos-terminal-count',
+      '#pos-register-count',
+      '#pos-shift-count',
+      '#pos-transaction-count',
+      '#pos-sync-count',
+    ]) {
+      $(selector).textContent = 'Gagal memuat';
+    }
+    for (const selector of [
+      '#pos-terminals-table',
+      '#pos-registers-table',
+      '#pos-shifts-table',
+      '#pos-transactions-table',
+      '#pos-sync-table',
+    ]) {
+      $(selector).innerHTML = errorState(error.message, 'data-retry-pos');
+    }
+  } finally {
+    if (sequence === state.sequences.pos) setSpinner('#refresh-pos-transactions', false);
+  }
+}
+
+function renderPos() {
+  const data = state.pos;
+  if (!data) return;
+
+  const terminals = data.terminals.data ?? [];
+  const registers = data.registers.data ?? [];
+  const shifts = data.shifts.data ?? [];
+  const transactions = data.transactions.data ?? [];
+  const syncLogs = data.syncLogs.data ?? [];
+  const terminalTotal = Number(data.terminals.meta?.total ?? terminals.length);
+  const registerTotal = Number(data.registers.meta?.total ?? registers.length);
+  const shiftTotal = Number(data.shifts.meta?.total ?? shifts.length);
+  const transactionTotal = Number(data.transactions.meta?.total ?? transactions.length);
+  const syncTotal = Number(data.syncLogs.meta?.total ?? syncLogs.length);
+  const openShifts = shifts.filter((row) => row.status === 'open').length;
+
+  $('#pos-terminal-count').textContent = `${formatNumber(terminalTotal)} terminal`;
+  $('#pos-register-count').textContent = `${formatNumber(registerTotal)} register`;
+  $('#pos-shift-count').textContent = `${formatNumber(shiftTotal)} shift`;
+  $('#pos-transaction-count').textContent = `${formatNumber(transactionTotal)} transaksi`;
+  $('#pos-sync-count').textContent = `${formatNumber(syncTotal)} log`;
+
+  const setBadge = (selector, count, label) => {
+    const badge = $(selector);
+    if (!badge) return;
+    badge.hidden = count === 0;
+    badge.textContent = `${formatNumber(count)} ${label}`;
+  };
+  setBadge('#pos-terminal-count-badge', terminalTotal, 'terminal');
+  setBadge('#pos-register-count-badge', registerTotal, 'register');
+  setBadge('#pos-shift-count-badge', shiftTotal, 'shift');
+  setBadge('#pos-transaction-count-badge', transactionTotal, 'transaksi');
+  setBadge('#pos-sync-count-badge', syncTotal, 'log');
+  setBadge('#pos-open-shift-badge', openShifts, 'shift terbuka');
+
+  if (!terminals.length) {
+    $('#pos-terminals-table').innerHTML = emptyState(
+      'Belum ada terminal POS',
+      state.filters.pos.terminalSearch || state.filters.pos.terminalStatus
+        ? 'Coba ubah kata kunci atau filter status.'
+        : 'Tambahkan terminal untuk mulai mencatat penjualan toko fisik.',
+    );
+  } else {
+    $('#pos-terminals-table').innerHTML = `
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Terminal</th><th>Pedagang / toko</th><th>Lokasi</th><th>Status</th><th>Aksi</th></tr></thead>
+          <tbody>
+            ${terminals
+              .map(
+                (row) => `
+                  <tr>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.name)}</div>
+                      <div class="cell-muted">${escapeHtml(row.code)}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.merchantName)}</div>
+                      <div class="cell-muted">${escapeHtml(row.storeName)}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.location ?? '-')}</div>
+                      <div class="cell-muted">${escapeHtml(row.deviceIdentifier ?? 'Tanpa device ID')}</div>
+                    </td>
+                    <td>${statusBadge(row.status)}</td>
+                    <td>
+                      <button class="action-link" type="button" data-pos-terminal-edit="${escapeHtml(row.id)}">
+                        ${icon('arrow-right')} Ubah
+                      </button>
+                    </td>
+                  </tr>
+                `,
+              )
+              .join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  if (!registers.length) {
+    $('#pos-registers-table').innerHTML = emptyState(
+      'Belum ada cash register',
+      state.filters.pos.registerSearch
+        ? 'Coba ubah kata kunci pencarian.'
+        : 'Cash register mewakili laci kas pada terminal POS.',
+    );
+  } else {
+    $('#pos-registers-table').innerHTML = `
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Register</th><th>Terminal</th><th>Pedagang / toko</th><th>Shift aktif</th><th>Status</th><th>Aksi</th></tr></thead>
+          <tbody>
+            ${registers
+              .map(
+                (row) => `
+                  <tr>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.name)}</div>
+                      <div class="cell-muted">${escapeHtml(row.code)}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.terminalCode ?? '-')}</div>
+                      <div class="cell-muted">${escapeHtml(row.terminalName ?? 'Tanpa terminal')}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.merchantName)}</div>
+                      <div class="cell-muted">${escapeHtml(row.storeName)}</div>
+                    </td>
+                    <td>
+                      ${row.activeShiftNumber ? `<div class="cell-title">${escapeHtml(row.activeShiftNumber)}</div><div class="cell-muted">${escapeHtml(row.activeCashierName ?? '-')}</div>` : '<span class="cell-muted">Tidak ada</span>'}
+                    </td>
+                    <td>${statusBadge(row.status)}</td>
+                    <td>
+                      <button class="action-link" type="button" data-pos-register-edit="${escapeHtml(row.id)}">
+                        ${icon('arrow-right')} Ubah
+                      </button>
+                    </td>
+                  </tr>
+                `,
+              )
+              .join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  if (!shifts.length) {
+    $('#pos-shifts-table').innerHTML = emptyState(
+      'Belum ada shift kasir',
+      state.filters.pos.shiftSearch || state.filters.pos.shiftStatus
+        ? 'Coba ubah kata kunci atau filter status.'
+        : 'Buka shift sebelum kasir membuat transaksi POS.',
+    );
+  } else {
+    $('#pos-shifts-table').innerHTML = `
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Shift</th><th>Kasir</th><th>Terminal / register</th><th>Penjualan</th><th>Kas</th><th>Status</th><th>Aksi</th></tr></thead>
+          <tbody>
+            ${shifts
+              .map(
+                (row) => `
+                  <tr>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.shiftNumber)}</div>
+                      <div class="cell-muted">${escapeHtml(formatDateTime(row.openedAt))}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.cashierName)}</div>
+                      <div class="cell-muted">${escapeHtml(row.cashierEmail ?? '-')}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.terminalCode)}</div>
+                      <div class="cell-muted">${escapeHtml(row.registerCode)}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(formatMoney(row.totalSales))}</div>
+                      <div class="cell-muted">${formatNumber(row.transactionCount)} transaksi</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(formatMoney(row.expectedCash))}</div>
+                      <div class="cell-muted">Awal ${escapeHtml(formatMoney(row.openingFloat))}</div>
+                    </td>
+                    <td>${statusBadge(row.status)}</td>
+                    <td>
+                      <div class="row-actions">
+                        <button class="action-link" type="button" data-pos-shift-detail="${escapeHtml(row.id)}">${icon('arrow-right')} Detail</button>
+                        ${row.status === 'open' && state.canWritePos ? `<button class="action-link" type="button" data-pos-shift-close="${escapeHtml(row.id)}" data-pos-shift-number="${escapeHtml(row.shiftNumber)}">Tutup</button>` : ''}
+                      </div>
+                    </td>
+                  </tr>
+                `,
+              )
+              .join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  if (!transactions.length) {
+    $('#pos-transactions-table').innerHTML = emptyState(
+      'Belum ada transaksi POS',
+      state.filters.pos.transactionSearch ||
+        state.filters.pos.transactionStatus ||
+        state.filters.pos.transactionSync
+        ? 'Coba ubah kata kunci atau filter.'
+        : 'Transaksi muncul setelah dibuat dari terminal POS atau sinkronisasi offline.',
+    );
+  } else {
+    $('#pos-transactions-table').innerHTML = `
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Transaksi</th><th>Pelanggan</th><th>Terminal / kasir</th><th>Total</th><th>Metode</th><th>Status</th><th>Aksi</th></tr></thead>
+          <tbody>
+            ${transactions
+              .map(
+                (row) => `
+                  <tr>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.transactionNumber)}</div>
+                      <div class="cell-muted">${escapeHtml(formatDateTime(row.completedAt))}</div>
+                      ${row.clientTransactionId ? `<div class="cell-muted">Offline: ${escapeHtml(row.clientTransactionId)}</div>` : ''}
+                    </td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.customerName ?? 'Pelanggan umum')}</div>
+                      <div class="cell-muted">${formatNumber(row.itemCount)} item${row.customerPhone ? ` - ${escapeHtml(row.customerPhone)}` : ''}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.terminalCode)}</div>
+                      <div class="cell-muted">${escapeHtml(row.registerCode)} - ${escapeHtml(row.cashierName)}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(formatMoney(row.total, row.currency))}</div>
+                      <div class="cell-muted">Bayar ${escapeHtml(formatMoney(row.paidAmount, row.currency))}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(posPaymentMethodLabel(row.paymentMethod))}</div>
+                      <div class="cell-muted">${statusBadge(row.syncStatus)}</div>
+                    </td>
+                    <td>${statusBadge(row.status)}</td>
+                    <td>
+                      <div class="row-actions">
+                        <button class="action-link" type="button" data-pos-transaction-detail="${escapeHtml(row.id)}">${icon('arrow-right')} Detail</button>
+                        ${row.status === 'completed' && state.canWritePos ? `<button class="action-link" type="button" data-pos-transaction-void="${escapeHtml(row.id)}" data-pos-transaction-number="${escapeHtml(row.transactionNumber)}">Batalkan</button>` : ''}
+                        ${row.syncStatus !== 'synced' && state.canManagePos ? `<button class="action-link" type="button" data-pos-transaction-sync="${escapeHtml(row.id)}" data-pos-transaction-number="${escapeHtml(row.transactionNumber)}">Sinkron</button>` : ''}
+                      </div>
+                    </td>
+                  </tr>
+                `,
+              )
+              .join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  if (!syncLogs.length) {
+    $('#pos-sync-table').innerHTML = emptyState(
+      'Belum ada log sinkronisasi',
+      state.filters.pos.syncSearch || state.filters.pos.syncStatus
+        ? 'Coba ubah kata kunci atau filter status.'
+        : 'Log muncul saat transaksi POS dibuat atau diunggah dari mode offline.',
+    );
+  } else {
+    $('#pos-sync-table').innerHTML = `
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Waktu</th><th>Terminal</th><th>Status</th><th>Record</th><th>Pesan</th></tr></thead>
+          <tbody>
+            ${syncLogs
+              .map(
+                (row) => `
+                  <tr>
+                    <td>
+                      <div class="cell-title">${escapeHtml(formatDateTime(row.createdAt))}</div>
+                      <div class="cell-muted">${escapeHtml(row.direction === 'upload' ? 'Upload' : 'Download')}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.terminalCode)}</div>
+                      <div class="cell-muted">${escapeHtml(row.merchantName)}</div>
+                    </td>
+                    <td>${statusBadge(row.status)}</td>
+                    <td>${formatNumber(row.recordsCount)}</td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.message ?? '-')}</div>
+                      <div class="cell-muted">${escapeHtml(row.transactionNumber ?? 'Batch')}</div>
+                    </td>
+                  </tr>
+                `,
+              )
+              .join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+}
+
+async function fillPosStoreOptions(merchantId, select, selectedId = '') {
+  select.innerHTML = '<option value="">Pilih toko</option>';
+  if (!merchantId) return;
+  const result = await api(`/merchants/${merchantId}/stores?limit=100`);
+  select.innerHTML =
+    '<option value="">Pilih toko</option>' +
+    (result.data ?? [])
+      .map(
+        (store) =>
+          `<option value="${escapeHtml(store.id)}" ${store.id === selectedId ? 'selected' : ''}>${escapeHtml(store.name)}</option>`,
+      )
+      .join('');
+}
+
+async function openPosTerminalModal(terminalId) {
+  openModal({
+    title: terminalId ? 'Ubah terminal POS' : 'Tambah terminal POS',
+    kicker: 'Perangkat',
+    subtitle: 'Memuat daftar pedagang...',
+    body: tableLoading(3),
+  });
+  try {
+    const merchants = await api('/merchants?limit=100');
+    const merchantList = merchants.data ?? [];
+    if (!merchantList.length) {
+      closeModal();
+      showToast('Pedagang belum tersedia', 'Tambahkan pedagang sebelum membuat terminal POS.', 'error');
+      return;
+    }
+    const record = terminalId
+      ? (state.pos?.terminals?.data ?? []).find((row) => row.id === terminalId)
+      : null;
+    const selectedMerchantId = record?.merchantId ?? merchantList[0].id;
+    const modal = openModal({
+      title: terminalId ? 'Ubah terminal POS' : 'Tambah terminal POS',
+      kicker: 'Perangkat',
+      subtitle: terminalId
+        ? 'Perbarui identitas dan status perangkat kasir.'
+        : 'Terminal POS mewakili perangkat kasir pada satu toko.',
+      body: `
+        <form id="pos-terminal-form" class="form-grid">
+          <label class="field field-span">
+            <span>Pedagang *</span>
+            <select name="merchantId" id="pos-terminal-merchant" required ${terminalId ? 'disabled' : ''}>
+              ${merchantList
+                .map(
+                  (merchant) =>
+                    `<option value="${escapeHtml(merchant.id)}" ${merchant.id === selectedMerchantId ? 'selected' : ''}>${escapeHtml(merchant.businessName)}</option>`,
+                )
+                .join('')}
+            </select>
+          </label>
+          <label class="field field-span">
+            <span>Toko *</span>
+            <select name="storeId" id="pos-terminal-store" required></select>
+          </label>
+          <label class="field">
+            <span>Kode terminal</span>
+            <input name="code" type="text" maxlength="64" value="${escapeHtml(record?.code ?? '')}" placeholder="Otomatis jika kosong" />
+          </label>
+          <label class="field">
+            <span>Status</span>
+            <select name="status">
+              <option value="active" ${record?.status === 'active' || !record ? 'selected' : ''}>Aktif</option>
+              <option value="maintenance" ${record?.status === 'maintenance' ? 'selected' : ''}>Pemeliharaan</option>
+              <option value="inactive" ${record?.status === 'inactive' ? 'selected' : ''}>Nonaktif</option>
+            </select>
+          </label>
+          <label class="field field-span">
+            <span>Nama terminal *</span>
+            <input name="name" type="text" maxlength="255" required value="${escapeHtml(record?.name ?? '')}" placeholder="Contoh: Kasir utama" />
+          </label>
+          <label class="field field-span">
+            <span>Lokasi</span>
+            <input name="location" type="text" maxlength="255" value="${escapeHtml(record?.location ?? '')}" placeholder="Contoh: Depan gerai" />
+          </label>
+          <label class="field field-span">
+            <span>Device identifier</span>
+            <input name="deviceIdentifier" type="text" maxlength="128" value="${escapeHtml(record?.deviceIdentifier ?? '')}" placeholder="Android POS-01 / tablet kasir" />
+          </label>
+        </form>
+      `,
+      footer: `
+        <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+        <button class="button button-primary" id="pos-terminal-submit" type="submit" form="pos-terminal-form">
+          ${icon('plus')} ${terminalId ? 'Simpan perubahan' : 'Simpan terminal'}
+        </button>
+      `,
+    });
+    const form = modal.querySelector('#pos-terminal-form');
+    const merchantSelect = modal.querySelector('#pos-terminal-merchant');
+    const storeSelect = modal.querySelector('#pos-terminal-store');
+    const submit = modal.querySelector('#pos-terminal-submit');
+
+    await fillPosStoreOptions(selectedMerchantId, storeSelect, record?.storeId ?? '');
+    merchantSelect.addEventListener('change', async () => {
+      await fillPosStoreOptions(merchantSelect.value, storeSelect);
+    });
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const payload = {
+        storeId: String(data.get('storeId') ?? ''),
+        name: String(data.get('name') ?? '').trim(),
+        location: String(data.get('location') ?? '').trim() || undefined,
+        deviceIdentifier: String(data.get('deviceIdentifier') ?? '').trim() || undefined,
+        status: String(data.get('status') ?? 'active'),
+      };
+      const code = String(data.get('code') ?? '').trim();
+      if (!payload.storeId || payload.name.length < 2) {
+        showToast('Data belum lengkap', 'Pilih toko dan isi nama terminal.', 'error');
+        return;
+      }
+      if (!terminalId) {
+        payload.merchantId = String(data.get('merchantId') ?? '');
+        if (code) payload.code = code;
+      }
+      submit.disabled = true;
+      try {
+        await api(terminalId ? `/pos/terminals/${terminalId}` : '/pos/terminals', {
+          method: terminalId ? 'PATCH' : 'POST',
+          body: payload,
+        });
+        closeModal();
+        showToast('Terminal tersimpan', `${payload.name} berhasil disimpan.`);
+        await loadPos(true);
+      } catch (error) {
+        showToast('Gagal menyimpan terminal', error.message, 'error');
+      } finally {
+        submit.disabled = false;
+      }
+    });
+  } catch (error) {
+    closeModal();
+    showToast('Gagal memuat terminal', error.message, 'error');
+  }
+}
+
+async function openPosRegisterModal(registerId) {
+  openModal({
+    title: registerId ? 'Ubah cash register' : 'Tambah cash register',
+    kicker: 'Laci kas',
+    subtitle: 'Memuat data terminal...',
+    body: tableLoading(3),
+  });
+  try {
+    const merchants = await api('/merchants?limit=100');
+    const merchantList = merchants.data ?? [];
+    if (!merchantList.length) {
+      closeModal();
+      showToast('Pedagang belum tersedia', 'Tambahkan pedagang sebelum membuat cash register.', 'error');
+      return;
+    }
+    const record = registerId
+      ? (state.pos?.registers?.data ?? []).find((row) => row.id === registerId)
+      : null;
+    const selectedMerchantId = record?.merchantId ?? merchantList[0].id;
+    const terminalsResult = await api(
+      `/pos/terminals?limit=100&merchantId=${encodeURIComponent(selectedMerchantId)}`,
+    );
+    let terminalList = terminalsResult.data ?? [];
+    const modal = openModal({
+      title: registerId ? 'Ubah cash register' : 'Tambah cash register',
+      kicker: 'Laci kas',
+      subtitle: 'Cash register menampung shift kasir dan pergerakan uang tunai.',
+      body: `
+        <form id="pos-register-form" class="form-grid">
+          <label class="field field-span">
+            <span>Pedagang *</span>
+            <select name="merchantId" id="pos-register-merchant" required ${registerId ? 'disabled' : ''}>
+              ${merchantList
+                .map(
+                  (merchant) =>
+                    `<option value="${escapeHtml(merchant.id)}" ${merchant.id === selectedMerchantId ? 'selected' : ''}>${escapeHtml(merchant.businessName)}</option>`,
+                )
+                .join('')}
+            </select>
+          </label>
+          <label class="field field-span">
+            <span>Toko *</span>
+            <select name="storeId" id="pos-register-store" required></select>
+          </label>
+          <label class="field field-span">
+            <span>Terminal POS</span>
+            <select name="terminalId" id="pos-register-terminal"></select>
+          </label>
+          <label class="field">
+            <span>Kode register</span>
+            <input name="code" type="text" maxlength="64" value="${escapeHtml(record?.code ?? '')}" placeholder="Otomatis jika kosong" />
+          </label>
+          <label class="field">
+            <span>Status</span>
+            <select name="status">
+              <option value="active" ${record?.status === 'active' || !record ? 'selected' : ''}>Aktif</option>
+              <option value="inactive" ${record?.status === 'inactive' ? 'selected' : ''}>Nonaktif</option>
+            </select>
+          </label>
+          <label class="field field-span">
+            <span>Nama register *</span>
+            <input name="name" type="text" maxlength="255" required value="${escapeHtml(record?.name ?? '')}" placeholder="Contoh: Laci kasir utama" />
+          </label>
+          <label class="field field-span">
+            <span>Catatan</span>
+            <textarea name="notes" rows="3" maxlength="2000">${escapeHtml(record?.notes ?? '')}</textarea>
+          </label>
+        </form>
+      `,
+      footer: `
+        <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+        <button class="button button-primary" id="pos-register-submit" type="submit" form="pos-register-form">
+          ${icon('plus')} ${registerId ? 'Simpan perubahan' : 'Simpan register'}
+        </button>
+      `,
+    });
+    const form = modal.querySelector('#pos-register-form');
+    const merchantSelect = modal.querySelector('#pos-register-merchant');
+    const storeSelect = modal.querySelector('#pos-register-store');
+    const terminalSelect = modal.querySelector('#pos-register-terminal');
+    const submit = modal.querySelector('#pos-register-submit');
+
+    const renderTerminals = (selectedId = record?.terminalId ?? '') => {
+      terminalSelect.innerHTML = posTerminalOptions(
+        terminalList.filter(
+          (terminal) => !storeSelect.value || terminal.storeId === storeSelect.value,
+        ),
+        selectedId,
+      );
+    };
+
+    await fillPosStoreOptions(selectedMerchantId, storeSelect, record?.storeId ?? '');
+    renderTerminals();
+    storeSelect.addEventListener('change', () => renderTerminals());
+    merchantSelect.addEventListener('change', async () => {
+      await fillPosStoreOptions(merchantSelect.value, storeSelect);
+      const result = await api(
+        `/pos/terminals?limit=100&merchantId=${encodeURIComponent(merchantSelect.value)}`,
+      );
+      terminalList = result.data ?? [];
+      renderTerminals('');
+    });
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const payload = {
+        storeId: String(data.get('storeId') ?? ''),
+        terminalId: String(data.get('terminalId') ?? '') || null,
+        name: String(data.get('name') ?? '').trim(),
+        status: String(data.get('status') ?? 'active'),
+        notes: String(data.get('notes') ?? '').trim() || undefined,
+      };
+      const code = String(data.get('code') ?? '').trim();
+      if (!payload.storeId || payload.name.length < 2) {
+        showToast('Data belum lengkap', 'Pilih toko dan isi nama register.', 'error');
+        return;
+      }
+      if (!registerId) {
+        payload.merchantId = String(data.get('merchantId') ?? '');
+        if (code) payload.code = code;
+      }
+      submit.disabled = true;
+      try {
+        await api(registerId ? `/pos/registers/${registerId}` : '/pos/registers', {
+          method: registerId ? 'PATCH' : 'POST',
+          body: payload,
+        });
+        closeModal();
+        showToast('Cash register tersimpan', `${payload.name} berhasil disimpan.`);
+        await loadPos(true);
+      } catch (error) {
+        showToast('Gagal menyimpan cash register', error.message, 'error');
+      } finally {
+        submit.disabled = false;
+      }
+    });
+  } catch (error) {
+    closeModal();
+    showToast('Gagal memuat cash register', error.message, 'error');
+  }
+}
+
+async function openPosShiftModal() {
+  try {
+    const [terminalsResult, registersResult] = await Promise.all([
+      api('/pos/terminals?limit=100&status=active'),
+      api('/pos/registers?limit=100&status=active'),
+    ]);
+    const terminals = terminalsResult.data ?? [];
+    const registers = (registersResult.data ?? []).filter((row) => !row.activeShiftId);
+    if (!terminals.length || !registers.length) {
+      showToast(
+        'Belum dapat membuka shift',
+        'Pastikan terminal aktif dan cash register belum memiliki shift terbuka.',
+        'error',
+      );
+      return;
+    }
+    const modal = openModal({
+      title: 'Buka shift kasir',
+      kicker: 'Shift',
+      subtitle: 'Saldo awal dan pergerakan kas dicatat per shift.',
+      body: `
+        <form id="pos-shift-form" class="form-grid">
+          <label class="field field-span">
+            <span>Terminal POS *</span>
+            <select name="terminalId" id="pos-shift-terminal" required>
+              ${posTerminalOptions(terminals, terminals[0].id)}
+            </select>
+          </label>
+          <label class="field field-span">
+            <span>Cash register *</span>
+            <select name="registerId" id="pos-shift-register" required></select>
+          </label>
+          <label class="field field-span">
+            <span>Saldo awal kas</span>
+            <input name="openingFloat" type="number" min="0" step="0.01" value="0" />
+          </label>
+          <label class="field field-span">
+            <span>Catatan</span>
+            <textarea name="notes" rows="3" maxlength="2000" placeholder="Contoh: Shift pagi"></textarea>
+          </label>
+        </form>
+      `,
+      footer: `
+        <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+        <button class="button button-primary" id="pos-shift-submit" type="submit" form="pos-shift-form">${icon('check')} Buka shift</button>
+      `,
+    });
+    const form = modal.querySelector('#pos-shift-form');
+    const terminalSelect = modal.querySelector('#pos-shift-terminal');
+    const registerSelect = modal.querySelector('#pos-shift-register');
+    const submit = modal.querySelector('#pos-shift-submit');
+
+    const renderRegisters = (selectedId = '') => {
+      registerSelect.innerHTML = posRegisterOptions(
+        registers,
+        selectedId,
+        terminalSelect.value,
+      );
+    };
+    renderRegisters();
+    terminalSelect.addEventListener('change', () => renderRegisters());
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const payload = {
+        terminalId: String(data.get('terminalId') ?? ''),
+        registerId: String(data.get('registerId') ?? ''),
+        openingFloat: String(data.get('openingFloat') ?? '0'),
+        notes: String(data.get('notes') ?? '').trim() || undefined,
+      };
+      if (!payload.terminalId || !payload.registerId) {
+        showToast('Data belum lengkap', 'Pilih terminal dan cash register.', 'error');
+        return;
+      }
+      submit.disabled = true;
+      try {
+        const result = await api('/pos/shifts', { method: 'POST', body: payload });
+        closeModal();
+        showToast('Shift dibuka', `${result.data.shiftNumber} siap menerima transaksi.`);
+        await loadPos(true);
+      } catch (error) {
+        showToast('Gagal membuka shift', error.message, 'error');
+      } finally {
+        submit.disabled = false;
+      }
+    });
+  } catch (error) {
+    showToast('Gagal memuat data shift', error.message, 'error');
+  }
+}
+
+async function openPosShiftDetail(shiftId) {
+  openModal({
+    title: 'Detail shift',
+    kicker: 'Shift kasir',
+    subtitle: 'Memuat shift...',
+    body: tableLoading(5),
+  });
+  try {
+    const result = await api(`/pos/shifts/${shiftId}`);
+    const shift = result.data;
+    const movements = shift.movements ?? [];
+    const movementRows = movements.length
+      ? `
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Waktu</th><th>Tipe</th><th>Nominal</th><th>Saldo</th><th>Catatan</th></tr></thead>
+            <tbody>
+              ${movements
+                .map(
+                  (movement) => `
+                    <tr>
+                      <td>${escapeHtml(formatDateTime(movement.occurredAt))}</td>
+                      <td>${escapeHtml(posCashMovementLabel(movement.type))}</td>
+                      <td>${escapeHtml(formatMoney(movement.amount))}</td>
+                      <td>${escapeHtml(formatMoney(movement.balanceAfter))}</td>
+                      <td>${escapeHtml(movement.note ?? movement.referenceNumber ?? '-')}</td>
+                    </tr>
+                  `,
+                )
+                .join('')}
+            </tbody>
+          </table>
+        </div>`
+      : '<p class="cell-muted">Belum ada pergerakan kas.</p>';
+
+    const actions = [];
+    if (shift.status === 'open' && state.canWritePos) {
+      actions.push(
+        `<button class="button button-ghost" type="button" data-pos-cash-movement="${escapeHtml(shift.id)}" data-pos-shift-number="${escapeHtml(shift.shiftNumber)}" data-pos-cash-type="cash_in">Kas masuk</button>`,
+        `<button class="button button-ghost" type="button" data-pos-cash-movement="${escapeHtml(shift.id)}" data-pos-shift-number="${escapeHtml(shift.shiftNumber)}" data-pos-cash-type="cash_out">Kas keluar</button>`,
+        `<button class="button button-primary" type="button" data-pos-shift-close="${escapeHtml(shift.id)}" data-pos-shift-number="${escapeHtml(shift.shiftNumber)}">Tutup shift</button>`,
+      );
+    }
+
+    openModal({
+      title: shift.shiftNumber,
+      kicker: 'Detail shift kasir',
+      subtitle: `${shift.terminalCode} - ${shift.registerCode} - ${formatDateTime(shift.openedAt)}`,
+      wide: true,
+      body: `
+        <dl class="detail-list">
+          ${detailRow('Status', statusBadge(shift.status))}
+          ${detailRow('Kasir', escapeHtml(shift.cashierName))}
+          ${detailRow('Pedagang / toko', `${escapeHtml(shift.merchantName)} / ${escapeHtml(shift.storeName)}`)}
+          ${detailRow('Saldo awal', escapeHtml(formatMoney(shift.openingFloat)))}
+          ${detailRow('Penjualan', `${escapeHtml(formatMoney(shift.totalSales))} (${formatNumber(shift.transactionCount)} transaksi)`)}
+          ${detailRow('Tunai / non-tunai', `${escapeHtml(formatMoney(shift.totalCashSales))} / ${escapeHtml(formatMoney(shift.totalNonCashSales))}`)}
+          ${detailRow('Kas sistem', escapeHtml(formatMoney(shift.expectedCash)))}
+          ${detailRow('Kas dihitung', shift.countedCash === null ? '-' : escapeHtml(formatMoney(shift.countedCash)))}
+          ${detailRow('Selisih', shift.cashDifference === null ? '-' : escapeHtml(formatMoney(shift.cashDifference)))}
+          ${detailRow('Ditutup', shift.closedAt ? escapeHtml(formatDateTime(shift.closedAt)) : '-')}
+          ${shift.notes ? detailRow('Catatan', escapeHtml(shift.notes)) : ''}
+        </dl>
+        <div class="panel-header" style="margin-top:24px"><div><p class="panel-kicker">Kas</p><h3>Pergerakan kas</h3></div></div>
+        ${movementRows}
+      `,
+      footer: `<button class="button button-ghost" type="button" data-modal-close>Tutup</button>${actions.join('')}`,
+    });
+  } catch (error) {
+    closeModal();
+    showToast('Gagal memuat shift', error.message, 'error');
+  }
+}
+
+function openPosCloseShiftModal(shiftId, shiftNumber) {
+  const modal = openModal({
+    title: 'Tutup shift',
+    kicker: 'Rekonsiliasi kas',
+    subtitle: `${shiftNumber} - masukkan jumlah kas fisik yang dihitung.`,
+    body: `
+      <form id="pos-close-shift-form" class="form-grid">
+        <label class="field field-span">
+          <span>Kas dihitung *</span>
+          <input name="countedCash" type="number" min="0" step="0.01" required placeholder="0" />
+        </label>
+        <label class="field field-span">
+          <span>Catatan</span>
+          <textarea name="notes" rows="3" maxlength="2000" placeholder="Catatan penutupan shift..."></textarea>
+        </label>
+      </form>
+    `,
+    footer: `
+      <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+      <button class="button button-primary" id="pos-close-shift-submit" type="submit" form="pos-close-shift-form">Tutup shift</button>
+    `,
+  });
+  const form = modal.querySelector('#pos-close-shift-form');
+  const submit = modal.querySelector('#pos-close-shift-submit');
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    submit.disabled = true;
+    try {
+      const result = await api(`/pos/shifts/${shiftId}/close`, {
+        method: 'POST',
+        body: {
+          countedCash: String(data.get('countedCash') ?? '0'),
+          notes: String(data.get('notes') ?? '').trim() || undefined,
+        },
+      });
+      closeModal();
+      showToast('Shift ditutup', `Selisih kas ${formatMoney(result.data.cashDifference)}.`);
+      await loadPos(true);
+    } catch (error) {
+      showToast('Gagal menutup shift', error.message, 'error');
+    } finally {
+      submit.disabled = false;
+    }
+  });
+}
+
+function openPosCashMovementModal(shiftId, shiftNumber, defaultType = 'cash_in') {
+  const modal = openModal({
+    title: 'Catat pergerakan kas',
+    kicker: 'Kas shift',
+    subtitle: `${shiftNumber} - catat uang masuk atau keluar.`,
+    body: `
+      <form id="pos-cash-movement-form" class="form-grid">
+        <label class="field field-span">
+          <span>Tipe *</span>
+          <select name="type">
+            <option value="cash_in" ${defaultType === 'cash_in' ? 'selected' : ''}>Kas masuk</option>
+            <option value="cash_out" ${defaultType === 'cash_out' ? 'selected' : ''}>Kas keluar</option>
+            <option value="adjustment" ${defaultType === 'adjustment' ? 'selected' : ''}>Penyesuaian</option>
+          </select>
+        </label>
+        <label class="field field-span">
+          <span>Nominal *</span>
+          <input name="amount" type="number" min="0.01" step="0.01" required />
+        </label>
+        <label class="field field-span">
+          <span>Referensi</span>
+          <input name="referenceNumber" type="text" maxlength="128" placeholder="Nomor bukti / catatan" />
+        </label>
+        <label class="field field-span">
+          <span>Catatan</span>
+          <textarea name="note" rows="3" maxlength="2000"></textarea>
+        </label>
+      </form>
+    `,
+    footer: `
+      <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+      <button class="button button-primary" id="pos-cash-movement-submit" type="submit" form="pos-cash-movement-form">Simpan</button>
+    `,
+  });
+  const form = modal.querySelector('#pos-cash-movement-form');
+  const submit = modal.querySelector('#pos-cash-movement-submit');
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    submit.disabled = true;
+    try {
+      await api(`/pos/shifts/${shiftId}/cash-movements`, {
+        method: 'POST',
+        body: {
+          type: String(data.get('type') ?? 'cash_in'),
+          amount: String(data.get('amount') ?? ''),
+          referenceNumber: String(data.get('referenceNumber') ?? '').trim() || undefined,
+          note: String(data.get('note') ?? '').trim() || undefined,
+        },
+      });
+      closeModal();
+      showToast('Pergerakan kas dicatat', 'Saldo kas shift berhasil diperbarui.');
+      await loadPos(true);
+    } catch (error) {
+      showToast('Gagal mencatat pergerakan kas', error.message, 'error');
+    } finally {
+      submit.disabled = false;
+    }
+  });
+}
+
+async function openPosTransactionModal() {
+  try {
+    const [productsResult, terminalsResult, registersResult] = await Promise.all([
+      api('/catalog/products?limit=100&status=active'),
+      api('/pos/terminals?limit=100&status=active'),
+      api('/pos/registers?limit=100&status=active'),
+    ]);
+    const products = productsResult.data ?? [];
+    const terminals = terminalsResult.data ?? [];
+    const registers = (registersResult.data ?? []).filter((row) => row.activeShiftId);
+    if (!products.length) {
+      showToast('Produk belum tersedia', 'Tambahkan produk aktif sebelum transaksi POS.', 'error');
+      return;
+    }
+    if (!registers.length) {
+      showToast('Belum ada shift terbuka', 'Buka shift kasir sebelum membuat transaksi.', 'error');
+      return;
+    }
+    const terminalIds = new Set(registers.map((row) => row.terminalId).filter(Boolean));
+    const matchedTerminals = terminals.filter((row) => terminalIds.has(row.id));
+    const availableTerminals = matchedTerminals.length ? matchedTerminals : terminals;
+    const defaultTerminal = availableTerminals[0]?.id ?? '';
+    const defaultRegister = registers.find((row) => row.terminalId === defaultTerminal)?.id ?? '';
+
+    const modal = openModal({
+      title: 'Transaksi POS baru',
+      kicker: 'Penjualan toko fisik',
+      subtitle: 'Transaksi akan tercatat pada shift kasir yang sedang terbuka.',
+      wide: true,
+      body: `
+        <form id="pos-transaction-form" class="form-grid">
+          <label class="field">
+            <span>Terminal *</span>
+            <select name="terminalId" id="pos-transaction-terminal" required>
+              ${posTerminalOptions(availableTerminals, defaultTerminal)}
+            </select>
+          </label>
+          <label class="field">
+            <span>Cash register *</span>
+            <select name="registerId" id="pos-transaction-register" required>
+              ${posRegisterOptions(registers, defaultRegister, defaultTerminal)}
+            </select>
+          </label>
+          <label class="field">
+            <span>Metode pembayaran *</span>
+            <select name="paymentMethod">
+              ${Object.entries(POS_PAYMENT_METHOD_LABELS)
+                .map(([value, label]) => `<option value="${value}">${label}</option>`)
+                .join('')}
+            </select>
+          </label>
+          <label class="field">
+            <span>Jumlah dibayar</span>
+            <input name="paidAmount" type="number" min="0" step="0.01" placeholder="Kosongkan untuk total" />
+          </label>
+          <label class="field">
+            <span>Nama pelanggan</span>
+            <input name="customerName" type="text" maxlength="255" />
+          </label>
+          <label class="field">
+            <span>Telepon pelanggan</span>
+            <input name="customerPhone" type="text" maxlength="32" />
+          </label>
+          <label class="field">
+            <span>Diskon transaksi</span>
+            <input name="discountTotal" type="number" min="0" step="0.01" value="0" />
+          </label>
+          <label class="field">
+            <span>Pajak</span>
+            <input name="taxTotal" type="number" min="0" step="0.01" value="0" />
+          </label>
+        </form>
+        <div class="panel-header" style="margin-top:20px">
+          <div><p class="panel-kicker">Item</p><h3>Daftar item</h3></div>
+          <button class="button button-ghost button-sm" type="button" id="pos-add-item">${icon('plus')} Tambah item</button>
+        </div>
+        <div id="pos-transaction-items" style="display:grid;gap:12px"></div>
+        <label class="field field-span" style="margin-top:16px">
+          <span>Catatan</span>
+          <textarea name="notes" id="pos-transaction-notes" rows="3" maxlength="2000" placeholder="Catatan transaksi..."></textarea>
+        </label>
+      `,
+      footer: `
+        <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+        <button class="button button-primary" id="pos-transaction-submit" type="submit" form="pos-transaction-form">${icon('check')} Simpan transaksi</button>
+      `,
+    });
+    const form = modal.querySelector('#pos-transaction-form');
+    const terminalSelect = modal.querySelector('#pos-transaction-terminal');
+    const registerSelect = modal.querySelector('#pos-transaction-register');
+    const itemsContainer = modal.querySelector('#pos-transaction-items');
+    const submit = modal.querySelector('#pos-transaction-submit');
+
+    const addItemRow = () => {
+      const row = document.createElement('div');
+      row.className = 'pos-item-row';
+      row.style.cssText =
+        'display:grid;grid-template-columns:minmax(0,1fr) 92px 110px auto;gap:8px;align-items:end';
+      row.innerHTML = `
+        <label class="field"><span>Produk *</span><select name="productId" required>${posProductOptions(products)}</select></label>
+        <label class="field"><span>Qty *</span><input name="quantity" type="number" min="1" step="1" value="1" required /></label>
+        <label class="field"><span>Diskon</span><input name="discountAmount" type="number" min="0" step="0.01" value="0" /></label>
+        <button class="icon-button" type="button" data-pos-remove-item aria-label="Hapus item">${icon('close')}</button>
+      `;
+      itemsContainer.append(row);
+    };
+    const renderRegisters = (selectedId = '') => {
+      registerSelect.innerHTML = posRegisterOptions(
+        registers,
+        selectedId,
+        terminalSelect.value,
+      );
+    };
+
+    addItemRow();
+    renderRegisters(defaultRegister);
+    terminalSelect.addEventListener('change', () => renderRegisters());
+    modal.querySelector('#pos-add-item').addEventListener('click', addItemRow);
+    itemsContainer.addEventListener('click', (event) => {
+      const remove = event.target.closest('[data-pos-remove-item]');
+      if (!remove) return;
+      if (itemsContainer.querySelectorAll('.pos-item-row').length > 1) {
+        remove.closest('.pos-item-row')?.remove();
+      }
+    });
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const items = [...itemsContainer.querySelectorAll('.pos-item-row')]
+        .map((row) => {
+          const productId = row.querySelector('[name="productId"]')?.value;
+          if (!productId) return null;
+          return {
+            productId,
+            quantity: Number(row.querySelector('[name="quantity"]')?.value ?? 1),
+            discountAmount: String(row.querySelector('[name="discountAmount"]')?.value ?? '0'),
+          };
+        })
+        .filter(Boolean);
+      if (!items.length) {
+        showToast('Item belum dipilih', 'Tambahkan minimal satu produk.', 'error');
+        return;
+      }
+      const payload = {
+        terminalId: String(data.get('terminalId') ?? ''),
+        registerId: String(data.get('registerId') ?? ''),
+        paymentMethod: String(data.get('paymentMethod') ?? 'cash'),
+        discountTotal: String(data.get('discountTotal') ?? '0'),
+        taxTotal: String(data.get('taxTotal') ?? '0'),
+        customerName: String(data.get('customerName') ?? '').trim() || undefined,
+        customerPhone: String(data.get('customerPhone') ?? '').trim() || undefined,
+        notes: String(modal.querySelector('#pos-transaction-notes')?.value ?? '').trim() || undefined,
+        items,
+      };
+      const paidAmount = String(data.get('paidAmount') ?? '').trim();
+      if (paidAmount) payload.paidAmount = paidAmount;
+      if (!payload.terminalId || !payload.registerId) {
+        showToast('Data belum lengkap', 'Pilih terminal dan cash register.', 'error');
+        return;
+      }
+      submit.disabled = true;
+      try {
+        const result = await api('/pos/transactions', { method: 'POST', body: payload });
+        closeModal();
+        showToast(
+          'Transaksi POS dibuat',
+          `${result.data.transactionNumber} - ${formatMoney(result.data.total)}`,
+        );
+        await loadPos(true);
+      } catch (error) {
+        showToast('Gagal membuat transaksi POS', error.message, 'error');
+      } finally {
+        submit.disabled = false;
+      }
+    });
+  } catch (error) {
+    showToast('Gagal memuat transaksi POS', error.message, 'error');
+  }
+}
+
+async function openPosSyncModal() {
+  try {
+    const [productsResult, terminalsResult, registersResult] = await Promise.all([
+      api('/catalog/products?limit=100&status=active'),
+      api('/pos/terminals?limit=100&status=active'),
+      api('/pos/registers?limit=100&status=active'),
+    ]);
+    const products = productsResult.data ?? [];
+    const terminals = terminalsResult.data ?? [];
+    const registers = (registersResult.data ?? []).filter((row) => row.activeShiftId);
+    if (!products.length || !registers.length) {
+      showToast(
+        'Belum dapat sinkronisasi',
+        'Butuh produk aktif dan shift kasir yang masih terbuka.',
+        'error',
+      );
+      return;
+    }
+    const terminalIds = new Set(registers.map((row) => row.terminalId).filter(Boolean));
+    const matchedTerminals = terminals.filter((row) => terminalIds.has(row.id));
+    const availableTerminals = matchedTerminals.length ? matchedTerminals : terminals;
+    const defaultTerminal = availableTerminals[0]?.id ?? '';
+    const defaultRegister = registers.find((row) => row.terminalId === defaultTerminal)?.id ?? '';
+    const modal = openModal({
+      title: 'Sinkronisasi transaksi offline',
+      kicker: 'Offline sync',
+      subtitle: 'Unggah transaksi yang dibuat saat perangkat POS offline.',
+      body: `
+        <form id="pos-sync-form" class="form-grid">
+          <label class="field">
+            <span>Terminal *</span>
+            <select name="terminalId" id="pos-sync-terminal" required>${posTerminalOptions(availableTerminals, defaultTerminal)}</select>
+          </label>
+          <label class="field">
+            <span>Cash register *</span>
+            <select name="registerId" id="pos-sync-register" required>${posRegisterOptions(registers, defaultRegister, defaultTerminal)}</select>
+          </label>
+          <label class="field field-span">
+            <span>Client transaction ID *</span>
+            <input name="clientTransactionId" type="text" maxlength="128" required value="offline-${Date.now()}" />
+          </label>
+          <label class="field field-span">
+            <span>Produk *</span>
+            <select name="productId" required>${posProductOptions(products)}</select>
+          </label>
+          <label class="field">
+            <span>Qty *</span>
+            <input name="quantity" type="number" min="1" step="1" value="1" required />
+          </label>
+          <label class="field">
+            <span>Metode *</span>
+            <select name="paymentMethod">
+              ${Object.entries(POS_PAYMENT_METHOD_LABELS)
+                .map(([value, label]) => `<option value="${value}">${label}</option>`)
+                .join('')}
+            </select>
+          </label>
+          <label class="field">
+            <span>Jumlah dibayar</span>
+            <input name="paidAmount" type="number" min="0" step="0.01" />
+          </label>
+          <label class="field">
+            <span>Nama pelanggan</span>
+            <input name="customerName" type="text" maxlength="255" />
+          </label>
+        </form>
+      `,
+      footer: `
+        <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+        <button class="button button-primary" id="pos-sync-submit" type="submit" form="pos-sync-form">${icon('refresh')} Sinkronkan</button>
+      `,
+    });
+    const form = modal.querySelector('#pos-sync-form');
+    const terminalSelect = modal.querySelector('#pos-sync-terminal');
+    const registerSelect = modal.querySelector('#pos-sync-register');
+    const submit = modal.querySelector('#pos-sync-submit');
+    terminalSelect.addEventListener('change', () => {
+      registerSelect.innerHTML = posRegisterOptions(registers, '', terminalSelect.value);
+    });
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const transaction = {
+        clientTransactionId: String(data.get('clientTransactionId') ?? '').trim(),
+        paymentMethod: String(data.get('paymentMethod') ?? 'cash'),
+        customerName: String(data.get('customerName') ?? '').trim() || undefined,
+        items: [
+          {
+            productId: String(data.get('productId') ?? ''),
+            quantity: Number(data.get('quantity') ?? 1),
+          },
+        ],
+      };
+      const paidAmount = String(data.get('paidAmount') ?? '').trim();
+      if (paidAmount) transaction.paidAmount = paidAmount;
+      submit.disabled = true;
+      try {
+        const result = await api('/pos/sync', {
+          method: 'POST',
+          body: {
+            terminalId: String(data.get('terminalId') ?? ''),
+            registerId: String(data.get('registerId') ?? ''),
+            transactions: [transaction],
+          },
+        });
+        closeModal();
+        showToast(
+          'Sinkronisasi selesai',
+          `${result.data.created} dibuat, ${result.data.skipped} dilewati, ${result.data.failed} gagal.`,
+        );
+        await loadPos(true);
+      } catch (error) {
+        showToast('Gagal sinkronisasi', error.message, 'error');
+      } finally {
+        submit.disabled = false;
+      }
+    });
+  } catch (error) {
+    showToast('Gagal memuat sinkronisasi', error.message, 'error');
+  }
+}
+
+async function openPosTransactionDetail(transactionId) {
+  openModal({
+    title: 'Detail transaksi POS',
+    kicker: 'Transaksi',
+    subtitle: 'Memuat transaksi...',
+    body: tableLoading(5),
+  });
+  try {
+    const result = await api(`/pos/transactions/${transactionId}`);
+    const transaction = result.data;
+    const items = transaction.items ?? [];
+    const itemTable = items.length
+      ? `
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Produk</th><th>SKU</th><th>Qty</th><th>Harga</th><th>Diskon</th><th>Total</th></tr></thead>
+            <tbody>
+              ${items
+                .map(
+                  (item) => `
+                    <tr>
+                      <td>${escapeHtml(item.productName)}</td>
+                      <td>${escapeHtml(item.skuCode ?? '-')}</td>
+                      <td>${formatNumber(item.quantity)}</td>
+                      <td>${escapeHtml(formatMoney(item.unitPrice))}</td>
+                      <td>${escapeHtml(formatMoney(item.discountAmount))}</td>
+                      <td>${escapeHtml(formatMoney(item.lineTotal))}</td>
+                    </tr>
+                  `,
+                )
+                .join('')}
+            </tbody>
+          </table>
+        </div>`
+      : '<p class="cell-muted">Tidak ada item.</p>';
+
+    const actions = [];
+    if (transaction.status === 'completed' && state.canWritePos) {
+      actions.push(
+        `<button class="button button-ghost" type="button" data-pos-transaction-void="${escapeHtml(transaction.id)}" data-pos-transaction-number="${escapeHtml(transaction.transactionNumber)}">Batalkan transaksi</button>`,
+      );
+    }
+    if (transaction.syncStatus !== 'synced' && state.canManagePos) {
+      actions.push(
+        `<button class="button button-primary" type="button" data-pos-transaction-sync="${escapeHtml(transaction.id)}" data-pos-transaction-number="${escapeHtml(transaction.transactionNumber)}">Sinkronkan</button>`,
+      );
+    }
+
+    openModal({
+      title: transaction.transactionNumber,
+      kicker: 'Detail transaksi POS',
+      subtitle: `${transaction.terminalCode} - ${transaction.registerCode} - ${formatDateTime(transaction.completedAt)}`,
+      wide: true,
+      body: `
+        <dl class="detail-list">
+          ${detailRow('Status', statusBadge(transaction.status))}
+          ${detailRow('Sinkronisasi', statusBadge(transaction.syncStatus))}
+          ${detailRow('Kasir', escapeHtml(transaction.cashierName))}
+          ${detailRow('Pelanggan', `${escapeHtml(transaction.customerName ?? 'Pelanggan umum')}${transaction.customerPhone ? ` - ${escapeHtml(transaction.customerPhone)}` : ''}`)}
+          ${detailRow('Shift', escapeHtml(transaction.shiftNumber))}
+          ${detailRow('Metode', escapeHtml(posPaymentMethodLabel(transaction.paymentMethod)))}
+          ${detailRow('Subtotal', escapeHtml(formatMoney(transaction.subtotal, transaction.currency)))}
+          ${detailRow('Diskon / pajak', `${escapeHtml(formatMoney(transaction.discountTotal, transaction.currency))} / ${escapeHtml(formatMoney(transaction.taxTotal, transaction.currency))}`)}
+          ${detailRow('Total', escapeHtml(formatMoney(transaction.total, transaction.currency)))}
+          ${detailRow('Dibayar / kembalian', `${escapeHtml(formatMoney(transaction.paidAmount, transaction.currency))} / ${escapeHtml(formatMoney(transaction.changeAmount, transaction.currency))}`)}
+          ${transaction.clientTransactionId ? detailRow('Client ID', escapeHtml(transaction.clientTransactionId)) : ''}
+          ${transaction.offlineCreatedAt ? detailRow('Dibuat offline', escapeHtml(formatDateTime(transaction.offlineCreatedAt))) : ''}
+          ${transaction.voidedAt ? detailRow('Dibatalkan', `${escapeHtml(formatDateTime(transaction.voidedAt))} - ${escapeHtml(transaction.voidReason ?? '-')}`) : ''}
+          ${transaction.notes ? detailRow('Catatan', escapeHtml(transaction.notes)) : ''}
+        </dl>
+        <div class="panel-header" style="margin-top:24px"><div><p class="panel-kicker">Item</p><h3>Rincian item</h3></div></div>
+        ${itemTable}
+      `,
+      footer: `<button class="button button-ghost" type="button" data-modal-close>Tutup</button>${actions.join('')}`,
+    });
+  } catch (error) {
+    closeModal();
+    showToast('Gagal memuat transaksi POS', error.message, 'error');
+  }
+}
+
+function openPosVoidModal(transactionId, transactionNumber) {
+  const modal = openModal({
+    title: 'Batalkan transaksi',
+    kicker: 'Pembatalan',
+    subtitle: `${transactionNumber} akan ditandai batal dan kas dikembalikan jika tunai.`,
+    body: `
+      <form id="pos-void-form" class="form-grid">
+        <label class="field field-span">
+          <span>Alasan pembatalan *</span>
+          <textarea name="reason" rows="3" maxlength="1000" required placeholder="Jelaskan alasan pembatalan..."></textarea>
+        </label>
+      </form>
+    `,
+    footer: `
+      <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+      <button class="button button-primary" id="pos-void-submit" type="submit" form="pos-void-form">Batalkan transaksi</button>
+    `,
+  });
+  const form = modal.querySelector('#pos-void-form');
+  const submit = modal.querySelector('#pos-void-submit');
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    submit.disabled = true;
+    try {
+      await api(`/pos/transactions/${transactionId}/void`, {
+        method: 'POST',
+        body: { reason: String(data.get('reason') ?? '').trim() },
+      });
+      closeModal();
+      showToast('Transaksi dibatalkan', `${transactionNumber} berhasil dibatalkan.`);
+      await loadPos(true);
+    } catch (error) {
+      showToast('Gagal membatalkan transaksi', error.message, 'error');
+    } finally {
+      submit.disabled = false;
+    }
+  });
+}
+
+async function syncPosTransaction(transactionId, transactionNumber) {
+  try {
+    await api(`/pos/transactions/${transactionId}/sync`, { method: 'POST', body: {} });
+    closeModal();
+    showToast('Transaksi tersinkronisasi', `${transactionNumber} berhasil disinkronkan.`);
+    await loadPos(true);
+  } catch (error) {
+    showToast('Gagal sinkronisasi', error.message, 'error');
+  }
+}
+
+
 /* --------------------------------- Audit ------------------------------ */
 
 async function loadAudit(force = false) {
@@ -3727,6 +5216,72 @@ function bindEvents() {
   $('#create-payment-method-button').addEventListener('click', openCreatePaymentMethodModal);
   $('#create-payment-provider-button').addEventListener('click', openCreatePaymentProviderModal);
 
+  $('#pos-terminal-search').addEventListener(
+    'input',
+    debounce((event) => {
+      state.filters.pos.terminalSearch = event.target.value.trim();
+      loadPos(true);
+    }),
+  );
+  $('#pos-terminal-status-filter').addEventListener('change', (event) => {
+    state.filters.pos.terminalStatus = event.target.value;
+    loadPos(true);
+  });
+  $('#pos-register-search').addEventListener(
+    'input',
+    debounce((event) => {
+      state.filters.pos.registerSearch = event.target.value.trim();
+      loadPos(true);
+    }),
+  );
+  $('#pos-shift-search').addEventListener(
+    'input',
+    debounce((event) => {
+      state.filters.pos.shiftSearch = event.target.value.trim();
+      loadPos(true);
+    }),
+  );
+  $('#pos-shift-status-filter').addEventListener('change', (event) => {
+    state.filters.pos.shiftStatus = event.target.value;
+    loadPos(true);
+  });
+  $('#pos-transaction-search').addEventListener(
+    'input',
+    debounce((event) => {
+      state.filters.pos.transactionSearch = event.target.value.trim();
+      loadPos(true);
+    }),
+  );
+  $('#pos-transaction-status-filter').addEventListener('change', (event) => {
+    state.filters.pos.transactionStatus = event.target.value;
+    loadPos(true);
+  });
+  $('#pos-transaction-sync-filter').addEventListener('change', (event) => {
+    state.filters.pos.transactionSync = event.target.value;
+    loadPos(true);
+  });
+  $('#pos-sync-search').addEventListener(
+    'input',
+    debounce((event) => {
+      state.filters.pos.syncSearch = event.target.value.trim();
+      loadPos(true);
+    }),
+  );
+  $('#pos-sync-status-filter').addEventListener('change', (event) => {
+    state.filters.pos.syncStatus = event.target.value;
+    loadPos(true);
+  });
+  $('#refresh-pos-terminals').addEventListener('click', () => loadPos(true));
+  $('#refresh-pos-registers').addEventListener('click', () => loadPos(true));
+  $('#refresh-pos-shifts').addEventListener('click', () => loadPos(true));
+  $('#refresh-pos-transactions').addEventListener('click', () => loadPos(true));
+  $('#refresh-pos-sync').addEventListener('click', () => loadPos(true));
+  $('#create-pos-terminal-button').addEventListener('click', () => openPosTerminalModal());
+  $('#create-pos-register-button').addEventListener('click', () => openPosRegisterModal());
+  $('#open-pos-shift-button').addEventListener('click', openPosShiftModal);
+  $('#create-pos-transaction-button').addEventListener('click', openPosTransactionModal);
+  $('#sync-pos-offline-button').addEventListener('click', openPosSyncModal);
+
   $('#audit-search').addEventListener(
     'input',
     debounce((event) => {
@@ -3906,6 +5461,73 @@ function bindEvents() {
         paymentMethodToggle.dataset.paymentMethodToggle,
         paymentMethodToggle.dataset.nextStatus,
         paymentMethodToggle.dataset.methodName,
+      );
+      return;
+    }
+
+    const retryPos = event.target.closest('[data-retry-pos]');
+    if (retryPos) {
+      loadPos(true);
+      return;
+    }
+
+    const posTerminalEdit = event.target.closest('[data-pos-terminal-edit]');
+    if (posTerminalEdit) {
+      openPosTerminalModal(posTerminalEdit.dataset.posTerminalEdit);
+      return;
+    }
+
+    const posRegisterEdit = event.target.closest('[data-pos-register-edit]');
+    if (posRegisterEdit) {
+      openPosRegisterModal(posRegisterEdit.dataset.posRegisterEdit);
+      return;
+    }
+
+    const posShiftDetail = event.target.closest('[data-pos-shift-detail]');
+    if (posShiftDetail) {
+      openPosShiftDetail(posShiftDetail.dataset.posShiftDetail);
+      return;
+    }
+
+    const posShiftClose = event.target.closest('[data-pos-shift-close]');
+    if (posShiftClose) {
+      openPosCloseShiftModal(
+        posShiftClose.dataset.posShiftClose,
+        posShiftClose.dataset.posShiftNumber,
+      );
+      return;
+    }
+
+    const posCashMovement = event.target.closest('[data-pos-cash-movement]');
+    if (posCashMovement) {
+      openPosCashMovementModal(
+        posCashMovement.dataset.posCashMovement,
+        posCashMovement.dataset.posShiftNumber,
+        posCashMovement.dataset.posCashType,
+      );
+      return;
+    }
+
+    const posTransactionDetail = event.target.closest('[data-pos-transaction-detail]');
+    if (posTransactionDetail) {
+      openPosTransactionDetail(posTransactionDetail.dataset.posTransactionDetail);
+      return;
+    }
+
+    const posTransactionVoid = event.target.closest('[data-pos-transaction-void]');
+    if (posTransactionVoid) {
+      openPosVoidModal(
+        posTransactionVoid.dataset.posTransactionVoid,
+        posTransactionVoid.dataset.posTransactionNumber,
+      );
+      return;
+    }
+
+    const posTransactionSync = event.target.closest('[data-pos-transaction-sync]');
+    if (posTransactionSync) {
+      syncPosTransaction(
+        posTransactionSync.dataset.posTransactionSync,
+        posTransactionSync.dataset.posTransactionNumber,
       );
       return;
     }

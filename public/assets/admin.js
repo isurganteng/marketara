@@ -9127,18 +9127,27 @@ function mktDiscountLabel(discountType, discountValue) {
   return formatMoney(discountValue);
 }
 
-async function mktCommonData() {
-  const [merchants, customers, campaigns, promotions] = await Promise.all([
+async function mktMarketingData() {
+  const [merchants, campaigns, promotions] = await Promise.all([
     api('/merchants?limit=100'),
-    api('/marketing/customers?limit=100'),
     api('/marketing/campaigns?limit=100'),
     api('/marketing/promotions?limit=100'),
   ]);
   return {
     merchants: merchants.data ?? [],
-    customers: customers.data ?? [],
     campaigns: campaigns.data ?? [],
     promotions: promotions.data ?? [],
+  };
+}
+
+async function mktCrmData() {
+  const [merchants, customers] = await Promise.all([
+    api('/merchants?limit=100'),
+    api('/marketing/customers?limit=100'),
+  ]);
+  return {
+    merchants: merchants.data ?? [],
+    customers: customers.data ?? [],
   };
 }
 
@@ -9967,7 +9976,7 @@ async function openGroupDetail(id) {
   try {
     const [groupResult, common] = await Promise.all([
       api(`/marketing/customer-groups/${id}`),
-      mktCommonData(),
+      mktCrmData(),
     ]);
     const group = groupResult.data;
     const members = (group.members ?? [])
@@ -10020,7 +10029,8 @@ async function openGroupDetail(id) {
           body: { customerId: String(formData.get('customerId')) },
         });
         showToast('Anggota ditambahkan', 'Pelanggan masuk ke grup.');
-        openGroupDetail(group.id);
+        await openGroupDetail(group.id);
+        loadCrm(true);
       } catch (error) {
         showToast('Gagal menambah anggota', error.message, 'error');
       }
@@ -10034,7 +10044,7 @@ async function openSegmentDetail(id) {
   try {
     const [segmentResult, common] = await Promise.all([
       api(`/marketing/customer-segments/${id}`),
-      mktCommonData(),
+      mktCrmData(),
     ]);
     const segment = segmentResult.data;
     const members = (segment.members ?? [])
@@ -10088,7 +10098,8 @@ async function openSegmentDetail(id) {
           body: { customerId: String(formData.get('customerId')) },
         });
         showToast('Anggota ditambahkan', 'Pelanggan masuk ke segmen.');
-        openSegmentDetail(segment.id);
+        await openSegmentDetail(segment.id);
+        loadCrm(true);
       } catch (error) {
         showToast('Gagal menambah anggota', error.message, 'error');
       }
@@ -10816,7 +10827,7 @@ function bindEvents() {
   ]) {
     $(selector)?.addEventListener('click', async () => {
       try {
-        open(await mktCommonData());
+        open(await mktMarketingData());
       } catch (error) {
         showToast('Gagal memuat data pendukung', error.message, 'error');
       }
@@ -10833,7 +10844,7 @@ function bindEvents() {
   ]) {
     $(selector)?.addEventListener('click', async () => {
       try {
-        open(await mktCommonData());
+        open(await mktCrmData());
       } catch (error) {
         showToast('Gagal memuat data pendukung', error.message, 'error');
       }

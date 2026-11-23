@@ -94,6 +94,36 @@ const PERMISSIONS: PermissionSeed[] = [
     name: 'Approve procurement, manage suppliers, and warehouse fulfillment',
     module: 'supply_chain',
   },
+  {
+    code: 'marketing:read',
+    name: 'View campaigns, promotions, coupons, and advertisements',
+    module: 'marketing',
+  },
+  {
+    code: 'marketing:write',
+    name: 'Create and update campaigns, promotions, coupons, and advertisements',
+    module: 'marketing',
+  },
+  {
+    code: 'marketing:manage',
+    name: 'Manage marketing lifecycle, redemptions, and performance data',
+    module: 'marketing',
+  },
+  {
+    code: 'crm:read',
+    name: 'View customers, groups, segments, loyalty, interactions, and complaints',
+    module: 'crm',
+  },
+  {
+    code: 'crm:write',
+    name: 'Create and update CRM records and loyalty transactions',
+    module: 'crm',
+  },
+  {
+    code: 'crm:manage',
+    name: 'Manage customer lifecycle, loyalty status, and complaint closure',
+    module: 'crm',
+  },
   { code: 'audit:read', name: 'View audit logs', module: 'governance' },
 ];
 
@@ -118,6 +148,12 @@ const MEMBER_PERMISSIONS = [
   'supply_chain:read',
   'supply_chain:write',
   'supply_chain:manage',
+  'marketing:read',
+  'marketing:write',
+  'marketing:manage',
+  'crm:read',
+  'crm:write',
+  'crm:manage',
   'organization:read',
   'organization:write',
   'organization:member:manage',
@@ -149,6 +185,8 @@ const ROLE_SEEDS: Array<{ code: string; name: string; description: string; permi
       'pos:read',
       'inventory:read',
       'supply_chain:read',
+      'marketing:read',
+      'crm:read',
       'organization:read',
       'audit:read',
     ],

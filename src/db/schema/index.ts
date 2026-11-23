@@ -5,3 +5,4 @@ export * from './pos';
 export * from './inventory';
 export * from './payment';
 export * from './supply-chain';
+export * from './marketing';

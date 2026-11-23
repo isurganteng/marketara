@@ -186,6 +186,14 @@
             <svg class="icon"><use href="#i-inventory"></use></svg>
             <span>Rantai Pasok</span>
           </button>
+          <button class="nav-item" type="button" data-view="marketing">
+            <svg class="icon"><use href="#i-store"></use></svg>
+            <span>Pemasaran</span>
+          </button>
+          <button class="nav-item" type="button" data-view="crm">
+            <svg class="icon"><use href="#i-merchants"></use></svg>
+            <span>CRM</span>
+          </button>
           <button class="nav-item" type="button" data-view="audit">
             <svg class="icon"><use href="#i-audit"></use></svg>
             <span>Audit log</span>
@@ -1639,6 +1647,311 @@
                 </div>
               </div>
               <div class="table-host" id="sc-history-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+          </section>
+
+          <section class="view" id="view-marketing" hidden>
+            <div class="section-head">
+              <div>
+                <p class="panel-kicker">MKT-12 · Digital marketing & promotion</p>
+                <h2>Pemasaran</h2>
+                <p class="section-text">Kelola kampanye multichannel, promosi, aturan diskon, kupon, iklan, dan performa pemasaran merchant.</p>
+              </div>
+              <span class="section-badge neutral" id="mkt-summary-badge" hidden>0 kampanye aktif</span>
+            </div>
+
+            <div class="stats-grid">
+              <article class="stat-card" data-tone="green">
+                <div class="stat-top">
+                  <span class="stat-icon"><svg class="icon"><use href="#i-store"></use></svg></span>
+                  <span class="stat-trend">Kampanye</span>
+                </div>
+                <p class="stat-label">Kampanye aktif</p>
+                <p class="stat-value" id="mkt-stat-campaigns">-</p>
+                <p class="stat-sub">Sedang berjalan atau dijadwalkan.</p>
+              </article>
+              <article class="stat-card" data-tone="blue">
+                <div class="stat-top">
+                  <span class="stat-icon"><svg class="icon"><use href="#i-receipt"></use></svg></span>
+                  <span class="stat-trend">Anggaran</span>
+                </div>
+                <p class="stat-label">Total anggaran</p>
+                <p class="stat-value" id="mkt-stat-budget">-</p>
+                <p class="stat-sub">Akumulasi anggaran kampanye.</p>
+              </article>
+              <article class="stat-card" data-tone="gold">
+                <div class="stat-top">
+                  <span class="stat-icon"><svg class="icon"><use href="#i-receipt"></use></svg></span>
+                  <span class="stat-trend">Kupon</span>
+                </div>
+                <p class="stat-label">Kupon aktif</p>
+                <p class="stat-value" id="mkt-stat-coupons">-</p>
+                <p class="stat-sub">Siap dipakai pelanggan.</p>
+              </article>
+              <article class="stat-card" data-tone="rose">
+                <div class="stat-top">
+                  <span class="stat-icon"><svg class="icon"><use href="#i-clock"></use></svg></span>
+                  <span class="stat-trend">Redemption</span>
+                </div>
+                <p class="stat-label">Pemakaian kupon</p>
+                <p class="stat-value" id="mkt-stat-redemptions">-</p>
+                <p class="stat-sub">Transaksi kupon tercatat.</p>
+              </article>
+            </div>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Perencanaan kampanye</p>
+                  <h3>Kampanye pemasaran</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="mkt-campaign-count" hidden>0 kampanye</span>
+                  <button class="button button-primary button-sm" id="create-mkt-campaign-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Kampanye
+                  </button>
+                </div>
+              </div>
+              <div class="toolbar">
+                <span class="toolbar-count">Ringkasan seluruh aktivitas pemasaran merchant.</span>
+                <button class="icon-button toolbar-refresh" id="refresh-mkt-all" type="button" aria-label="Segarkan pemasaran" title="Segarkan">
+                  <svg class="icon"><use href="#i-refresh"></use></svg>
+                </button>
+              </div>
+              <div class="table-host" id="mkt-campaigns-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Penawaran</p>
+                  <h3>Promosi & aturan diskon</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="mkt-promotion-count" hidden>0 promosi</span>
+                  <button class="button button-primary button-sm" id="create-mkt-promotion-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Promosi
+                  </button>
+                </div>
+              </div>
+              <div class="table-host" id="mkt-promotions-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Kode diskon</p>
+                  <h3>Kupon</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="mkt-coupon-count" hidden>0 kupon</span>
+                  <button class="button button-primary button-sm" id="create-mkt-coupon-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Kupon
+                  </button>
+                </div>
+              </div>
+              <div class="table-host" id="mkt-coupons-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Media berbayar</p>
+                  <h3>Iklan</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="mkt-ad-count" hidden>0 iklan</span>
+                  <button class="button button-primary button-sm" id="create-mkt-ad-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Iklan
+                  </button>
+                </div>
+              </div>
+              <div class="table-host" id="mkt-ads-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Pengukuran</p>
+                  <h3>Performa kampanye</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="mkt-performance-count" hidden>0 catatan</span>
+                </div>
+              </div>
+              <div class="table-host" id="mkt-performance-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+          </section>
+
+          <section class="view" id="view-crm" hidden>
+            <div class="section-head">
+              <div>
+                <p class="panel-kicker">MKT-13 · Customer relationship management</p>
+                <h2>CRM</h2>
+                <p class="section-text">Kelola pelanggan, profil, grup, segmen, loyalty, interaksi, dan keluhan dalam satu tempat.</p>
+              </div>
+              <span class="section-badge neutral" id="crm-summary-badge" hidden>0 keluhan terbuka</span>
+            </div>
+
+            <div class="stats-grid">
+              <article class="stat-card" data-tone="green">
+                <div class="stat-top">
+                  <span class="stat-icon"><svg class="icon"><use href="#i-merchants"></use></svg></span>
+                  <span class="stat-trend">Pelanggan</span>
+                </div>
+                <p class="stat-label">Total pelanggan</p>
+                <p class="stat-value" id="crm-stat-customers">-</p>
+                <p class="stat-sub">Pelanggan aktif dan pasif.</p>
+              </article>
+              <article class="stat-card" data-tone="blue">
+                <div class="stat-top">
+                  <span class="stat-icon"><svg class="icon"><use href="#i-store"></use></svg></span>
+                  <span class="stat-trend">Loyalty</span>
+                </div>
+                <p class="stat-label">Akun loyalty</p>
+                <p class="stat-value" id="crm-stat-loyalty">-</p>
+                <p class="stat-sub">Member dengan poin terkumpul.</p>
+              </article>
+              <article class="stat-card" data-tone="gold">
+                <div class="stat-top">
+                  <span class="stat-icon"><svg class="icon"><use href="#i-receipt"></use></svg></span>
+                  <span class="stat-trend">Segmentasi</span>
+                </div>
+                <p class="stat-label">Grup & segmen</p>
+                <p class="stat-value" id="crm-stat-segments">-</p>
+                <p class="stat-sub">Target audiens tersusun.</p>
+              </article>
+              <article class="stat-card" data-tone="rose">
+                <div class="stat-top">
+                  <span class="stat-icon"><svg class="icon"><use href="#i-clock"></use></svg></span>
+                  <span class="stat-trend">Layanan</span>
+                </div>
+                <p class="stat-label">Keluhan terbuka</p>
+                <p class="stat-value" id="crm-stat-complaints">-</p>
+                <p class="stat-sub">Perlu tindak lanjut.</p>
+              </article>
+            </div>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Basis pelanggan</p>
+                  <h3>Pelanggan</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="crm-customer-count" hidden>0 pelanggan</span>
+                  <button class="button button-primary button-sm" id="create-crm-customer-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Pelanggan
+                  </button>
+                </div>
+              </div>
+              <div class="toolbar">
+                <input class="input toolbar-search" id="crm-customer-search" type="search" placeholder="Cari nama, email, telepon, atau kode" />
+                <button class="icon-button toolbar-refresh" id="refresh-crm-customers" type="button" aria-label="Segarkan pelanggan" title="Segarkan">
+                  <svg class="icon"><use href="#i-refresh"></use></svg>
+                </button>
+              </div>
+              <div class="table-host" id="crm-customers-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Segmentasi</p>
+                  <h3>Grup & segmen</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="crm-group-count" hidden>0 grup</span>
+                  <button class="button button-primary button-sm" id="create-crm-group-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Grup
+                  </button>
+                  <button class="button button-primary button-sm" id="create-crm-segment-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Segmen
+                  </button>
+                </div>
+              </div>
+              <div class="table-host" id="crm-groups-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+              <div class="table-host" id="crm-segments-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Retensi</p>
+                  <h3>Akun loyalty</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="crm-loyalty-count" hidden>0 akun</span>
+                  <button class="button button-primary button-sm" id="create-crm-loyalty-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Akun
+                  </button>
+                </div>
+              </div>
+              <div class="table-host" id="crm-loyalty-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Keterlibatan</p>
+                  <h3>Interaksi pelanggan</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="crm-interaction-count" hidden>0 interaksi</span>
+                  <button class="button button-primary button-sm" id="create-crm-interaction-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Interaksi
+                  </button>
+                </div>
+              </div>
+              <div class="table-host" id="crm-interactions-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Layanan pelanggan</p>
+                  <h3>Keluhan</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="crm-complaint-count" hidden>0 keluhan</span>
+                  <button class="button button-primary button-sm" id="create-crm-complaint-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Keluhan
+                  </button>
+                </div>
+              </div>
+              <div class="table-host" id="crm-complaints-table">
                 <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
               </div>
             </article>

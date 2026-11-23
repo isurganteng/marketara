@@ -13,6 +13,7 @@ import { authRoutes } from './routes/auth';
 import { catalogRoutes } from './routes/catalog';
 import { commerceMarketplaceRoutes, commerceRoutes } from './routes/commerce';
 import { inventoryRoutesIndex } from './routes/inventory';
+import { marketingRoutesIndex } from './routes/marketing';
 import { marketRoutes } from './routes/markets';
 import { merchantRoutes } from './routes/merchants';
 import { organizationRoutes } from './routes/organizations';
@@ -73,6 +74,7 @@ app.route('/api/v1/payments', paymentRoutesIndex);
 app.route('/api/v1/pos', posRoutesIndex);
 app.route('/api/v1/inventory', inventoryRoutesIndex);
 app.route('/api/v1/supply-chain', supplyChainRoutesIndex);
+app.route('/api/v1/marketing', marketingRoutesIndex);
 app.route('/api/v1/reference', referenceRoutes);
 app.route('/api/v1/audit-logs', auditRoutes);
 

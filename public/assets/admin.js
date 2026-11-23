@@ -13,6 +13,8 @@ const VIEW_TITLES = {
   pos: 'POS',
   inventory: 'Inventori',
   'supply-chain': 'Rantai Pasok',
+  marketing: 'Pemasaran',
+  crm: 'CRM',
   audit: 'Audit log',
 };
 
@@ -102,6 +104,39 @@ const STATUS_LABELS = {
   delivered: 'Terkirim',
   put_away: 'Sudah put-away',
   urgent: 'Mendesak',
+  scheduled: 'Dijadwalkan',
+  resolved: 'Diselesaikan',
+  exhausted: 'Kuota habis',
+  bronze: 'Bronze',
+  silver: 'Silver',
+  gold: 'Gold',
+  platinum: 'Platinum',
+  percentage: 'Persentase',
+  fixed_amount: 'Nominal tetap',
+  free_shipping: 'Gratis ongkir',
+  earn: 'Perolehan',
+  redeem: 'Penukaran',
+  expire: 'Kedaluwarsa',
+  bonus: 'Bonus',
+  manual: 'Manual',
+  dynamic: 'Dinamis',
+  internal: 'Internal',
+  referral: 'Referensi',
+  storefront: 'Storefront',
+  pos: 'POS',
+  import: 'Impor',
+  marketplace: 'Marketplace',
+  note: 'Catatan',
+  call: 'Telepon',
+  email: 'Email',
+  whatsapp: 'WhatsApp',
+  meeting: 'Pertemuan',
+  complaint: 'Keluhan',
+  follow_up: 'Tindak lanjut',
+  awareness: 'Awareness',
+  acquisition: 'Akuisisi',
+  retention: 'Retensi',
+  engagement: 'Engagement',
 };
 
 const STATUS_COLORS = {
@@ -255,6 +290,8 @@ const state = {
   pos: null,
   inventory: null,
   supplyChain: null,
+  marketing: null,
+  crm: null,
   audit: null,
   pendingCount: 0,
   canWriteCommerce: false,
@@ -267,6 +304,10 @@ const state = {
   canManageInventory: false,
   canWriteSupplyChain: false,
   canManageSupplyChain: false,
+  canWriteMarketing: false,
+  canManageMarketing: false,
+  canWriteCrm: false,
+  canManageCrm: false,
   sequences: {
     overview: 0,
     markets: 0,
@@ -278,6 +319,8 @@ const state = {
     pos: 0,
     inventory: 0,
     supplyChain: 0,
+    marketing: 0,
+    crm: 0,
     audit: 0,
   },
   filters: {
@@ -313,6 +356,8 @@ const state = {
       batchSearch: '',
       batchExpiry: '',
     },
+    marketing: { search: '' },
+    crm: { search: '' },
     audit: { search: '', entityType: '' },
   },
 };
@@ -593,6 +638,8 @@ function applyProfile(profile) {
   const canInventory = permissions.includes('*') || permissions.includes('inventory:read');
   const canSupplyChain =
     permissions.includes('*') || permissions.includes('supply_chain:read');
+  const canMarketing = permissions.includes('*') || permissions.includes('marketing:read');
+  const canCrm = permissions.includes('*') || permissions.includes('crm:read');
   state.canWriteCommerce = permissions.includes('*') || permissions.includes('commerce:write');
   state.canManageCommerce = permissions.includes('*') || permissions.includes('commerce:manage');
   state.canWritePayments = permissions.includes('*') || permissions.includes('payment:write');
@@ -605,6 +652,10 @@ function applyProfile(profile) {
     permissions.includes('*') || permissions.includes('supply_chain:write');
   state.canManageSupplyChain =
     permissions.includes('*') || permissions.includes('supply_chain:manage');
+  state.canWriteMarketing = permissions.includes('*') || permissions.includes('marketing:write');
+  state.canManageMarketing = permissions.includes('*') || permissions.includes('marketing:manage');
+  state.canWriteCrm = permissions.includes('*') || permissions.includes('crm:write');
+  state.canManageCrm = permissions.includes('*') || permissions.includes('crm:manage');
   const commerceNav = $('[data-view="commerce"]');
   if (commerceNav) commerceNav.hidden = !canCommerce;
   const ordersNav = $('[data-view="orders"]');
@@ -617,6 +668,30 @@ function applyProfile(profile) {
   if (inventoryNav) inventoryNav.hidden = !canInventory;
   const supplyChainNav = $('[data-view="supply-chain"]');
   if (supplyChainNav) supplyChainNav.hidden = !canSupplyChain;
+  const marketingNav = $('[data-view="marketing"]');
+  if (marketingNav) marketingNav.hidden = !canMarketing;
+  const crmNav = $('[data-view="crm"]');
+  if (crmNav) crmNav.hidden = !canCrm;
+  for (const selector of [
+    '#create-mkt-campaign-button',
+    '#create-mkt-promotion-button',
+    '#create-mkt-coupon-button',
+    '#create-mkt-ad-button',
+  ]) {
+    const button = $(selector);
+    if (button) button.hidden = !state.canWriteMarketing;
+  }
+  for (const selector of [
+    '#create-crm-customer-button',
+    '#create-crm-group-button',
+    '#create-crm-segment-button',
+    '#create-crm-loyalty-button',
+    '#create-crm-interaction-button',
+    '#create-crm-complaint-button',
+  ]) {
+    const button = $(selector);
+    if (button) button.hidden = !state.canWriteCrm;
+  }
   for (const selector of [
     '#create-sc-supplier-button',
     '#create-sc-requisition-button',
@@ -799,6 +874,8 @@ function loadView(view) {
   if (view === 'pos') return loadPos();
   if (view === 'inventory') return loadInventory();
   if (view === 'supply-chain') return loadSupplyChain(true);
+  if (view === 'marketing') return loadMarketing(true);
+  if (view === 'crm') return loadCrm(true);
   if (view === 'audit') return loadAudit();
   return undefined;
 }
@@ -8978,6 +9055,1482 @@ async function logout() {
   }
 }
 
+/* --------------------------- Marketing & CRM -------------------------- */
+
+const MKT_MARKETING_TABLES = [
+  '#mkt-campaigns-table',
+  '#mkt-promotions-table',
+  '#mkt-coupons-table',
+  '#mkt-ads-table',
+  '#mkt-performance-table',
+];
+
+const MKT_CRM_TABLES = [
+  '#crm-customers-table',
+  '#crm-groups-table',
+  '#crm-segments-table',
+  '#crm-loyalty-table',
+  '#crm-interactions-table',
+  '#crm-complaints-table',
+];
+
+function mktOptions(rows, labelFn, selectedId = '') {
+  const options = rows
+    .map(
+      (row) =>
+        `<option value="${escapeHtml(row.id)}" ${row.id === selectedId ? 'selected' : ''}>${escapeHtml(labelFn(row))}</option>`,
+    )
+    .join('');
+  return options;
+}
+
+function mktMerchantOptions(merchants, selectedId = '') {
+  return (
+    '<option value="">Pilih merchant</option>' +
+    mktOptions(merchants, (row) => row.businessName || row.code, selectedId)
+  );
+}
+
+function mktCustomerOptions(customers, selectedId = '') {
+  return (
+    '<option value="">Pilih pelanggan</option>' +
+    mktOptions(
+      customers,
+      (row) => `${row.name} (${row.code})`,
+      selectedId,
+    )
+  );
+}
+
+function mktCampaignOptions(campaigns, selectedId = '') {
+  return (
+    '<option value="">Tanpa kampanye</option>' +
+    mktOptions(campaigns, (row) => `${row.name} (${row.code})`, selectedId)
+  );
+}
+
+function mktPromotionOptions(promotions, selectedId = '') {
+  return (
+    '<option value="">Tanpa promosi</option>' +
+    mktOptions(promotions, (row) => `${row.name} (${row.code})`, selectedId)
+  );
+}
+
+function mktPeriod(start, end) {
+  if (!start && !end) return '—';
+  return `${formatDate(start)} – ${formatDate(end)}`;
+}
+
+function mktDiscountLabel(discountType, discountValue) {
+  if (discountType === 'percentage') return `${formatNumber(discountValue)}%`;
+  if (discountType === 'free_shipping') return 'Gratis ongkir';
+  return formatMoney(discountValue);
+}
+
+async function mktCommonData() {
+  const [merchants, customers, campaigns, promotions] = await Promise.all([
+    api('/merchants?limit=100'),
+    api('/marketing/customers?limit=100'),
+    api('/marketing/campaigns?limit=100'),
+    api('/marketing/promotions?limit=100'),
+  ]);
+  return {
+    merchants: merchants.data ?? [],
+    customers: customers.data ?? [],
+    campaigns: campaigns.data ?? [],
+    promotions: promotions.data ?? [],
+  };
+}
+
+/* ------------------------------- Marketing ---------------------------- */
+
+async function loadMarketing(force = false) {
+  const sequence = ++state.sequences.marketing;
+  if (!force && state.marketing) {
+    renderMarketing();
+    return;
+  }
+  for (const selector of MKT_MARKETING_TABLES) {
+    const host = $(selector);
+    if (host) host.innerHTML = tableLoading(2);
+  }
+  try {
+    const results = await Promise.all([
+      api('/marketing/campaigns?limit=100'),
+      api('/marketing/promotions?limit=100'),
+      api('/marketing/coupons?limit=100'),
+      api('/marketing/advertisements?limit=100'),
+      api('/marketing/campaign-performance?limit=100'),
+      api('/marketing/coupon-redemptions?limit=100'),
+    ]);
+    if (sequence !== state.sequences.marketing) return;
+    state.marketing = {
+      campaigns: results[0].data ?? [],
+      promotions: results[1].data ?? [],
+      coupons: results[2].data ?? [],
+      advertisements: results[3].data ?? [],
+      performance: results[4].data ?? [],
+      redemptions: results[5].data ?? [],
+    };
+    renderMarketing();
+  } catch (error) {
+    if (sequence !== state.sequences.marketing) return;
+    for (const selector of MKT_MARKETING_TABLES) {
+      const host = $(selector);
+      if (host) host.innerHTML = errorState(error.message, 'data-mkt-retry');
+    }
+    showToast('Gagal memuat pemasaran', error.message, 'error');
+  }
+}
+
+function renderMarketing() {
+  const data = state.marketing;
+  if (!data) return;
+  const activeCampaigns = data.campaigns.filter((row) =>
+    ['active', 'scheduled'].includes(row.status),
+  ).length;
+  const totalBudget = data.campaigns.reduce((sum, row) => sum + Number(row.budget ?? 0), 0);
+  const activeCoupons = data.coupons.filter((row) => row.status === 'active').length;
+  scSetText('#mkt-stat-campaigns', formatNumber(activeCampaigns));
+  scSetText('#mkt-stat-budget', formatMoney(totalBudget));
+  scSetText('#mkt-stat-coupons', formatNumber(activeCoupons));
+  scSetText('#mkt-stat-redemptions', formatNumber(data.redemptions.length));
+  const summary = $('#mkt-summary-badge');
+  if (summary) {
+    summary.hidden = activeCampaigns <= 0;
+    summary.textContent = `${formatNumber(activeCampaigns)} kampanye aktif`;
+  }
+  scSetBadge('#mkt-campaign-count', data.campaigns.length, 'kampanye');
+  scSetBadge('#mkt-promotion-count', data.promotions.length, 'promosi');
+  scSetBadge('#mkt-coupon-count', data.coupons.length, 'kupon');
+  scSetBadge('#mkt-ad-count', data.advertisements.length, 'iklan');
+  scSetBadge('#mkt-performance-count', data.performance.length, 'catatan');
+
+  scRenderTable(
+    '#mkt-campaigns-table',
+    ['Kampanye', 'Merchant', 'Anggaran', 'Periode', 'Status', 'Aksi'],
+    data.campaigns,
+    (row) => {
+      const actions = [scButton('Detail', `data-mkt-action="campaign-detail" data-mkt-id="${escapeHtml(row.id)}"`)];
+      if (state.canWriteMarketing) {
+        if (['draft', 'scheduled', 'paused'].includes(row.status)) {
+          actions.push(
+            scButton('Aktifkan', `data-mkt-action="campaign" data-mkt-id="${escapeHtml(row.id)}" data-mkt-op="activate"`),
+          );
+        }
+        if (row.status === 'active') {
+          actions.push(
+            scButton('Jeda', `data-mkt-action="campaign" data-mkt-id="${escapeHtml(row.id)}" data-mkt-op="pause"`),
+          );
+        }
+        if (row.status === 'paused') {
+          actions.push(
+            scButton('Lanjutkan', `data-mkt-action="campaign" data-mkt-id="${escapeHtml(row.id)}" data-mkt-op="resume"`),
+          );
+        }
+        if (['draft', 'scheduled', 'active', 'paused'].includes(row.status)) {
+          actions.push(
+            scButton('Batalkan', `data-mkt-action="campaign" data-mkt-id="${escapeHtml(row.id)}" data-mkt-op="cancel"`),
+          );
+        }
+      }
+      return `
+        <tr>
+          <td>
+            <div class="cell-title">${escapeHtml(row.name)}</div>
+            <div class="cell-muted">${escapeHtml(row.code)} • ${escapeHtml(row.objective)}</div>
+          </td>
+          <td>${escapeHtml(row.merchantName)}</td>
+          <td>
+            <div class="cell-title">${formatMoney(row.spent)} / ${formatMoney(row.budget)}</div>
+            <div class="cell-muted">Target ${formatMoney(row.targetRevenue)}</div>
+          </td>
+          <td>${escapeHtml(mktPeriod(row.startsAt, row.endsAt))}</td>
+          <td>${statusBadge(row.status)}</td>
+          <td>${scActions(actions)}</td>
+        </tr>
+      `;
+    },
+    'Belum ada kampanye',
+    'Buat kampanye untuk mulai merencanakan promosi dan iklan.',
+  );
+
+  scRenderTable(
+    '#mkt-promotions-table',
+    ['Promosi', 'Merchant', 'Tipe', 'Min. belanja', 'Status', 'Aksi'],
+    data.promotions,
+    (row) => {
+      const actions = [];
+      if (state.canWriteMarketing) {
+        if (['draft', 'scheduled', 'paused'].includes(row.status)) {
+          actions.push(scButton('Aktifkan', `data-mkt-action="promotion" data-mkt-id="${escapeHtml(row.id)}" data-mkt-op="activate"`));
+        }
+        if (row.status === 'active') {
+          actions.push(scButton('Jeda', `data-mkt-action="promotion" data-mkt-id="${escapeHtml(row.id)}" data-mkt-op="pause"`));
+        }
+        if (['draft', 'scheduled', 'active', 'paused'].includes(row.status)) {
+          actions.push(scButton('Batalkan', `data-mkt-action="promotion" data-mkt-id="${escapeHtml(row.id)}" data-mkt-op="cancel"`));
+        }
+      }
+      return `
+        <tr>
+          <td>
+            <div class="cell-title">${escapeHtml(row.name)}</div>
+            <div class="cell-muted">${escapeHtml(row.code)}${row.campaignName ? ` • ${escapeHtml(row.campaignName)}` : ''}</div>
+          </td>
+          <td>${escapeHtml(row.merchantName)}</td>
+          <td>${statusBadge(row.type)}</td>
+          <td>${formatMoney(row.minPurchase)}</td>
+          <td>${statusBadge(row.status)}</td>
+          <td>${scActions(actions)}</td>
+        </tr>
+      `;
+    },
+    'Belum ada promosi',
+    'Promosi dapat dikaitkan ke kampanye dan memiliki aturan diskon.',
+  );
+
+  scRenderTable(
+    '#mkt-coupons-table',
+    ['Kupon', 'Merchant', 'Diskon', 'Kuota', 'Periode', 'Status', 'Aksi'],
+    data.coupons,
+    (row) => {
+      const actions = [];
+      if (state.canWriteMarketing && row.status === 'active') {
+        actions.push(scButton('Nonaktifkan', `data-mkt-action="coupon-deactivate" data-mkt-id="${escapeHtml(row.id)}"`));
+      }
+      return `
+        <tr>
+          <td>
+            <div class="cell-title">${escapeHtml(row.code)}</div>
+            <div class="cell-muted">${escapeHtml(row.name || row.promotionName || '—')}</div>
+          </td>
+          <td>${escapeHtml(row.merchantName)}</td>
+          <td>${escapeHtml(mktDiscountLabel(row.discountType, row.discountValue))}</td>
+          <td>${formatNumber(row.usedCount)} / ${row.usageLimit === null ? '∞' : formatNumber(row.usageLimit)}</td>
+          <td>${escapeHtml(mktPeriod(row.startsAt, row.endsAt))}</td>
+          <td>${statusBadge(row.status)}</td>
+          <td>${scActions(actions)}</td>
+        </tr>
+      `;
+    },
+    'Belum ada kupon',
+    'Buat kupon agar pelanggan dapat memperoleh potongan harga.',
+  );
+
+  scRenderTable(
+    '#mkt-ads-table',
+    ['Iklan', 'Merchant', 'Penempatan', 'Anggaran', 'Metrik', 'Status', 'Aksi'],
+    data.advertisements,
+    (row) => {
+      const actions = [];
+      if (state.canWriteMarketing && !['cancelled', 'completed'].includes(row.status)) {
+        actions.push(scButton('Batalkan', `data-mkt-action="ad-cancel" data-mkt-id="${escapeHtml(row.id)}"`));
+      }
+      return `
+        <tr>
+          <td>
+            <div class="cell-title">${escapeHtml(row.name)}</div>
+            <div class="cell-muted">${escapeHtml(row.campaignName || row.type)}</div>
+          </td>
+          <td>${escapeHtml(row.merchantName)}</td>
+          <td>${escapeHtml(row.placement || '—')}</td>
+          <td>${formatMoney(row.spent)} / ${formatMoney(row.budget)}</td>
+          <td>
+            <div class="cell-title">${formatNumber(row.impressions)} tayang</div>
+            <div class="cell-muted">${formatNumber(row.clicks)} klik • ${formatNumber(row.conversions)} konversi</div>
+          </td>
+          <td>${statusBadge(row.status)}</td>
+          <td>${scActions(actions)}</td>
+        </tr>
+      `;
+    },
+    'Belum ada iklan',
+    'Iklan dapat dihubungkan dengan kampanye dan penempatan tertentu.',
+  );
+
+  scRenderTable(
+    '#mkt-performance-table',
+    ['Kampanye', 'Channel', 'Tanggal', 'Tayangan / klik', 'Konversi', 'Belanja / pendapatan'],
+    data.performance,
+    (row) => `
+      <tr>
+        <td>
+          <div class="cell-title">${escapeHtml(row.campaignName)}</div>
+          <div class="cell-muted">${escapeHtml(row.merchantName)}</div>
+        </td>
+        <td>${escapeHtml(row.channelType || 'Semua channel')}</td>
+        <td>${escapeHtml(formatDate(row.date))}</td>
+        <td>${formatNumber(row.impressions)} / ${formatNumber(row.clicks)}</td>
+        <td>${formatNumber(row.conversions)}</td>
+        <td>
+          <div class="cell-title">${formatMoney(row.spend)} / ${formatMoney(row.revenue)}</div>
+          <div class="cell-muted">${formatNumber(row.orders)} order • ${formatNumber(row.newCustomers)} pelanggan baru</div>
+        </td>
+      </tr>
+    `,
+    'Belum ada data performa',
+    'Catat performa harian per channel untuk mengukur hasil kampanye.',
+  );
+}
+
+async function openMarketingCampaignDetail(id) {
+  try {
+    const result = await api(`/marketing/campaigns/${id}`);
+    const campaign = result.data;
+    const channels = (campaign.channels ?? [])
+      .map(
+        (row) => `
+          <tr>
+            <td>${escapeHtml(row.channelType)}</td>
+            <td>${escapeHtml(row.name || '—')}</td>
+            <td>${formatMoney(row.spent)} / ${formatMoney(row.budget)}</td>
+            <td>${formatNumber(row.targetConversions)} target</td>
+          </tr>`,
+      )
+      .join('');
+    const performance = (campaign.performance ?? [])
+      .map(
+        (row) => `
+          <tr>
+            <td>${escapeHtml(formatDate(row.date))}</td>
+            <td>${formatNumber(row.impressions)} / ${formatNumber(row.clicks)}</td>
+            <td>${formatNumber(row.conversions)}</td>
+            <td>${formatMoney(row.revenue)}</td>
+          </tr>`,
+      )
+      .join('');
+    openModal({
+      title: campaign.name,
+      kicker: 'Detail kampanye',
+      subtitle: `${campaign.code} • ${campaign.merchantName ?? ''}`,
+      wide: true,
+      body: `
+        <dl class="detail-list">
+          <div class="detail-row"><dt>Status</dt><dd>${statusBadge(campaign.status)}</dd></div>
+          <div class="detail-row"><dt>Objective</dt><dd>${escapeHtml(campaign.objective)}</dd></div>
+          <div class="detail-row"><dt>Periode</dt><dd>${escapeHtml(mktPeriod(campaign.startsAt, campaign.endsAt))}</dd></div>
+          <div class="detail-row"><dt>Anggaran</dt><dd>${formatMoney(campaign.spent)} / ${formatMoney(campaign.budget)}</dd></div>
+          <div class="detail-row"><dt>Target pendapatan</dt><dd>${formatMoney(campaign.targetRevenue)}</dd></div>
+          <div class="detail-row"><dt>Target audiens</dt><dd>${escapeHtml(campaign.targetAudience || '—')}</dd></div>
+        </dl>
+        <h4 class="detail-heading">Channel</h4>
+        ${
+          channels
+            ? `<div class="table-wrap"><table class="table"><thead><tr><th>Channel</th><th>Nama</th><th>Belanja / anggaran</th><th>Target</th></tr></thead><tbody>${channels}</tbody></table></div>`
+            : emptyState('Belum ada channel', 'Tambahkan channel agar performa dapat dipantau.')
+        }
+        <h4 class="detail-heading">Performa terbaru</h4>
+        ${
+          performance
+            ? `<div class="table-wrap"><table class="table"><thead><tr><th>Tanggal</th><th>Tayangan / klik</th><th>Konversi</th><th>Pendapatan</th></tr></thead><tbody>${performance}</tbody></table></div>`
+            : emptyState('Belum ada performa', 'Catat performa harian kampanye.')
+        }
+      `,
+    });
+  } catch (error) {
+    showToast('Gagal memuat kampanye', error.message, 'error');
+  }
+}
+
+function openMarketingCampaignModal(common) {
+  const modal = openModal({
+    title: 'Kampanye baru',
+    kicker: 'Digital marketing',
+    subtitle: 'Rencanakan kampanye multichannel untuk merchant.',
+    body: `
+      <form id="mkt-campaign-form" class="form-grid">
+        <label class="field field-span"><span>Merchant</span><select name="merchantId" required>${mktMerchantOptions(common.merchants)}</select></label>
+        <label class="field field-span"><span>Nama kampanye</span><input name="name" required maxlength="255" placeholder="contoh: Promo Ramadan 2026" /></label>
+        <label class="field"><span>Objective</span><select name="objective"><option value="awareness">Awareness</option><option value="acquisition" selected>Akuisisi</option><option value="retention">Retensi</option><option value="engagement">Engagement</option></select></label>
+        <label class="field"><span>Status</span><select name="status"><option value="draft">Draft</option><option value="scheduled">Dijadwalkan</option><option value="active">Aktif</option></select></label>
+        <label class="field"><span>Anggaran</span><input name="budget" type="number" min="0" step="0.01" value="0" /></label>
+        <label class="field"><span>Target pendapatan</span><input name="targetRevenue" type="number" min="0" step="0.01" value="0" /></label>
+        <label class="field field-span"><span>Target audiens</span><textarea name="targetAudience" rows="2" maxlength="4000" placeholder="Opsional"></textarea></label>
+        <label class="field field-span"><span>Deskripsi</span><textarea name="description" rows="2" maxlength="4000" placeholder="Opsional"></textarea></label>
+      </form>
+    `,
+    footer: `
+      <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+      <button class="button button-primary" type="submit" form="mkt-campaign-form">Simpan kampanye</button>
+    `,
+  });
+  const form = modal?.querySelector('#mkt-campaign-form');
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const submit = modal.querySelector('button[type="submit"]');
+    submit.disabled = true;
+    try {
+      await api('/marketing/campaigns', {
+        method: 'POST',
+        body: {
+          merchantId: String(data.get('merchantId')),
+          name: String(data.get('name')),
+          objective: String(data.get('objective')),
+          status: String(data.get('status')),
+          budget: String(data.get('budget') || 0),
+          targetRevenue: String(data.get('targetRevenue') || 0),
+          targetAudience: String(data.get('targetAudience') || '') || undefined,
+          description: String(data.get('description') || '') || undefined,
+        },
+      });
+      closeModal();
+      showToast('Kampanye dibuat', 'Data kampanye berhasil disimpan.');
+      loadMarketing(true);
+    } catch (error) {
+      showToast('Gagal menyimpan kampanye', error.message, 'error');
+    } finally {
+      submit.disabled = false;
+    }
+  });
+}
+
+function openMarketingPromotionModal(common) {
+  const modal = openModal({
+    title: 'Promosi baru',
+    kicker: 'Promotion engine',
+    subtitle: 'Atur diskon dan batas pemakaian promosi.',
+    body: `
+      <form id="mkt-promotion-form" class="form-grid">
+        <label class="field field-span"><span>Merchant</span><select name="merchantId" required>${mktMerchantOptions(common.merchants)}</select></label>
+        <label class="field field-span"><span>Kampanye</span><select name="campaignId">${mktCampaignOptions(common.campaigns)}</select></label>
+        <label class="field field-span"><span>Nama promosi</span><input name="name" required maxlength="255" placeholder="contoh: Diskon Akhir Pekan" /></label>
+        <label class="field"><span>Tipe</span><select name="type"><option value="percentage">Persentase</option><option value="fixed_amount">Nominal tetap</option><option value="free_shipping">Gratis ongkir</option><option value="bundle">Bundle</option><option value="buy_x_get_y">Beli X dapat Y</option></select></label>
+        <label class="field"><span>Status</span><select name="status"><option value="draft">Draft</option><option value="active" selected>Aktif</option></select></label>
+        <label class="field"><span>Minimum belanja</span><input name="minPurchase" type="number" min="0" step="0.01" value="0" /></label>
+        <label class="field"><span>Maksimum diskon</span><input name="maxDiscount" type="number" min="0" step="0.01" placeholder="Opsional" /></label>
+        <label class="field"><span>Kuota pemakaian</span><input name="usageLimit" type="number" min="0" step="1" placeholder="Opsional" /></label>
+        <label class="field"><span>Batas per pelanggan</span><input name="perCustomerLimit" type="number" min="0" step="1" placeholder="Opsional" /></label>
+        <label class="field field-span"><span>Deskripsi</span><textarea name="description" rows="2" maxlength="4000" placeholder="Opsional"></textarea></label>
+      </form>
+    `,
+    footer: `
+      <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+      <button class="button button-primary" type="submit" form="mkt-promotion-form">Simpan promosi</button>
+    `,
+  });
+  const form = modal?.querySelector('#mkt-promotion-form');
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const submit = modal.querySelector('button[type="submit"]');
+    submit.disabled = true;
+    try {
+      await api('/marketing/promotions', {
+        method: 'POST',
+        body: {
+          merchantId: String(data.get('merchantId')),
+          campaignId: String(data.get('campaignId') || '') || undefined,
+          name: String(data.get('name')),
+          type: String(data.get('type')),
+          status: String(data.get('status')),
+          minPurchase: String(data.get('minPurchase') || 0),
+          maxDiscount: String(data.get('maxDiscount') || '') || undefined,
+          usageLimit: String(data.get('usageLimit') || '') || undefined,
+          perCustomerLimit: String(data.get('perCustomerLimit') || '') || undefined,
+          description: String(data.get('description') || '') || undefined,
+        },
+      });
+      closeModal();
+      showToast('Promosi dibuat', 'Promosi berhasil disimpan.');
+      loadMarketing(true);
+    } catch (error) {
+      showToast('Gagal menyimpan promosi', error.message, 'error');
+    } finally {
+      submit.disabled = false;
+    }
+  });
+}
+
+function openMarketingCouponModal(common) {
+  const modal = openModal({
+    title: 'Kupon baru',
+    kicker: 'Voucher & coupon',
+    subtitle: 'Kupon dapat dipakai pada order commerce merchant.',
+    body: `
+      <form id="mkt-coupon-form" class="form-grid">
+        <label class="field field-span"><span>Merchant</span><select name="merchantId" required>${mktMerchantOptions(common.merchants)}</select></label>
+        <label class="field field-span"><span>Promosi</span><select name="promotionId">${mktPromotionOptions(common.promotions)}</select></label>
+        <label class="field"><span>Kode kupon</span><input name="code" required maxlength="64" placeholder="contoh: HEMAT10" /></label>
+        <label class="field"><span>Nama</span><input name="name" maxlength="255" placeholder="Opsional" /></label>
+        <label class="field"><span>Tipe diskon</span><select name="discountType"><option value="percentage">Persentase</option><option value="fixed_amount">Nominal tetap</option><option value="free_shipping">Gratis ongkir</option></select></label>
+        <label class="field"><span>Nilai diskon</span><input name="discountValue" type="number" min="0" step="0.01" value="0" /></label>
+        <label class="field"><span>Minimum belanja</span><input name="minPurchase" type="number" min="0" step="0.01" value="0" /></label>
+        <label class="field"><span>Maksimum diskon</span><input name="maxDiscount" type="number" min="0" step="0.01" placeholder="Opsional" /></label>
+        <label class="field"><span>Kuota</span><input name="usageLimit" type="number" min="0" step="1" placeholder="Opsional" /></label>
+        <label class="field"><span>Batas per pelanggan</span><input name="perCustomerLimit" type="number" min="0" step="1" placeholder="Opsional" /></label>
+      </form>
+    `,
+    footer: `
+      <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+      <button class="button button-primary" type="submit" form="mkt-coupon-form">Simpan kupon</button>
+    `,
+  });
+  const form = modal?.querySelector('#mkt-coupon-form');
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const submit = modal.querySelector('button[type="submit"]');
+    submit.disabled = true;
+    try {
+      await api('/marketing/coupons', {
+        method: 'POST',
+        body: {
+          merchantId: String(data.get('merchantId')),
+          promotionId: String(data.get('promotionId') || '') || undefined,
+          code: String(data.get('code')).toUpperCase(),
+          name: String(data.get('name') || '') || undefined,
+          discountType: String(data.get('discountType')),
+          discountValue: String(data.get('discountValue') || 0),
+          minPurchase: String(data.get('minPurchase') || 0),
+          maxDiscount: String(data.get('maxDiscount') || '') || undefined,
+          usageLimit: String(data.get('usageLimit') || '') || undefined,
+          perCustomerLimit: String(data.get('perCustomerLimit') || '') || undefined,
+        },
+      });
+      closeModal();
+      showToast('Kupon dibuat', 'Kupon siap digunakan pada order commerce.');
+      loadMarketing(true);
+    } catch (error) {
+      showToast('Gagal menyimpan kupon', error.message, 'error');
+    } finally {
+      submit.disabled = false;
+    }
+  });
+}
+
+function openMarketingAdModal(common) {
+  const modal = openModal({
+    title: 'Iklan baru',
+    kicker: 'Paid media',
+    subtitle: 'Hubungkan iklan dengan kampanye dan penempatan.',
+    body: `
+      <form id="mkt-ad-form" class="form-grid">
+        <label class="field field-span"><span>Merchant</span><select name="merchantId" required>${mktMerchantOptions(common.merchants)}</select></label>
+        <label class="field field-span"><span>Kampanye</span><select name="campaignId">${mktCampaignOptions(common.campaigns)}</select></label>
+        <label class="field field-span"><span>Nama iklan</span><input name="name" required maxlength="255" /></label>
+        <label class="field"><span>Tipe</span><select name="type"><option value="banner">Banner</option><option value="sponsored_product">Produk sponsor</option><option value="social_post">Posting sosial</option><option value="email">Email</option><option value="other">Lainnya</option></select></label>
+        <label class="field"><span>Status</span><select name="status"><option value="draft">Draft</option><option value="scheduled" selected>Dijadwalkan</option><option value="active">Aktif</option></select></label>
+        <label class="field"><span>Penempatan</span><input name="placement" maxlength="128" placeholder="contoh: storefront_home" /></label>
+        <label class="field"><span>Anggaran</span><input name="budget" type="number" min="0" step="0.01" value="0" /></label>
+        <label class="field field-span"><span>URL kreatif</span><input name="creativeUrl" maxlength="2048" placeholder="https://..." /></label>
+        <label class="field field-span"><span>URL target</span><input name="targetUrl" maxlength="2048" placeholder="https://..." /></label>
+      </form>
+    `,
+    footer: `
+      <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+      <button class="button button-primary" type="submit" form="mkt-ad-form">Simpan iklan</button>
+    `,
+  });
+  const form = modal?.querySelector('#mkt-ad-form');
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const submit = modal.querySelector('button[type="submit"]');
+    submit.disabled = true;
+    try {
+      await api('/marketing/advertisements', {
+        method: 'POST',
+        body: {
+          merchantId: String(data.get('merchantId')),
+          campaignId: String(data.get('campaignId') || '') || undefined,
+          name: String(data.get('name')),
+          type: String(data.get('type')),
+          status: String(data.get('status')),
+          placement: String(data.get('placement') || '') || undefined,
+          budget: String(data.get('budget') || 0),
+          creativeUrl: String(data.get('creativeUrl') || '') || undefined,
+          targetUrl: String(data.get('targetUrl') || '') || undefined,
+        },
+      });
+      closeModal();
+      showToast('Iklan dibuat', 'Iklan berhasil disimpan.');
+      loadMarketing(true);
+    } catch (error) {
+      showToast('Gagal menyimpan iklan', error.message, 'error');
+    } finally {
+      submit.disabled = false;
+    }
+  });
+}
+
+async function mktRunMarketingAction(action, id, op) {
+  try {
+    if (action === 'campaign') {
+      await api(`/marketing/campaigns/${id}/${op}`, { method: 'POST' });
+      showToast('Kampanye diperbarui', 'Status kampanye berhasil diubah.');
+    } else if (action === 'promotion') {
+      await api(`/marketing/promotions/${id}/${op}`, { method: 'POST' });
+      showToast('Promosi diperbarui', 'Status promosi berhasil diubah.');
+    } else if (action === 'coupon-deactivate') {
+      await api(`/marketing/coupons/${id}`, { method: 'DELETE' });
+      showToast('Kupon dinonaktifkan', 'Kupon tidak dapat dipakai lagi.');
+    } else if (action === 'ad-cancel') {
+      await api(`/marketing/advertisements/${id}`, { method: 'DELETE' });
+      showToast('Iklan dibatalkan', 'Iklan berhasil dinonaktifkan.');
+    }
+    loadMarketing(true);
+  } catch (error) {
+    showToast('Aksi gagal', error.message, 'error');
+  }
+}
+
+/* --------------------------------- CRM -------------------------------- */
+
+async function loadCrm(force = false) {
+  const sequence = ++state.sequences.crm;
+  if (!force && state.crm) {
+    renderCrm();
+    return;
+  }
+  for (const selector of MKT_CRM_TABLES) {
+    const host = $(selector);
+    if (host) host.innerHTML = tableLoading(2);
+  }
+  try {
+    const search = state.filters.crm.search
+      ? `&search=${encodeURIComponent(state.filters.crm.search)}`
+      : '';
+    const results = await Promise.all([
+      api(`/marketing/customers?limit=100${search}`),
+      api('/marketing/customer-groups?limit=100'),
+      api('/marketing/customer-segments?limit=100'),
+      api('/marketing/loyalty-accounts?limit=100'),
+      api('/marketing/interactions?limit=100'),
+      api('/marketing/complaints?limit=100'),
+    ]);
+    if (sequence !== state.sequences.crm) return;
+    state.crm = {
+      customers: results[0].data ?? [],
+      groups: results[1].data ?? [],
+      segments: results[2].data ?? [],
+      loyalty: results[3].data ?? [],
+      interactions: results[4].data ?? [],
+      complaints: results[5].data ?? [],
+    };
+    renderCrm();
+  } catch (error) {
+    if (sequence !== state.sequences.crm) return;
+    for (const selector of MKT_CRM_TABLES) {
+      const host = $(selector);
+      if (host) host.innerHTML = errorState(error.message, 'data-crm-retry');
+    }
+    showToast('Gagal memuat CRM', error.message, 'error');
+  }
+}
+
+function renderCrm() {
+  const data = state.crm;
+  if (!data) return;
+  const openComplaints = data.complaints.filter((row) =>
+    ['open', 'in_progress'].includes(row.status),
+  ).length;
+  scSetText('#crm-stat-customers', formatNumber(data.customers.length));
+  scSetText('#crm-stat-loyalty', formatNumber(data.loyalty.length));
+  scSetText('#crm-stat-segments', formatNumber(data.groups.length + data.segments.length));
+  scSetText('#crm-stat-complaints', formatNumber(openComplaints));
+  const summary = $('#crm-summary-badge');
+  if (summary) {
+    summary.hidden = openComplaints <= 0;
+    summary.textContent = `${formatNumber(openComplaints)} keluhan terbuka`;
+  }
+  scSetBadge('#crm-customer-count', data.customers.length, 'pelanggan');
+  scSetBadge('#crm-group-count', data.groups.length, 'grup');
+  scSetBadge('#crm-loyalty-count', data.loyalty.length, 'akun');
+  scSetBadge('#crm-interaction-count', data.interactions.length, 'interaksi');
+  scSetBadge('#crm-complaint-count', data.complaints.length, 'keluhan');
+
+  scRenderTable(
+    '#crm-customers-table',
+    ['Pelanggan', 'Kontak', 'Merchant', 'Aktivitas', 'Status', 'Aksi'],
+    data.customers,
+    (row) => `
+      <tr>
+        <td>
+          <div class="cell-title">${escapeHtml(row.name)}</div>
+          <div class="cell-muted">${escapeHtml(row.code)} • ${escapeHtml(statusLabel(row.source))}</div>
+        </td>
+        <td>
+          <div class="cell-title">${escapeHtml(row.email || '—')}</div>
+          <div class="cell-muted">${escapeHtml(row.phone || '—')}</div>
+        </td>
+        <td>${escapeHtml(row.merchantName)}</td>
+        <td>
+          <div class="cell-title">${formatNumber(row.totalOrders)} order</div>
+          <div class="cell-muted">${formatMoney(row.totalSpent)} • ${escapeHtml(formatDate(row.lastOrderAt))}</div>
+        </td>
+        <td>${statusBadge(row.status)}</td>
+        <td>${scActions([
+          scButton('Detail', `data-mkt-action="customer-detail" data-mkt-id="${escapeHtml(row.id)}"`),
+        ])}</td>
+      </tr>
+    `,
+    'Belum ada pelanggan',
+    'Tambahkan pelanggan atau hubungkan pengguna commerce ke profil CRM.',
+  );
+
+  scRenderTable(
+    '#crm-groups-table',
+    ['Grup pelanggan', 'Merchant', 'Diskon', 'Status', 'Aksi'],
+    data.groups,
+    (row) => `
+      <tr>
+        <td>
+          <div class="cell-title">${escapeHtml(row.name)}</div>
+          <div class="cell-muted">${escapeHtml(row.code)}</div>
+        </td>
+        <td>${escapeHtml(row.merchantName)}</td>
+        <td>${formatNumber(row.discountPercent)}%</td>
+        <td>${statusBadge(row.status)}</td>
+        <td>${scActions([
+          scButton('Detail', `data-mkt-action="group-detail" data-mkt-id="${escapeHtml(row.id)}"`),
+        ])}</td>
+      </tr>
+    `,
+    'Belum ada grup pelanggan',
+    'Grup membantu mengelompokkan pelanggan dengan benefit khusus.',
+  );
+
+  scRenderTable(
+    '#crm-segments-table',
+    ['Segmen pelanggan', 'Merchant', 'Tipe', 'Anggota', 'Status', 'Aksi'],
+    data.segments,
+    (row) => {
+      const actions = [
+        scButton('Detail', `data-mkt-action="segment-detail" data-mkt-id="${escapeHtml(row.id)}"`),
+      ];
+      if (row.type === 'dynamic' && state.canWriteCrm) {
+        actions.push(
+          scButton('Refresh', `data-mkt-action="segment-refresh" data-mkt-id="${escapeHtml(row.id)}"`),
+        );
+      }
+      return `
+        <tr>
+          <td>
+            <div class="cell-title">${escapeHtml(row.name)}</div>
+            <div class="cell-muted">${escapeHtml(row.code)}</div>
+          </td>
+          <td>${escapeHtml(row.merchantName)}</td>
+          <td>${statusBadge(row.type)}</td>
+          <td>${formatNumber(row.memberCount)}</td>
+          <td>${statusBadge(row.status)}</td>
+          <td>${scActions(actions)}</td>
+        </tr>
+      `;
+    },
+    'Belum ada segmen',
+    'Segmen dinamis diperbarui otomatis berdasarkan kriteria.',
+  );
+
+  scRenderTable(
+    '#crm-loyalty-table',
+    ['Member', 'Pelanggan', 'Saldo poin', 'Lifetime', 'Tier', 'Status', 'Aksi'],
+    data.loyalty,
+    (row) => `
+      <tr>
+        <td>
+          <div class="cell-title">${escapeHtml(row.memberCode)}</div>
+          <div class="cell-muted">${escapeHtml(row.merchantName)}</div>
+        </td>
+        <td>
+          <div class="cell-title">${escapeHtml(row.customerName)}</div>
+          <div class="cell-muted">${escapeHtml(row.customerCode)}</div>
+        </td>
+        <td>${formatNumber(row.pointsBalance)}</td>
+        <td>
+          <div class="cell-title">${formatNumber(row.lifetimePoints)} poin</div>
+          <div class="cell-muted">${formatMoney(row.lifetimeSpend)}</div>
+        </td>
+        <td>${statusBadge(row.tier)}</td>
+        <td>${statusBadge(row.status)}</td>
+        <td>${scActions(
+          state.canWriteCrm
+            ? [scButton('Poin', `data-mkt-action="loyalty-points" data-mkt-id="${escapeHtml(row.id)}" data-mkt-name="${escapeHtml(row.customerName)}"`)]
+            : [],
+        )}</td>
+      </tr>
+    `,
+    'Belum ada akun loyalty',
+    'Buat akun loyalty untuk mulai mengumpulkan dan menukar poin pelanggan.',
+  );
+
+  scRenderTable(
+    '#crm-interactions-table',
+    ['Interaksi', 'Pelanggan', 'Arah', 'Jadwal', 'Status', 'Aksi'],
+    data.interactions,
+    (row) => {
+      const actions = [];
+      if (state.canWriteCrm && row.status === 'open') {
+        actions.push(scButton('Selesai', `data-mkt-action="interaction-complete" data-mkt-id="${escapeHtml(row.id)}"`));
+        actions.push(scButton('Batalkan', `data-mkt-action="interaction-cancel" data-mkt-id="${escapeHtml(row.id)}"`));
+      }
+      return `
+        <tr>
+          <td>
+            <div class="cell-title">${escapeHtml(row.subject || statusLabel(row.type))}</div>
+            <div class="cell-muted">${escapeHtml(row.customerName)} • ${escapeHtml(statusLabel(row.type))}</div>
+          </td>
+          <td>${escapeHtml(row.customerCode)}</td>
+          <td>${statusBadge(row.direction)}</td>
+          <td>${escapeHtml(formatDateTime(row.scheduledAt))}</td>
+          <td>${statusBadge(row.status)}</td>
+          <td>${scActions(actions)}</td>
+        </tr>
+      `;
+    },
+    'Belum ada interaksi',
+    'Catat telepon, email, WhatsApp, dan tindak lanjut pelanggan.',
+  );
+
+  scRenderTable(
+    '#crm-complaints-table',
+    ['Keluhan', 'Pelanggan', 'Prioritas', 'Penugasan', 'Status', 'Aksi'],
+    data.complaints,
+    (row) => {
+      const actions = [scButton('Detail', `data-mkt-action="complaint-detail" data-mkt-id="${escapeHtml(row.id)}"`)];
+      if (state.canWriteCrm) {
+        if (row.status === 'open') {
+          actions.push(scButton('Proses', `data-mkt-action="complaint-start" data-mkt-id="${escapeHtml(row.id)}"`));
+        }
+        if (['open', 'in_progress'].includes(row.status)) {
+          actions.push(scButton('Selesaikan', `data-mkt-action="complaint-resolve" data-mkt-id="${escapeHtml(row.id)}"`));
+        }
+        if (state.canManageCrm && ['resolved', 'rejected'].includes(row.status)) {
+          actions.push(scButton('Tutup', `data-mkt-action="complaint-close" data-mkt-id="${escapeHtml(row.id)}"`));
+        }
+      }
+      return `
+        <tr>
+          <td>
+            <div class="cell-title">${escapeHtml(row.subject)}</div>
+            <div class="cell-muted">${escapeHtml(row.complaintNumber)} • ${escapeHtml(row.category || '—')}</div>
+          </td>
+          <td>${escapeHtml(row.customerName)}</td>
+          <td>${statusBadge(row.priority)}</td>
+          <td>${escapeHtml(row.assignedToName || '—')}</td>
+          <td>${statusBadge(row.status)}</td>
+          <td>${scActions(actions)}</td>
+        </tr>
+      `;
+    },
+    'Belum ada keluhan',
+    'Keluhan pelanggan akan muncul di sini untuk ditindaklanjuti.',
+  );
+}
+
+async function openCustomerDetail(id) {
+  try {
+    const result = await api(`/marketing/customers/${id}`);
+    const customer = result.data;
+    const groups = (customer.groups ?? []).map((row) => escapeHtml(row.name)).join(', ') || '—';
+    const segments = (customer.segments ?? []).map((row) => escapeHtml(row.name)).join(', ') || '—';
+    openModal({
+      title: customer.name,
+      kicker: 'Profil pelanggan',
+      subtitle: `${customer.code} • ${customer.email || customer.phone || 'tanpa kontak'}`,
+      wide: true,
+      body: `
+        <dl class="detail-list">
+          <div class="detail-row"><dt>Status</dt><dd>${statusBadge(customer.status)}</dd></div>
+          <div class="detail-row"><dt>Sumber</dt><dd>${escapeHtml(statusLabel(customer.source))}</dd></div>
+          <div class="detail-row"><dt>Bergabung</dt><dd>${escapeHtml(formatDate(customer.joinedAt))}</dd></div>
+          <div class="detail-row"><dt>Order</dt><dd>${formatNumber(customer.totalOrders)} • ${formatMoney(customer.totalSpent)}</dd></div>
+          <div class="detail-row"><dt>Order terakhir</dt><dd>${escapeHtml(formatDateTime(customer.lastOrderAt))}</dd></div>
+          <div class="detail-row"><dt>Grup</dt><dd>${groups}</dd></div>
+          <div class="detail-row"><dt>Segmen</dt><dd>${segments}</dd></div>
+          <div class="detail-row"><dt>Loyalty</dt><dd>${customer.loyaltyAccount ? `${formatNumber(customer.loyaltyAccount.pointsBalance)} poin • ${escapeHtml(statusLabel(customer.loyaltyAccount.tier))}` : 'Belum terdaftar'}</dd></div>
+          <div class="detail-row"><dt>Alamat profil</dt><dd>${escapeHtml(customer.profile?.address || '—')}</dd></div>
+        </dl>
+        <h4 class="detail-heading">Interaksi terbaru</h4>
+        ${
+          (customer.recentInteractions ?? []).length
+            ? `<div class="table-wrap"><table class="table"><thead><tr><th>Jenis</th><th>Subjek</th><th>Status</th><th>Tanggal</th></tr></thead><tbody>${customer.recentInteractions
+                .map(
+                  (row) => `<tr><td>${escapeHtml(statusLabel(row.type))}</td><td>${escapeHtml(row.subject || '—')}</td><td>${statusBadge(row.status)}</td><td>${escapeHtml(formatDateTime(row.createdAt))}</td></tr>`,
+                )
+                .join('')}</tbody></table></div>`
+            : emptyState('Belum ada interaksi', 'Catat interaksi agar riwayat pelanggan lengkap.')
+        }
+      `,
+      footer: state.canWriteCrm
+        ? `<button class="button button-ghost" type="button" data-modal-close>Tutup</button>
+           <button class="button button-primary" type="button" data-mkt-action="customer-refresh" data-mkt-id="${escapeHtml(customer.id)}">Segarkan metrik</button>`
+        : '<button class="button button-ghost" type="button" data-modal-close>Tutup</button>',
+    });
+  } catch (error) {
+    showToast('Gagal memuat pelanggan', error.message, 'error');
+  }
+}
+
+async function openGroupDetail(id) {
+  try {
+    const [groupResult, common] = await Promise.all([
+      api(`/marketing/customer-groups/${id}`),
+      mktCommonData(),
+    ]);
+    const group = groupResult.data;
+    const members = (group.members ?? [])
+      .map(
+        (row) => `
+          <tr>
+            <td>${escapeHtml(row.name)}</td>
+            <td>${escapeHtml(row.email || row.phone || '—')}</td>
+            <td>${statusBadge(row.status)}</td>
+            <td>${escapeHtml(formatDate(row.joinedAt))}</td>
+            <td>${state.canWriteCrm ? scButton('Keluarkan', `data-mkt-action="group-member-remove" data-mkt-id="${escapeHtml(group.id)}" data-mkt-customer="${escapeHtml(row.id)}"`) : '—'}</td>
+          </tr>`,
+      )
+      .join('');
+    const modal = openModal({
+      title: group.name,
+      kicker: 'Grup pelanggan',
+      subtitle: `${group.code} • diskon ${formatNumber(group.discountPercent)}%`,
+      wide: true,
+      body: `
+        <dl class="detail-list">
+          <div class="detail-row"><dt>Status</dt><dd>${statusBadge(group.status)}</dd></div>
+          <div class="detail-row"><dt>Merchant</dt><dd>${escapeHtml(group.merchantName || '—')}</dd></div>
+          <div class="detail-row"><dt>Deskripsi</dt><dd>${escapeHtml(group.description || '—')}</dd></div>
+        </dl>
+        ${
+          members
+            ? `<div class="table-wrap"><table class="table"><thead><tr><th>Pelanggan</th><th>Kontak</th><th>Status</th><th>Bergabung</th><th>Aksi</th></tr></thead><tbody>${members}</tbody></table></div>`
+            : emptyState('Grup masih kosong', 'Tambahkan pelanggan ke grup ini.')
+        }
+        ${
+          state.canWriteCrm
+            ? `<form id="mkt-group-member-form" class="form-grid detail-form">
+                 <label class="field field-span"><span>Tambah pelanggan</span><select name="customerId" required>${mktCustomerOptions(common.customers)}</select></label>
+               </form>`
+            : ''
+        }
+      `,
+      footer: state.canWriteCrm
+        ? `<button class="button button-ghost" type="button" data-modal-close>Tutup</button>
+           <button class="button button-primary" type="submit" form="mkt-group-member-form">Tambah anggota</button>`
+        : '<button class="button button-ghost" type="button" data-modal-close>Tutup</button>',
+    });
+    modal?.querySelector('#mkt-group-member-form')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const formData = new FormData(event.currentTarget);
+      try {
+        await api(`/marketing/customer-groups/${group.id}/members`, {
+          method: 'POST',
+          body: { customerId: String(formData.get('customerId')) },
+        });
+        showToast('Anggota ditambahkan', 'Pelanggan masuk ke grup.');
+        openGroupDetail(group.id);
+      } catch (error) {
+        showToast('Gagal menambah anggota', error.message, 'error');
+      }
+    });
+  } catch (error) {
+    showToast('Gagal memuat grup', error.message, 'error');
+  }
+}
+
+async function openSegmentDetail(id) {
+  try {
+    const [segmentResult, common] = await Promise.all([
+      api(`/marketing/customer-segments/${id}`),
+      mktCommonData(),
+    ]);
+    const segment = segmentResult.data;
+    const members = (segment.members ?? [])
+      .map(
+        (row) => `
+          <tr>
+            <td>${escapeHtml(row.name)}</td>
+            <td>${escapeHtml(row.email || row.phone || '—')}</td>
+            <td>${formatNumber(row.totalOrders)}</td>
+            <td>${formatMoney(row.totalSpent)}</td>
+            <td>${state.canWriteCrm && segment.type === 'manual' ? scButton('Keluarkan', `data-mkt-action="segment-member-remove" data-mkt-id="${escapeHtml(segment.id)}" data-mkt-customer="${escapeHtml(row.id)}"`) : '—'}</td>
+          </tr>`,
+      )
+      .join('');
+    openModal({
+      title: segment.name,
+      kicker: 'Segmen pelanggan',
+      subtitle: `${segment.code} • ${statusLabel(segment.type)}`,
+      wide: true,
+      body: `
+        <dl class="detail-list">
+          <div class="detail-row"><dt>Status</dt><dd>${statusBadge(segment.status)}</dd></div>
+          <div class="detail-row"><dt>Jumlah anggota</dt><dd>${formatNumber(segment.memberCount)}</dd></div>
+          <div class="detail-row"><dt>Kriteria</dt><dd>${escapeHtml(JSON.stringify(segment.criteria ?? {}, null, 0))}</dd></div>
+        </dl>
+        ${
+          members
+            ? `<div class="table-wrap"><table class="table"><thead><tr><th>Pelanggan</th><th>Kontak</th><th>Order</th><th>Belanja</th><th>Aksi</th></tr></thead><tbody>${members}</tbody></table></div>`
+            : emptyState('Segmen masih kosong', 'Perbarui segmen atau tambahkan pelanggan manual.')
+        }
+        ${
+          state.canWriteCrm && segment.type === 'manual'
+            ? `<form id="mkt-segment-member-form" class="form-grid detail-form">
+                 <label class="field field-span"><span>Tambah pelanggan</span><select name="customerId" required>${mktCustomerOptions(common.customers)}</select></label>
+               </form>`
+            : ''
+        }
+      `,
+      footer: state.canWriteCrm
+        ? `<button class="button button-ghost" type="button" data-modal-close>Tutup</button>
+           ${segment.type === 'dynamic' ? `<button class="button button-primary" type="button" data-mkt-action="segment-refresh" data-mkt-id="${escapeHtml(segment.id)}">Refresh anggota</button>` : `<button class="button button-primary" type="submit" form="mkt-segment-member-form">Tambah anggota</button>`}`
+        : '<button class="button button-ghost" type="button" data-modal-close>Tutup</button>',
+    });
+    const form = $(`#mkt-segment-member-form`);
+    form?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const formData = new FormData(event.currentTarget);
+      try {
+        await api(`/marketing/customer-segments/${segment.id}/members`, {
+          method: 'POST',
+          body: { customerId: String(formData.get('customerId')) },
+        });
+        showToast('Anggota ditambahkan', 'Pelanggan masuk ke segmen.');
+        openSegmentDetail(segment.id);
+      } catch (error) {
+        showToast('Gagal menambah anggota', error.message, 'error');
+      }
+    });
+  } catch (error) {
+    showToast('Gagal memuat segmen', error.message, 'error');
+  }
+}
+
+function openCustomerModal(common) {
+  const modal = openModal({
+    title: 'Pelanggan baru',
+    kicker: 'CRM',
+    subtitle: 'Buat profil pelanggan untuk merchant.',
+    body: `
+      <form id="crm-customer-form" class="form-grid">
+        <label class="field field-span"><span>Merchant</span><select name="merchantId" required>${mktMerchantOptions(common.merchants)}</select></label>
+        <label class="field field-span"><span>Nama pelanggan</span><input name="name" required maxlength="255" /></label>
+        <label class="field"><span>Email</span><input name="email" type="email" maxlength="255" placeholder="Opsional" /></label>
+        <label class="field"><span>Telepon</span><input name="phone" maxlength="32" placeholder="Opsional" /></label>
+        <label class="field"><span>Sumber</span><select name="source"><option value="manual">Manual</option><option value="storefront">Storefront</option><option value="pos">POS</option><option value="marketplace">Marketplace</option><option value="import">Impor</option><option value="other">Lainnya</option></select></label>
+        <label class="field"><span>Status</span><select name="status"><option value="active">Aktif</option><option value="inactive">Nonaktif</option><option value="blocked">Diblokir</option></select></label>
+        <label class="field field-span"><span>Tag</span><input name="tags" placeholder="pisahkan dengan koma, contoh: vip, grosir" /></label>
+        <label class="field field-span"><span>Catatan</span><textarea name="notes" rows="2" maxlength="4000" placeholder="Opsional"></textarea></label>
+      </form>
+    `,
+    footer: `
+      <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+      <button class="button button-primary" type="submit" form="crm-customer-form">Simpan pelanggan</button>
+    `,
+  });
+  const form = modal?.querySelector('#crm-customer-form');
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const tags = String(data.get('tags') || '')
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+    const submit = modal.querySelector('button[type="submit"]');
+    submit.disabled = true;
+    try {
+      await api('/marketing/customers', {
+        method: 'POST',
+        body: {
+          merchantId: String(data.get('merchantId')),
+          name: String(data.get('name')),
+          email: String(data.get('email') || '') || undefined,
+          phone: String(data.get('phone') || '') || undefined,
+          source: String(data.get('source')),
+          status: String(data.get('status')),
+          tags: tags.length ? tags : undefined,
+          notes: String(data.get('notes') || '') || undefined,
+        },
+      });
+      closeModal();
+      showToast('Pelanggan dibuat', 'Profil pelanggan berhasil disimpan.');
+      loadCrm(true);
+    } catch (error) {
+      showToast('Gagal menyimpan pelanggan', error.message, 'error');
+    } finally {
+      submit.disabled = false;
+    }
+  });
+}
+
+function openGroupModal(common) {
+  const modal = openModal({
+    title: 'Grup pelanggan baru',
+    kicker: 'Segmentasi',
+    body: `
+      <form id="crm-group-form" class="form-grid">
+        <label class="field field-span"><span>Merchant</span><select name="merchantId" required>${mktMerchantOptions(common.merchants)}</select></label>
+        <label class="field field-span"><span>Nama grup</span><input name="name" required maxlength="255" /></label>
+        <label class="field"><span>Diskon (%)</span><input name="discountPercent" type="number" min="0" max="100" step="0.01" value="0" /></label>
+        <label class="field"><span>Status</span><select name="status"><option value="active">Aktif</option><option value="inactive">Nonaktif</option></select></label>
+        <label class="field field-span"><span>Deskripsi</span><textarea name="description" rows="2" maxlength="4000" placeholder="Opsional"></textarea></label>
+      </form>
+    `,
+    footer: `
+      <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+      <button class="button button-primary" type="submit" form="crm-group-form">Simpan grup</button>
+    `,
+  });
+  const form = modal?.querySelector('#crm-group-form');
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    try {
+      await api('/marketing/customer-groups', {
+        method: 'POST',
+        body: {
+          merchantId: String(data.get('merchantId')),
+          name: String(data.get('name')),
+          discountPercent: String(data.get('discountPercent') || 0),
+          status: String(data.get('status')),
+          description: String(data.get('description') || '') || undefined,
+        },
+      });
+      closeModal();
+      showToast('Grup dibuat', 'Grup pelanggan berhasil disimpan.');
+      loadCrm(true);
+    } catch (error) {
+      showToast('Gagal menyimpan grup', error.message, 'error');
+    }
+  });
+}
+
+function openSegmentModal(common) {
+  const modal = openModal({
+    title: 'Segmen pelanggan baru',
+    kicker: 'Target audience',
+    subtitle: 'Segmen dinamis memakai kriteria untuk memilih anggota.',
+    body: `
+      <form id="crm-segment-form" class="form-grid">
+        <label class="field field-span"><span>Merchant</span><select name="merchantId" required>${mktMerchantOptions(common.merchants)}</select></label>
+        <label class="field field-span"><span>Nama segmen</span><input name="name" required maxlength="255" /></label>
+        <label class="field"><span>Tipe</span><select name="type"><option value="manual">Manual</option><option value="dynamic">Dinamis</option></select></label>
+        <label class="field"><span>Status</span><select name="status"><option value="active">Aktif</option><option value="inactive">Nonaktif</option></select></label>
+        <label class="field"><span>Minimum belanja</span><input name="minTotalSpent" type="number" min="0" step="0.01" placeholder="Opsional" /></label>
+        <label class="field"><span>Minimum order</span><input name="minTotalOrders" type="number" min="0" step="1" placeholder="Opsional" /></label>
+        <label class="field field-span"><span>Tag pelanggan</span><input name="tags" placeholder="pisahkan dengan koma, contoh: vip" /></label>
+        <label class="field field-span"><span>Deskripsi</span><textarea name="description" rows="2" maxlength="4000" placeholder="Opsional"></textarea></label>
+      </form>
+    `,
+    footer: `
+      <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+      <button class="button button-primary" type="submit" form="crm-segment-form">Simpan segmen</button>
+    `,
+  });
+  const form = modal?.querySelector('#crm-segment-form');
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const type = String(data.get('type'));
+    const tags = String(data.get('tags') || '')
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+    const criteria = {};
+    if (String(data.get('minTotalSpent') || '').trim()) {
+      criteria.minTotalSpent = String(data.get('minTotalSpent'));
+    }
+    if (String(data.get('minTotalOrders') || '').trim()) {
+      criteria.minTotalOrders = Number(data.get('minTotalOrders'));
+    }
+    if (tags.length) criteria.tags = tags;
+    try {
+      await api('/marketing/customer-segments', {
+        method: 'POST',
+        body: {
+          merchantId: String(data.get('merchantId')),
+          name: String(data.get('name')),
+          type,
+          status: String(data.get('status')),
+          criteria: type === 'dynamic' ? criteria : undefined,
+          description: String(data.get('description') || '') || undefined,
+        },
+      });
+      closeModal();
+      showToast('Segmen dibuat', 'Segmen pelanggan berhasil disimpan.');
+      loadCrm(true);
+    } catch (error) {
+      showToast('Gagal menyimpan segmen', error.message, 'error');
+    }
+  });
+}
+
+function openLoyaltyModal(common) {
+  const modal = openModal({
+    title: 'Akun loyalty baru',
+    kicker: 'Loyalty program',
+    body: `
+      <form id="crm-loyalty-form" class="form-grid">
+        <label class="field field-span"><span>Merchant</span><select name="merchantId" required>${mktMerchantOptions(common.merchants)}</select></label>
+        <label class="field field-span"><span>Pelanggan</span><select name="customerId" required>${mktCustomerOptions(common.customers)}</select></label>
+        <label class="field"><span>Kode member</span><input name="memberCode" maxlength="64" placeholder="Otomatis bila kosong" /></label>
+        <label class="field"><span>Tier awal</span><select name="tier"><option value="bronze">Bronze</option><option value="silver">Silver</option><option value="gold">Gold</option><option value="platinum">Platinum</option></select></label>
+      </form>
+    `,
+    footer: `
+      <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+      <button class="button button-primary" type="submit" form="crm-loyalty-form">Simpan akun</button>
+    `,
+  });
+  const form = modal?.querySelector('#crm-loyalty-form');
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    try {
+      await api('/marketing/loyalty-accounts', {
+        method: 'POST',
+        body: {
+          merchantId: String(data.get('merchantId')),
+          customerId: String(data.get('customerId')),
+          memberCode: String(data.get('memberCode') || '') || undefined,
+          tier: String(data.get('tier')),
+        },
+      });
+      closeModal();
+      showToast('Akun loyalty dibuat', 'Member dapat mulai mengumpulkan poin.');
+      loadCrm(true);
+    } catch (error) {
+      showToast('Gagal menyimpan akun', error.message, 'error');
+    }
+  });
+}
+
+function openInteractionModal(common) {
+  const modal = openModal({
+    title: 'Interaksi baru',
+    kicker: 'Customer engagement',
+    body: `
+      <form id="crm-interaction-form" class="form-grid">
+        <label class="field field-span"><span>Merchant</span><select name="merchantId" required>${mktMerchantOptions(common.merchants)}</select></label>
+        <label class="field field-span"><span>Pelanggan</span><select name="customerId" required>${mktCustomerOptions(common.customers)}</select></label>
+        <label class="field"><span>Jenis</span><select name="type"><option value="note">Catatan</option><option value="call">Telepon</option><option value="email">Email</option><option value="whatsapp">WhatsApp</option><option value="meeting">Pertemuan</option><option value="follow_up">Tindak lanjut</option></select></label>
+        <label class="field"><span>Arah</span><select name="direction"><option value="internal">Internal</option><option value="inbound">Masuk</option><option value="outbound">Keluar</option></select></label>
+        <label class="field field-span"><span>Subjek</span><input name="subject" maxlength="255" placeholder="Opsional" /></label>
+        <label class="field field-span"><span>Isi interaksi</span><textarea name="content" rows="3" required maxlength="8000"></textarea></label>
+        <label class="field field-span"><span>Jadwal</span><input name="scheduledAt" type="datetime-local" /></label>
+      </form>
+    `,
+    footer: `
+      <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+      <button class="button button-primary" type="submit" form="crm-interaction-form">Simpan interaksi</button>
+    `,
+  });
+  const form = modal?.querySelector('#crm-interaction-form');
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const scheduledAt = String(data.get('scheduledAt') || '');
+    try {
+      await api('/marketing/interactions', {
+        method: 'POST',
+        body: {
+          merchantId: String(data.get('merchantId')),
+          customerId: String(data.get('customerId')),
+          type: String(data.get('type')),
+          direction: String(data.get('direction')),
+          subject: String(data.get('subject') || '') || undefined,
+          content: String(data.get('content')),
+          scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
+        },
+      });
+      closeModal();
+      showToast('Interaksi dibuat', 'Riwayat pelanggan berhasil dicatat.');
+      loadCrm(true);
+    } catch (error) {
+      showToast('Gagal menyimpan interaksi', error.message, 'error');
+    }
+  });
+}
+
+function openComplaintModal(common) {
+  const modal = openModal({
+    title: 'Keluhan baru',
+    kicker: 'Customer service',
+    body: `
+      <form id="crm-complaint-form" class="form-grid">
+        <label class="field field-span"><span>Merchant</span><select name="merchantId" required>${mktMerchantOptions(common.merchants)}</select></label>
+        <label class="field field-span"><span>Pelanggan</span><select name="customerId" required>${mktCustomerOptions(common.customers)}</select></label>
+        <label class="field"><span>Kategori</span><input name="category" maxlength="128" placeholder="contoh: pengiriman" /></label>
+        <label class="field"><span>Prioritas</span><select name="priority"><option value="low">Rendah</option><option value="normal" selected>Normal</option><option value="high">Tinggi</option><option value="urgent">Mendesak</option></select></label>
+        <label class="field field-span"><span>Subjek</span><input name="subject" required maxlength="255" /></label>
+        <label class="field field-span"><span>Deskripsi</span><textarea name="description" rows="3" required maxlength="8000"></textarea></label>
+      </form>
+    `,
+    footer: `
+      <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+      <button class="button button-primary" type="submit" form="crm-complaint-form">Simpan keluhan</button>
+    `,
+  });
+  const form = modal?.querySelector('#crm-complaint-form');
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    try {
+      await api('/marketing/complaints', {
+        method: 'POST',
+        body: {
+          merchantId: String(data.get('merchantId')),
+          customerId: String(data.get('customerId')),
+          category: String(data.get('category') || '') || undefined,
+          subject: String(data.get('subject')),
+          description: String(data.get('description')),
+          priority: String(data.get('priority')),
+        },
+      });
+      closeModal();
+      showToast('Keluhan dibuat', 'Keluhan siap ditindaklanjuti.');
+      loadCrm(true);
+    } catch (error) {
+      showToast('Gagal menyimpan keluhan', error.message, 'error');
+    }
+  });
+}
+
+function openLoyaltyPointsModal(id, customerName) {
+  const modal = openModal({
+    title: 'Penyesuaian poin',
+    kicker: 'Loyalty',
+    subtitle: customerName || '',
+    body: `
+      <form id="crm-points-form" class="form-grid">
+        <label class="field"><span>Jenis transaksi</span><select name="type"><option value="earn">Perolehan</option><option value="bonus">Bonus</option><option value="redeem">Penukaran</option><option value="adjustment">Penyesuaian</option><option value="expire">Kedaluwarsa</option></select></label>
+        <label class="field"><span>Jumlah poin</span><input name="points" type="number" step="1" min="1" required value="100" /></label>
+        <label class="field field-span"><span>Referensi</span><input name="reference" maxlength="128" placeholder="Opsional" /></label>
+        <label class="field field-span"><span>Deskripsi</span><textarea name="description" rows="2" maxlength="4000" placeholder="Opsional"></textarea></label>
+      </form>
+    `,
+    footer: `
+      <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+      <button class="button button-primary" type="submit" form="crm-points-form">Simpan transaksi</button>
+    `,
+  });
+  const form = modal?.querySelector('#crm-points-form');
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    try {
+      await api(`/marketing/loyalty-accounts/${id}/transactions`, {
+        method: 'POST',
+        body: {
+          type: String(data.get('type')),
+          points: Number(data.get('points')),
+          reference: String(data.get('reference') || '') || undefined,
+          description: String(data.get('description') || '') || undefined,
+        },
+      });
+      closeModal();
+      showToast('Poin diperbarui', 'Saldo loyalty berhasil disesuaikan.');
+      loadCrm(true);
+    } catch (error) {
+      showToast('Gagal memproses poin', error.message, 'error');
+    }
+  });
+}
+
+async function openComplaintDetail(id) {
+  try {
+    const result = await api(`/marketing/complaints/${id}`);
+    const complaint = result.data;
+    openModal({
+      title: complaint.subject,
+      kicker: 'Detail keluhan',
+      subtitle: `${complaint.complaintNumber} • ${complaint.customer?.name ?? ''}`,
+      wide: true,
+      body: `
+        <dl class="detail-list">
+          <div class="detail-row"><dt>Status</dt><dd>${statusBadge(complaint.status)}</dd></div>
+          <div class="detail-row"><dt>Prioritas</dt><dd>${statusBadge(complaint.priority)}</dd></div>
+          <div class="detail-row"><dt>Kategori</dt><dd>${escapeHtml(complaint.category || '—')}</dd></div>
+          <div class="detail-row"><dt>Order</dt><dd>${escapeHtml(complaint.order?.orderNumber || '—')}</dd></div>
+          <div class="detail-row"><dt>Dibuat</dt><dd>${escapeHtml(formatDateTime(complaint.createdAt))}</dd></div>
+          <div class="detail-row"><dt>Resolusi</dt><dd>${escapeHtml(complaint.resolution || '—')}</dd></div>
+        </dl>
+        <p class="detail-text">${escapeHtml(complaint.description)}</p>
+      `,
+      footer: state.canWriteCrm && ['open', 'in_progress'].includes(complaint.status)
+        ? `<button class="button button-ghost" type="button" data-modal-close>Tutup</button>
+           <button class="button button-primary" type="button" data-mkt-action="complaint-resolve" data-mkt-id="${escapeHtml(complaint.id)}">Selesaikan</button>`
+        : '<button class="button button-ghost" type="button" data-modal-close>Tutup</button>',
+    });
+  } catch (error) {
+    showToast('Gagal memuat keluhan', error.message, 'error');
+  }
+}
+
+function openComplaintResolveModal(id) {
+  const modal = openModal({
+    title: 'Selesaikan keluhan',
+    kicker: 'Customer service',
+    body: `
+      <form id="crm-resolve-form" class="form-grid">
+        <label class="field field-span"><span>Resolusi</span><textarea name="resolution" rows="4" required maxlength="8000" placeholder="Jelaskan tindakan penyelesaian"></textarea></label>
+      </form>
+    `,
+    footer: `
+      <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+      <button class="button button-primary" type="submit" form="crm-resolve-form">Selesaikan</button>
+    `,
+  });
+  const form = modal?.querySelector('#crm-resolve-form');
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    try {
+      await api(`/marketing/complaints/${id}/resolve`, {
+        method: 'POST',
+        body: { resolution: String(data.get('resolution')) },
+      });
+      closeModal();
+      showToast('Keluhan diselesaikan', 'Resolusi telah dicatat.');
+      loadCrm(true);
+    } catch (error) {
+      showToast('Gagal menyelesaikan keluhan', error.message, 'error');
+    }
+  });
+}
+
+async function mktRunCrmAction(action, id) {
+  try {
+    if (action === 'customer-refresh') {
+      await api(`/marketing/customers/${id}/refresh-metrics`, {
+        method: 'POST',
+        body: { syncLoyaltySpend: true },
+      });
+      showToast('Metrik diperbarui', 'Order dan belanja pelanggan telah disegarkan.');
+      await openCustomerDetail(id);
+      loadCrm(true);
+      return;
+    }
+    if (action === 'interaction-complete') {
+      await api(`/marketing/interactions/${id}/complete`, { method: 'POST' });
+      showToast('Interaksi selesai', 'Tindak lanjut telah ditandai selesai.');
+    } else if (action === 'interaction-cancel') {
+      await api(`/marketing/interactions/${id}/cancel`, { method: 'POST' });
+      showToast('Interaksi dibatalkan', 'Interaksi tidak lagi berstatus terbuka.');
+    } else if (action === 'complaint-start') {
+      await api(`/marketing/complaints/${id}/start`, { method: 'POST' });
+      showToast('Keluhan diproses', 'Keluhan masuk ke tahap penanganan.');
+    } else if (action === 'complaint-close') {
+      await api(`/marketing/complaints/${id}/close`, { method: 'POST' });
+      showToast('Keluhan ditutup', 'Keluhan telah ditutup.');
+    } else if (action === 'segment-refresh') {
+      const result = await api(`/marketing/customer-segments/${id}/refresh`, {
+        method: 'POST',
+        body: {},
+      });
+      showToast('Segmen diperbarui', `${formatNumber(result.data.memberCount)} anggota cocok.`);
+      if (!$('#modal-root').hidden) {
+        await openSegmentDetail(id);
+      }
+    }
+    loadCrm(true);
+  } catch (error) {
+    showToast('Aksi gagal', error.message, 'error');
+  }
+}
+
 /* -------------------------------- Events ------------------------------ */
 
 function bindEvents() {
@@ -9254,6 +10807,46 @@ function bindEvents() {
   $('#create-sc-return-button').addEventListener('click', () => openScReturnModal());
   $('#create-sc-group-button').addEventListener('click', () => openScGroupModal());
 
+  $('#refresh-mkt-all')?.addEventListener('click', () => loadMarketing(true));
+  for (const [selector, open] of [
+    ['#create-mkt-campaign-button', openMarketingCampaignModal],
+    ['#create-mkt-promotion-button', openMarketingPromotionModal],
+    ['#create-mkt-coupon-button', openMarketingCouponModal],
+    ['#create-mkt-ad-button', openMarketingAdModal],
+  ]) {
+    $(selector)?.addEventListener('click', async () => {
+      try {
+        open(await mktCommonData());
+      } catch (error) {
+        showToast('Gagal memuat data pendukung', error.message, 'error');
+      }
+    });
+  }
+  $('#refresh-crm-customers')?.addEventListener('click', () => loadCrm(true));
+  for (const [selector, open] of [
+    ['#create-crm-customer-button', openCustomerModal],
+    ['#create-crm-group-button', openGroupModal],
+    ['#create-crm-segment-button', openSegmentModal],
+    ['#create-crm-loyalty-button', openLoyaltyModal],
+    ['#create-crm-interaction-button', openInteractionModal],
+    ['#create-crm-complaint-button', openComplaintModal],
+  ]) {
+    $(selector)?.addEventListener('click', async () => {
+      try {
+        open(await mktCommonData());
+      } catch (error) {
+        showToast('Gagal memuat data pendukung', error.message, 'error');
+      }
+    });
+  }
+  $('#crm-customer-search')?.addEventListener(
+    'input',
+    debounce((event) => {
+      state.filters.crm.search = event.target.value.trim();
+      loadCrm(true);
+    }),
+  );
+
   $('#audit-search').addEventListener(
     'input',
     debounce((event) => {
@@ -9271,6 +10864,58 @@ function bindEvents() {
     const goto = event.target.closest('[data-goto]');
     if (goto) {
       setView(goto.dataset.goto);
+      return;
+    }
+
+    const mktAction = event.target.closest('[data-mkt-action]');
+    if (mktAction) {
+      const action = mktAction.dataset.mktAction;
+      const id = mktAction.dataset.mktId;
+      if (action === 'campaign-detail') {
+        void openMarketingCampaignDetail(id);
+      } else if (action === 'customer-detail') {
+        void openCustomerDetail(id);
+      } else if (action === 'group-detail') {
+        void openGroupDetail(id);
+      } else if (action === 'segment-detail') {
+        void openSegmentDetail(id);
+      } else if (action === 'loyalty-points') {
+        openLoyaltyPointsModal(id, mktAction.dataset.mktName);
+      } else if (action === 'complaint-detail') {
+        void openComplaintDetail(id);
+      } else if (action === 'complaint-resolve') {
+        openComplaintResolveModal(id);
+      } else if (action === 'group-member-remove') {
+        void (async () => {
+          try {
+            await api(`/marketing/customer-groups/${id}/members/${mktAction.dataset.mktCustomer}`, {
+              method: 'DELETE',
+            });
+            showToast('Anggota dikeluarkan', 'Pelanggan telah dikeluarkan dari grup.');
+            await openGroupDetail(id);
+            loadCrm(true);
+          } catch (error) {
+            showToast('Gagal mengeluarkan anggota', error.message, 'error');
+          }
+        })();
+      } else if (action === 'segment-member-remove') {
+        void (async () => {
+          try {
+            await api(`/marketing/customer-segments/${id}/members/${mktAction.dataset.mktCustomer}`, {
+              method: 'DELETE',
+            });
+            showToast('Anggota dikeluarkan', 'Pelanggan telah dikeluarkan dari segmen.');
+            await openSegmentDetail(id);
+            loadCrm(true);
+          } catch (error) {
+            showToast('Gagal mengeluarkan anggota', error.message, 'error');
+          }
+        })();
+      } else if (['campaign', 'promotion', 'coupon-deactivate', 'ad-cancel'].includes(action)) {
+        void mktRunMarketingAction(action, id, mktAction.dataset.mktOp);
+      } else {
+        void mktRunCrmAction(action, id);
+      }
       return;
     }
 

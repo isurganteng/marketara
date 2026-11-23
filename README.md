@@ -17,6 +17,8 @@ Fokus tahap ini adalah fondasi database dan API (Bagian 17 dokumen):
 10. **MKT-08** Inventory & Warehouse Management
 11. **SCM-01** Supplier & Procurement Management
 12. **SCM-02** Warehouse Fulfillment Management
+13. **MKT-12** Digital Marketing & Promotion Management
+14. **MKT-13** Customer Relationship Management (CRM)
 
 Stack: **Bun + Hono + Drizzle ORM + PostgreSQL + Zod**.
 
@@ -167,6 +169,7 @@ src/
     schema/payment.ts       # 10 tabel: provider, metode, payment, refund, settlement
     schema/pos.ts           # 7 tabel: terminal, register, shift, transaksi, kas, sync
     schema/inventory.ts     # 10 tabel: gudang, lokasi, item, saldo, movement, opname, batch
+    schema/marketing.ts     # 18 tabel: kampanye, promosi, kupon, pelanggan, loyalty, CRM
     migrate.ts              # Migration runner
     seed.ts                 # Seed role/permission/reference
   lib/
@@ -231,6 +234,14 @@ src/
       outbound.ts           # Picking, packing, pengiriman, retur, history
       collective.ts         # Grup pembelian kolektif
       shared.ts             # Scoping, akses, stok, movement, history
+    marketing/              # Digital marketing & CRM (MKT-12/MKT-13)
+      index.ts              # Mount route pemasaran + CRM + auth
+      campaigns.ts          # Kampanye, channel, iklan, performa
+      promotions.ts         # Promosi, aturan diskon, kupon, redemption
+      customers.ts          # Pelanggan, profil, grup, segmen, metrik order
+      loyalty.ts            # Akun loyalty dan transaksi poin
+      engagement.ts         # Interaksi pelanggan dan keluhan
+      shared.ts             # Scoping, akses, numeric/date schema, getter
     reference.ts            # Master reference data
     audit.ts                # Audit log viewer
   services/auth.ts          # Session & profile service
@@ -247,6 +258,7 @@ docs/payment-database.md    # Detail desain database pembayaran (MKT-06)
 docs/pos-database.md        # Detail desain database POS (MKT-07)
 docs/inventory-database.md  # Detail desain database inventori (MKT-08)
 docs/supply-chain-database.md # Detail desain database rantai pasok (SCM-01/02)
+docs/marketing-crm-database.md # Detail desain database pemasaran & CRM (MKT-12/13)
 ```
 
 ---
@@ -596,6 +608,79 @@ Base URL: `/api/v1`
 > tujuan. Picking selesai mengeluarkan stok dan melepas reservasi alokasi.
 > Seluruh kuantitas dan nilai uang dikembalikan sebagai string desimal.
 
+### Pemasaran — `/api/v1/marketing` (MKT-12)
+
+| Method | Path | Permission | Keterangan |
+| --- | --- | --- | --- |
+| GET/POST | `/campaigns` | `marketing:read` / `marketing:write` | Daftar / buat kampanye |
+| GET/PATCH | `/campaigns/:id` | `marketing:read` / `marketing:write` | Detail (channel & performa) / ubah kampanye |
+| POST | `/campaigns/:id/activate` | `marketing:write` | Aktifkan kampanye |
+| POST | `/campaigns/:id/pause` | `marketing:write` | Jeda kampanye |
+| POST | `/campaigns/:id/resume` | `marketing:write` | Lanjutkan kampanye |
+| POST | `/campaigns/:id/complete` | `marketing:write` | Selesaikan kampanye |
+| POST | `/campaigns/:id/cancel` | `marketing:write` | Batalkan kampanye |
+| GET/POST | `/campaigns/:id/channels` | `marketing:read` / `marketing:write` | Channel kampanye |
+| PATCH/DELETE | `/campaign-channels/:id` | `marketing:write` | Ubah / hapus channel |
+| GET/POST | `/campaigns/:id/performance` | `marketing:read` / `marketing:write` | Performa harian per channel (upsert) |
+| GET | `/campaign-performance` | `marketing:read` | Performa lintas kampanye |
+| PATCH/DELETE | `/campaign-performance/:id` | `marketing:write` | Ubah / hapus catatan performa |
+| GET/POST | `/advertisements` | `marketing:read` / `marketing:write` | Daftar / buat iklan |
+| GET/PATCH/DELETE | `/advertisements/:id` | `marketing:read` / `marketing:write` | Detail / ubah / batalkan iklan |
+| GET/POST | `/promotions` | `marketing:read` / `marketing:write` | Daftar / buat promosi |
+| GET/PATCH | `/promotions/:id` | `marketing:read` / `marketing:write` | Detail (aturan) / ubah promosi |
+| POST | `/promotions/:id/activate` | `marketing:write` | Aktifkan promosi |
+| POST | `/promotions/:id/pause` | `marketing:write` | Jeda promosi |
+| POST | `/promotions/:id/cancel` | `marketing:write` | Batalkan promosi |
+| GET/POST | `/promotions/:id/rules` | `marketing:read` / `marketing:write` | Aturan diskon promosi |
+| PATCH/DELETE | `/discount-rules/:id` | `marketing:write` | Ubah / hapus aturan diskon |
+| GET/POST | `/coupons` | `marketing:read` / `marketing:write` | Daftar / buat kupon |
+| GET/PATCH/DELETE | `/coupons/:id` | `marketing:read` / `marketing:write` | Detail (redemption) / ubah / nonaktifkan |
+| POST | `/coupons/validate` | `marketing:read` | Validasi kupon terhadap nominal order |
+| POST | `/coupons/:id/redeem` | `marketing:write` | Pakai kupon pada order + hitung ulang total |
+| GET | `/coupon-redemptions` | `marketing:read` | Riwayat pemakaian kupon |
+| POST | `/coupon-redemptions/:id/cancel` | `marketing:manage` | Batalkan redemption + pulihkan total order |
+
+### CRM — `/api/v1/marketing` (MKT-13)
+
+| Method | Path | Permission | Keterangan |
+| --- | --- | --- | --- |
+| GET/POST | `/customers` | `crm:read` / `crm:write` | Daftar / buat pelanggan |
+| GET/PATCH/DELETE | `/customers/:id` | `crm:read` / `crm:write` / `crm:manage` | Detail / ubah / soft-delete pelanggan |
+| PUT | `/customers/:id/profile` | `crm:write` | Upsert profil pelanggan |
+| GET | `/customers/:id/orders` | `crm:read` | Riwayat order pelanggan dari commerce |
+| POST | `/customers/:id/refresh-metrics` | `crm:write` | Hitung ulang total order, belanja, dan lifetime spend |
+| GET/POST | `/customer-groups` | `crm:read` / `crm:write` | Daftar / buat grup |
+| GET/PATCH/DELETE | `/customer-groups/:id` | `crm:read` / `crm:write` / `crm:manage` | Detail / ubah / hapus grup |
+| POST | `/customer-groups/:id/members` | `crm:write` | Tambah anggota grup |
+| DELETE | `/customer-groups/:id/members/:customerId` | `crm:write` | Keluarkan anggota grup |
+| GET/POST | `/customer-segments` | `crm:read` / `crm:write` | Daftar / buat segmen |
+| GET/PATCH/DELETE | `/customer-segments/:id` | `crm:read` / `crm:write` / `crm:manage` | Detail / ubah / hapus segmen |
+| POST | `/customer-segments/:id/members` | `crm:write` | Tambah anggota segmen manual |
+| DELETE | `/customer-segments/:id/members/:customerId` | `crm:write` | Keluarkan anggota segmen manual |
+| POST | `/customer-segments/:id/refresh` | `crm:write` | Hitung ulang anggota segmen dinamis |
+| GET/POST | `/loyalty-accounts` | `crm:read` / `crm:write` | Daftar / buat akun loyalty |
+| GET/PATCH | `/loyalty-accounts/:id` | `crm:read` / `crm:write` | Detail (mutasi) / ubah akun |
+| POST | `/loyalty-accounts/:id/activate` | `crm:manage` | Aktifkan akun |
+| POST | `/loyalty-accounts/:id/suspend` | `crm:manage` | Tangguhkan akun |
+| POST | `/loyalty-accounts/:id/close` | `crm:manage` | Tutup akun |
+| GET/POST | `/loyalty-accounts/:id/transactions` | `crm:read` / `crm:write` | Mutasi poin akun |
+| GET | `/loyalty-transactions` | `crm:read` | Mutasi poin lintas akun |
+| GET/POST | `/interactions` | `crm:read` / `crm:write` | Daftar / catat interaksi |
+| GET/PATCH/DELETE | `/interactions/:id` | `crm:read` / `crm:write` / `crm:manage` | Detail / ubah / batalkan interaksi |
+| POST | `/interactions/:id/complete` | `crm:write` | Tandai interaksi selesai |
+| POST | `/interactions/:id/cancel` | `crm:write` | Batalkan interaksi |
+| GET/POST | `/complaints` | `crm:read` / `crm:write` | Daftar / buat keluhan |
+| GET/PATCH | `/complaints/:id` | `crm:read` / `crm:write` | Detail / ubah keluhan |
+| POST | `/complaints/:id/start` | `crm:write` | Mulai penanganan keluhan |
+| POST | `/complaints/:id/resolve` | `crm:write` | Selesaikan keluhan + resolusi |
+| POST | `/complaints/:id/reject` | `crm:write` | Tolak keluhan + alasan |
+| POST | `/complaints/:id/close` | `crm:manage` | Tutup keluhan |
+
+> Redemption kupon memerlukan order commerce merchant yang sama, menghitung
+> ulang `discountTotal`/`grandTotal`, dan mencatat mutasi redemption. Pembatalan
+> redemption mengembalikan total order serta kuota kupon. Mutasi loyalty selalu
+> memperbarui saldo dan tier akun secara transaksional.
+
 ### Marketplace publik — `/api/v1/commerce/marketplace`
 
 Tidak memerlukan login. Hanya menampilkan storefront `published` milik merchant
@@ -626,8 +711,8 @@ Tidak memerlukan login. Hanya menampilkan storefront `published` milik merchant
 | Role | Ringkasan akses |
 | --- | --- |
 | `platform_admin` | Wildcard `*` (semua akses) |
-| `market_admin` | Kelola pasar/okupansi, verifikasi merchant, master katalog, kanal commerce, lihat pembayaran, lihat POS, lihat inventori, lihat rantai pasok, lihat audit |
-| `member` | Buat organisasi, kelola merchant/toko/produk/storefront miliknya, belanja, kelola pembayaran/refund merchant, kelola POS, inventori, dan rantai pasok merchant |
+| `market_admin` | Kelola pasar/okupansi, verifikasi merchant, master katalog, kanal commerce, lihat pembayaran, lihat POS, lihat inventori, lihat rantai pasok, lihat pemasaran & CRM, lihat audit |
+| `member` | Buat organisasi, kelola merchant/toko/produk/storefront miliknya, belanja, kelola pembayaran/refund merchant, kelola POS, inventori, rantai pasok, serta pemasaran & CRM merchant |
 
 Permission yang tersedia: `user:read`, `user:write`, `role:manage`,
 `organization:read`, `organization:write`, `organization:member:manage`,
@@ -637,7 +722,9 @@ Permission yang tersedia: `user:read`, `user:write`, `role:manage`,
 `commerce:write`, `commerce:manage`, `payment:read`, `payment:write`,
 `payment:manage`, `pos:read`, `pos:write`, `pos:manage`, `inventory:read`,
 `inventory:write`, `inventory:manage`, `supply_chain:read`,
-`supply_chain:write`, `supply_chain:manage`, `audit:read`.
+`supply_chain:write`, `supply_chain:manage`, `marketing:read`,
+`marketing:write`, `marketing:manage`, `crm:read`, `crm:write`,
+`crm:manage`, `audit:read`.
 
 ### Model otorisasi
 
@@ -706,6 +793,10 @@ Satu database PostgreSQL dengan schema logis:
   penerimaan, approval pengadaan, grup pembelian kolektif, warehouse receipt,
   put-away, alokasi gudang, picking, item picking, packing, pengiriman, retur
   gudang, dan riwayat status fulfillment (20 tabel).
+- `marketing` — kampanye, channel kampanye, performa kampanye, iklan,
+  promosi, aturan diskon, kupon, redemption kupon, pelanggan, profil, grup,
+  anggota grup, segmen, anggota segmen, akun loyalty, transaksi loyalty,
+  interaksi, dan keluhan (18 tabel).
 - `governance` — `audit_logs` (1 tabel).
 
 Detail tabel, relasi, enum, dan keputusan desain ada di
@@ -715,13 +806,15 @@ Detail tabel, relasi, enum, dan keputusan desain ada di
 [`docs/order-database.md`](docs/order-database.md),
 [`docs/payment-database.md`](docs/payment-database.md),
 [`docs/pos-database.md`](docs/pos-database.md),
-[`docs/inventory-database.md`](docs/inventory-database.md), dan
-[`docs/supply-chain-database.md`](docs/supply-chain-database.md).
+[`docs/inventory-database.md`](docs/inventory-database.md),
+[`docs/supply-chain-database.md`](docs/supply-chain-database.md), dan
+[`docs/marketing-crm-database.md`](docs/marketing-crm-database.md).
 
 Migration SQL: `drizzle/0000_*.sql` (core), `drizzle/0001_*.sql` (catalog),
 `drizzle/0002_*.sql` (commerce), `drizzle/0003_*.sql` (order),
 `drizzle/0004_*.sql` (payment), `drizzle/0005_*.sql` (POS),
-`drizzle/0006_*.sql` (inventori), dan `drizzle/0007_*.sql` (rantai pasok).
+`drizzle/0006_*.sql` (inventori), `drizzle/0007_*.sql` (rantai pasok), dan
+`drizzle/0008_*.sql` (pemasaran & CRM).
 
 ---
 
@@ -743,8 +836,11 @@ Migration SQL: `drizzle/0000_*.sql` (core), `drizzle/0001_*.sql` (catalog),
   transaksi POS, pembatalan POS, sinkronisasi offline, gudang, lokasi, item
   persediaan, pergerakan stok, penyesuaian, opname, batch, supplier,
   permintaan pembelian, penawaran supplier, purchase order, penerimaan barang,
-  put-away, alokasi, picking, packing, pengiriman, retur gudang, dan grup
-  pembelian kolektif).
+  put-away, alokasi, picking, packing, pengiriman, retur gudang, grup
+  pembelian kolektif, kampanye, channel, performa kampanye, iklan, promosi,
+  aturan diskon, kupon, redemption kupon, pelanggan, profil pelanggan, grup
+  pelanggan, segmen pelanggan, akun loyalty, transaksi loyalty, interaksi
+  pelanggan, dan keluhan).
 - Belum termasuk: email verification, MFA, refresh token, rate limiting.
   Semua ini masuk roadmap SYS-01/SYS-06.
 
@@ -755,8 +851,8 @@ Migration SQL: `drizzle/0000_*.sql` (core), `drizzle/0001_*.sql` (catalog),
 **MKT-04 Marketplace & Omnichannel Commerce**, **MKT-05 Order & Transaction
 Management**, **MKT-06 Integrated Payment Management**, **MKT-07 POS &
 Offline Transaction Management**, **MKT-08 Inventory & Warehouse
-Management**, serta **SCM-01/SCM-02 Supply Chain & Fulfillment** sudah
-diimplementasikan. MKT-04 mencakup storefront, katalog publik, cart, checkout,
+Management**, **SCM-01/SCM-02 Supply Chain & Fulfillment**, serta
+**MKT-12/MKT-13 Digital Marketing & CRM** sudah diimplementasikan. MKT-04 mencakup storefront, katalog publik, cart, checkout,
 dan channel listing. MKT-05 mencakup konversi checkout menjadi order per
 merchant, status order, pembatalan, retur, dan ledger transaksi penjualan.
 MKT-06 mencakup provider/metode pembayaran, payment intent, attempt, refund,
@@ -767,13 +863,17 @@ persediaan, saldo stok, pergerakan stok, penyesuaian, opname, serta
 batch/expiry. SCM-01 mencakup supplier, permintaan pembelian, penawaran vendor,
 purchase order, approval, penerimaan barang, dan grup pembelian kolektif.
 SCM-02 mencakup warehouse receipt, put-away, alokasi, picking, packing,
-pengiriman, retur gudang, dan riwayat status fulfillment. Dashboard admin
-memiliki menu **Commerce**, **Pesanan**, **Pembayaran**, **POS**,
-**Inventori**, dan **Rantai Pasok**. Urutan berikutnya:
+pengiriman, retur gudang, dan riwayat status fulfillment. MKT-12 mencakup
+kampanye multichannel, channel, performa kampanye, promosi, aturan diskon,
+kupon, redemption kupon yang terhubung ke order commerce, serta iklan. MKT-13
+mencakup pelanggan, profil, grup, segmen manual/dinamis, akun loyalty, mutasi
+poin dengan pembaruan saldo/tier, interaksi, dan keluhan dengan alur
+penyelesaian. Dashboard admin memiliki menu **Commerce**, **Pesanan**,
+**Pembayaran**, **POS**, **Inventori**, **Rantai Pasok**, **Pemasaran**, dan
+**CRM**. Urutan berikutnya:
 
-1. **MKT-12/MKT-13 Marketing & CRM** - campaign, voucher, loyalty, complaint.
-2. **2MD** - business performance/profile, proposal, funding, financing.
-3. **SYS-03/04/05/07/08** - integration, notification, config, AI, warehouse.
+1. **2MD** - business performance/profile, proposal, funding, financing.
+2. **SYS-03/04/05/07/08** - integration, notification, config, AI, warehouse.
 
 Schema PostgreSQL sudah disiapkan untuk ditambah per domain (`catalog`,
 `commerce`, `payment`, `inventory`, `supply_chain`, `marketing`, `business`,

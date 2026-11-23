@@ -57,6 +57,13 @@
       "when": 1795432489825,
       "tag": "0007_pretty_black_crow",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1795435021262,
+      "tag": "0008_lonely_sumo",
+      "breakpoints": true
     }
   ]
 }

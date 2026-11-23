@@ -15,6 +15,8 @@ Fokus tahap ini adalah fondasi database dan API (Bagian 17 dokumen):
 8. **MKT-06** Integrated Payment Management
 9. **MKT-07** POS & Offline Transaction Management
 10. **MKT-08** Inventory & Warehouse Management
+11. **SCM-01** Supplier & Procurement Management
+12. **SCM-02** Warehouse Fulfillment Management
 
 Stack: **Bun + Hono + Drizzle ORM + PostgreSQL + Zod**.
 
@@ -106,8 +108,11 @@ rekonsiliasi, serta pengelolaan provider dan metode pembayaran. Menu **POS**
 menampilkan terminal, cash register, shift kasir, transaksi toko fisik,
 pembatalan transaksi, pergerakan kas, dan sinkronisasi transaksi offline. Menu
 **Inventori** menampilkan gudang, lokasi, item persediaan, saldo stok,
-pergerakan stok, penyesuaian, opname, serta batch dan kedaluwarsa. UI disajikan
-langsung oleh Bun/Hono tanpa build step tambahan.
+pergerakan stok, penyesuaian, opname, serta batch dan kedaluwarsa. Menu
+**Rantai Pasok** menampilkan supplier, permintaan pembelian, penawaran vendor,
+purchase order, penerimaan barang, warehouse receipt, put-away, alokasi,
+picking, packing, pengiriman, retur gudang, dan grup pembelian kolektif. UI
+disajikan langsung oleh Bun/Hono tanpa build step tambahan.
 
 Katalog marketplace publik MKT-04 tersedia lewat API:
 
@@ -216,6 +221,16 @@ src/
       movements.ts          # Pergerakan stok dan penyesuaian
       counts.ts             # Opname stok, hitung fisik, selesai/batal
       shared.ts             # Scoping, saldo, movement, batch, detail
+    supply-chain/           # Supply chain & fulfillment (SCM-01/SCM-02)
+      index.ts              # Mount route rantai pasok + auth
+      suppliers.ts          # Supplier dan opsi supplier
+      procurement.ts        # Permintaan pembelian, item, penawaran supplier
+      purchase-orders.ts    # Purchase order, approval, konversi PR/penawaran
+      receiving.ts          # Penerimaan barang dan pembuatan warehouse receipt
+      warehouse.ts          # Warehouse receipt, put-away, alokasi gudang
+      outbound.ts           # Picking, packing, pengiriman, retur, history
+      collective.ts         # Grup pembelian kolektif
+      shared.ts             # Scoping, akses, stok, movement, history
     reference.ts            # Master reference data
     audit.ts                # Audit log viewer
   services/auth.ts          # Session & profile service
@@ -231,6 +246,7 @@ docs/order-database.md      # Detail desain database order & transaksi (MKT-05)
 docs/payment-database.md    # Detail desain database pembayaran (MKT-06)
 docs/pos-database.md        # Detail desain database POS (MKT-07)
 docs/inventory-database.md  # Detail desain database inventori (MKT-08)
+docs/supply-chain-database.md # Detail desain database rantai pasok (SCM-01/02)
 ```
 
 ---
@@ -499,6 +515,87 @@ Base URL: `/api/v1`
 > membuat movement turunan. Batch/expiry bersifat opsional per item. Nilai
 > kuantitas dan uang dikembalikan sebagai string desimal.
 
+### Rantai pasok — `/api/v1/supply-chain`
+
+| Method | Path | Permission | Keterangan |
+| --- | --- | --- | --- |
+| GET/POST | `/suppliers` | `supply_chain:read` / `supply_chain:manage` | Daftar / buat supplier merchant |
+| GET/PATCH/DELETE | `/suppliers/:id` | `supply_chain:read` / `supply_chain:manage` | Detail / ubah / nonaktifkan supplier |
+| GET | `/supplier-options` | `supply_chain:read` | Opsi supplier aktif |
+| GET/POST | `/purchase-requisitions` | `supply_chain:read` / `supply_chain:manage` | Daftar / buat permintaan pembelian |
+| GET/PATCH | `/purchase-requisitions/:id` | `supply_chain:read` / `supply_chain:manage` | Detail / ubah permintaan |
+| POST | `/purchase-requisitions/:id/submit` | `supply_chain:write` | Ajukan permintaan |
+| POST | `/purchase-requisitions/:id/approve` | `supply_chain:manage` | Setujui permintaan |
+| POST | `/purchase-requisitions/:id/reject` | `supply_chain:manage` | Tolak permintaan |
+| POST | `/purchase-requisitions/:id/cancel` | `supply_chain:write` | Batalkan permintaan |
+| POST | `/purchase-requisitions/:id/convert` | `supply_chain:manage` | Konversi menjadi purchase order |
+| GET/POST | `/supplier-quotations` | `supply_chain:read` / `supply_chain:manage` | Daftar / buat penawaran supplier |
+| GET | `/supplier-quotations/:id` | `supply_chain:read` | Detail penawaran |
+| POST | `/supplier-quotations/:id/submit` | `supply_chain:write` | Ajukan penawaran |
+| POST | `/supplier-quotations/:id/accept` | `supply_chain:manage` | Terima penawaran |
+| POST | `/supplier-quotations/:id/reject` | `supply_chain:manage` | Tolak penawaran |
+| POST | `/supplier-quotations/:id/cancel` | `supply_chain:write` | Batalkan penawaran |
+| POST | `/supplier-quotations/:id/convert` | `supply_chain:manage` | Konversi penawaran menjadi PO |
+| GET/POST | `/purchase-orders` | `supply_chain:read` / `supply_chain:manage` | Daftar / buat purchase order |
+| GET/PATCH | `/purchase-orders/:id` | `supply_chain:read` / `supply_chain:manage` | Detail / ubah PO |
+| POST | `/purchase-orders/:id/submit` | `supply_chain:write` | Ajukan PO |
+| POST | `/purchase-orders/:id/approve` | `supply_chain:manage` | Setujui PO |
+| POST | `/purchase-orders/:id/send` | `supply_chain:write` | Kirim PO ke supplier |
+| POST | `/purchase-orders/:id/cancel` | `supply_chain:write` | Batalkan PO |
+| POST | `/purchase-orders/:id/close` | `supply_chain:manage` | Tutup PO |
+| GET | `/procurement-approvals` | `supply_chain:read` | Riwayat approval pengadaan |
+| GET/POST | `/goods-receipts` | `supply_chain:read` / `supply_chain:manage` | Daftar / buat penerimaan barang |
+| GET | `/goods-receipts/:id` | `supply_chain:read` | Detail penerimaan |
+| POST | `/goods-receipts/:id/inspect` | `supply_chain:write` | Tandai inspeksi selesai |
+| POST | `/goods-receipts/:id/complete` | `supply_chain:write` | Selesaikan penerimaan + stok masuk |
+| POST | `/goods-receipts/:id/cancel` | `supply_chain:write` | Batalkan penerimaan |
+| GET/POST | `/warehouse-receipts` | `supply_chain:read` / `supply_chain:manage` | Daftar / buat warehouse receipt |
+| GET | `/warehouse-receipts/:id` | `supply_chain:read` | Detail warehouse receipt |
+| POST | `/warehouse-receipts/:id/start` | `supply_chain:write` | Mulai penerimaan gudang |
+| POST | `/warehouse-receipts/:id/complete` | `supply_chain:write` | Selesaikan penerimaan gudang |
+| POST | `/warehouse-receipts/:id/cancel` | `supply_chain:write` | Batalkan penerimaan gudang |
+| GET/POST | `/putaway-tasks` | `supply_chain:read` / `supply_chain:manage` | Daftar / buat tugas put-away |
+| GET/PATCH | `/putaway-tasks/:id` | `supply_chain:read` / `supply_chain:manage` | Detail / ubah tujuan put-away |
+| POST | `/putaway-tasks/:id/start` | `supply_chain:write` | Mulai put-away |
+| POST | `/putaway-tasks/:id/complete` | `supply_chain:write` | Selesaikan put-away + transfer stok |
+| POST | `/putaway-tasks/:id/cancel` | `supply_chain:write` | Batalkan put-away |
+| GET/POST | `/warehouse-allocations` | `supply_chain:read` / `supply_chain:manage` | Daftar / buat alokasi stok |
+| GET | `/warehouse-allocations/:id` | `supply_chain:read` | Detail alokasi |
+| POST | `/warehouse-allocations/:id/release` | `supply_chain:write` | Lepas reservasi stok |
+| POST | `/warehouse-allocations/:id/cancel` | `supply_chain:write` | Batalkan alokasi |
+| GET/POST | `/picking-tasks` | `supply_chain:read` / `supply_chain:manage` | Daftar / buat picking |
+| GET | `/picking-tasks/:id` | `supply_chain:read` | Detail picking |
+| POST | `/picking-tasks/:id/start` | `supply_chain:write` | Mulai picking |
+| POST | `/picking-tasks/:id/complete` | `supply_chain:write` | Selesaikan picking + stok keluar |
+| POST | `/picking-tasks/:id/cancel` | `supply_chain:write` | Batalkan picking |
+| GET/POST | `/packing-tasks` | `supply_chain:read` / `supply_chain:manage` | Daftar / buat packing |
+| GET | `/packing-tasks/:id` | `supply_chain:read` | Detail packing |
+| POST | `/packing-tasks/:id/start` | `supply_chain:write` | Mulai packing |
+| POST | `/packing-tasks/:id/complete` | `supply_chain:write` | Selesaikan packing |
+| POST | `/packing-tasks/:id/cancel` | `supply_chain:write` | Batalkan packing |
+| GET/POST | `/dispatch-records` | `supply_chain:read` / `supply_chain:manage` | Daftar / buat pengiriman |
+| GET | `/dispatch-records/:id` | `supply_chain:read` | Detail pengiriman |
+| POST | `/dispatch-records/:id/dispatch` | `supply_chain:write` | Berangkatkan paket |
+| POST | `/dispatch-records/:id/deliver` | `supply_chain:write` | Tandai paket terkirim |
+| POST | `/dispatch-records/:id/cancel` | `supply_chain:write` | Batalkan pengiriman |
+| GET/POST | `/warehouse-returns` | `supply_chain:read` / `supply_chain:manage` | Daftar / buat retur gudang |
+| GET | `/warehouse-returns/:id` | `supply_chain:read` | Detail retur |
+| POST | `/warehouse-returns/:id/approve` | `supply_chain:manage` | Setujui retur |
+| POST | `/warehouse-returns/:id/receive` | `supply_chain:write` | Terima barang retur |
+| POST | `/warehouse-returns/:id/restock` | `supply_chain:write` | Kembalikan retur ke stok |
+| POST | `/warehouse-returns/:id/reject` | `supply_chain:manage` | Tolak retur |
+| POST | `/warehouse-returns/:id/cancel` | `supply_chain:write` | Batalkan retur |
+| GET | `/fulfillment-status-histories` | `supply_chain:read` | Riwayat status fulfillment |
+| GET/POST | `/collective-purchase-groups` | `supply_chain:read` / `supply_chain:manage` | Daftar / buat grup pembelian |
+| GET/PATCH | `/collective-purchase-groups/:id` | `supply_chain:read` / `supply_chain:manage` | Detail / ubah grup |
+| POST | `/collective-purchase-groups/:id/close` | `supply_chain:manage` | Tutup grup |
+| POST | `/collective-purchase-groups/:id/cancel` | `supply_chain:manage` | Batalkan grup |
+
+> Penerimaan barang yang selesai otomatis membuat stok masuk, warehouse
+> receipt, dan tugas put-away. Put-away selesai memindahkan stok ke lokasi
+> tujuan. Picking selesai mengeluarkan stok dan melepas reservasi alokasi.
+> Seluruh kuantitas dan nilai uang dikembalikan sebagai string desimal.
+
 ### Marketplace publik — `/api/v1/commerce/marketplace`
 
 Tidak memerlukan login. Hanya menampilkan storefront `published` milik merchant
@@ -529,8 +626,8 @@ Tidak memerlukan login. Hanya menampilkan storefront `published` milik merchant
 | Role | Ringkasan akses |
 | --- | --- |
 | `platform_admin` | Wildcard `*` (semua akses) |
-| `market_admin` | Kelola pasar/okupansi, verifikasi merchant, master katalog, kanal commerce, lihat pembayaran, lihat POS, lihat inventori, lihat audit |
-| `member` | Buat organisasi, kelola merchant/toko/produk/storefront miliknya, belanja, kelola pembayaran/refund merchant, kelola POS dan inventori merchant |
+| `market_admin` | Kelola pasar/okupansi, verifikasi merchant, master katalog, kanal commerce, lihat pembayaran, lihat POS, lihat inventori, lihat rantai pasok, lihat audit |
+| `member` | Buat organisasi, kelola merchant/toko/produk/storefront miliknya, belanja, kelola pembayaran/refund merchant, kelola POS, inventori, dan rantai pasok merchant |
 
 Permission yang tersedia: `user:read`, `user:write`, `role:manage`,
 `organization:read`, `organization:write`, `organization:member:manage`,
@@ -539,7 +636,8 @@ Permission yang tersedia: `user:read`, `user:write`, `role:manage`,
 `catalog:read`, `catalog:write`, `catalog:manage`, `commerce:read`,
 `commerce:write`, `commerce:manage`, `payment:read`, `payment:write`,
 `payment:manage`, `pos:read`, `pos:write`, `pos:manage`, `inventory:read`,
-`inventory:write`, `inventory:manage`, `audit:read`.
+`inventory:write`, `inventory:manage`, `supply_chain:read`,
+`supply_chain:write`, `supply_chain:manage`, `audit:read`.
 
 ### Model otorisasi
 
@@ -603,6 +701,11 @@ Satu database PostgreSQL dengan schema logis:
   (10 tabel).
 - `inventory` — gudang, lokasi, item persediaan, saldo stok, movement, item
   movement, penyesuaian, opname, item opname, dan batch (10 tabel).
+- `supply_chain` — supplier, permintaan pembelian, item permintaan, penawaran
+  supplier, item penawaran, purchase order, item PO, penerimaan barang, item
+  penerimaan, approval pengadaan, grup pembelian kolektif, warehouse receipt,
+  put-away, alokasi gudang, picking, item picking, packing, pengiriman, retur
+  gudang, dan riwayat status fulfillment (20 tabel).
 - `governance` — `audit_logs` (1 tabel).
 
 Detail tabel, relasi, enum, dan keputusan desain ada di
@@ -611,13 +714,14 @@ Detail tabel, relasi, enum, dan keputusan desain ada di
 [`docs/commerce-database.md`](docs/commerce-database.md),
 [`docs/order-database.md`](docs/order-database.md),
 [`docs/payment-database.md`](docs/payment-database.md),
-[`docs/pos-database.md`](docs/pos-database.md), dan
-[`docs/inventory-database.md`](docs/inventory-database.md).
+[`docs/pos-database.md`](docs/pos-database.md),
+[`docs/inventory-database.md`](docs/inventory-database.md), dan
+[`docs/supply-chain-database.md`](docs/supply-chain-database.md).
 
 Migration SQL: `drizzle/0000_*.sql` (core), `drizzle/0001_*.sql` (catalog),
 `drizzle/0002_*.sql` (commerce), `drizzle/0003_*.sql` (order),
-`drizzle/0004_*.sql` (payment), `drizzle/0005_*.sql` (POS), dan
-`drizzle/0006_*.sql` (inventori).
+`drizzle/0004_*.sql` (payment), `drizzle/0005_*.sql` (POS),
+`drizzle/0006_*.sql` (inventori), dan `drizzle/0007_*.sql` (rantai pasok).
 
 ---
 
@@ -637,7 +741,10 @@ Migration SQL: `drizzle/0000_*.sql` (core), `drizzle/0001_*.sql` (catalog),
   occupancy, store, organisasi, checkout, order, pembatalan, retur, payment,
   refund, settlement, rekonsiliasi, terminal POS, register, shift kasir,
   transaksi POS, pembatalan POS, sinkronisasi offline, gudang, lokasi, item
-  persediaan, pergerakan stok, penyesuaian, opname, dan batch).
+  persediaan, pergerakan stok, penyesuaian, opname, batch, supplier,
+  permintaan pembelian, penawaran supplier, purchase order, penerimaan barang,
+  put-away, alokasi, picking, packing, pengiriman, retur gudang, dan grup
+  pembelian kolektif).
 - Belum termasuk: email verification, MFA, refresh token, rate limiting.
   Semua ini masuk roadmap SYS-01/SYS-06.
 
@@ -647,23 +754,26 @@ Migration SQL: `drizzle/0000_*.sql` (core), `drizzle/0001_*.sql` (catalog),
 
 **MKT-04 Marketplace & Omnichannel Commerce**, **MKT-05 Order & Transaction
 Management**, **MKT-06 Integrated Payment Management**, **MKT-07 POS &
-Offline Transaction Management**, dan **MKT-08 Inventory & Warehouse
-Management** sudah diimplementasikan. MKT-04 mencakup storefront, katalog
-publik, cart, checkout, dan channel listing. MKT-05 mencakup konversi checkout
-menjadi order per merchant, status order, pembatalan, retur, dan ledger
-transaksi penjualan. MKT-06 mencakup provider/metode pembayaran, payment
-intent, attempt, refund, settlement merchant, dan rekonsiliasi provider.
-MKT-07 mencakup terminal POS, cash register, shift kasir, transaksi toko
-fisik, pergerakan kas, pembatalan transaksi, dan sinkronisasi offline. MKT-08
-mencakup gudang, lokasi, item persediaan, saldo stok, pergerakan stok,
-penyesuaian, opname, serta batch/expiry. Dashboard admin memiliki menu
-**Commerce**, **Pesanan**, **Pembayaran**, **POS**, dan **Inventori**. Urutan
-berikutnya:
+Offline Transaction Management**, **MKT-08 Inventory & Warehouse
+Management**, serta **SCM-01/SCM-02 Supply Chain & Fulfillment** sudah
+diimplementasikan. MKT-04 mencakup storefront, katalog publik, cart, checkout,
+dan channel listing. MKT-05 mencakup konversi checkout menjadi order per
+merchant, status order, pembatalan, retur, dan ledger transaksi penjualan.
+MKT-06 mencakup provider/metode pembayaran, payment intent, attempt, refund,
+settlement merchant, dan rekonsiliasi provider. MKT-07 mencakup terminal POS,
+cash register, shift kasir, transaksi toko fisik, pergerakan kas, pembatalan
+transaksi, dan sinkronisasi offline. MKT-08 mencakup gudang, lokasi, item
+persediaan, saldo stok, pergerakan stok, penyesuaian, opname, serta
+batch/expiry. SCM-01 mencakup supplier, permintaan pembelian, penawaran vendor,
+purchase order, approval, penerimaan barang, dan grup pembelian kolektif.
+SCM-02 mencakup warehouse receipt, put-away, alokasi, picking, packing,
+pengiriman, retur gudang, dan riwayat status fulfillment. Dashboard admin
+memiliki menu **Commerce**, **Pesanan**, **Pembayaran**, **POS**,
+**Inventori**, dan **Rantai Pasok**. Urutan berikutnya:
 
-1. **SCM-01/SCM-02 Supply Chain** - supplier, PR/PO, receiving, fulfillment.
-2. **MKT-12/MKT-13 Marketing & CRM** - campaign, voucher, loyalty, complaint.
-3. **2MD** - business performance/profile, proposal, funding, financing.
-4. **SYS-03/04/05/07/08** - integration, notification, config, AI, warehouse.
+1. **MKT-12/MKT-13 Marketing & CRM** - campaign, voucher, loyalty, complaint.
+2. **2MD** - business performance/profile, proposal, funding, financing.
+3. **SYS-03/04/05/07/08** - integration, notification, config, AI, warehouse.
 
 Schema PostgreSQL sudah disiapkan untuk ditambah per domain (`catalog`,
 `commerce`, `payment`, `inventory`, `supply_chain`, `marketing`, `business`,

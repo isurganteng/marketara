@@ -182,6 +182,10 @@
             <svg class="icon"><use href="#i-inventory"></use></svg>
             <span>Inventori</span>
           </button>
+          <button class="nav-item" type="button" data-view="supply-chain">
+            <svg class="icon"><use href="#i-inventory"></use></svg>
+            <span>Rantai Pasok</span>
+          </button>
           <button class="nav-item" type="button" data-view="audit">
             <svg class="icon"><use href="#i-audit"></use></svg>
             <span>Audit log</span>
@@ -1342,6 +1346,303 @@
             </article>
           </section>
 
+          <section class="view" id="view-supply-chain" hidden>
+            <div class="section-head">
+              <div>
+                <p class="panel-kicker">Supply chain & fulfillment</p>
+                <h2>Rantai Pasok</h2>
+                <p class="section-text">Kelola supplier, permintaan pembelian, purchase order, penerimaan, alokasi, picking, packing, pengiriman, dan retur gudang.</p>
+              </div>
+              <span class="section-badge neutral" id="sc-summary-badge" hidden>0 tugas aktif</span>
+            </div>
+
+            <div class="stats-grid">
+              <article class="stat-card" data-tone="green">
+                <div class="stat-top">
+                  <span class="stat-icon"><svg class="icon"><use href="#i-merchants"></use></svg></span>
+                  <span class="stat-trend">Vendor</span>
+                </div>
+                <p class="stat-label">Supplier aktif</p>
+                <p class="stat-value" id="sc-stat-suppliers">-</p>
+                <p class="stat-sub">Pemasok bahan dan barang.</p>
+              </article>
+              <article class="stat-card" data-tone="blue">
+                <div class="stat-top">
+                  <span class="stat-icon"><svg class="icon"><use href="#i-receipt"></use></svg></span>
+                  <span class="stat-trend">Pengadaan</span>
+                </div>
+                <p class="stat-label">Permintaan pembelian</p>
+                <p class="stat-value" id="sc-stat-requisitions">-</p>
+                <p class="stat-sub">Draft hingga disetujui.</p>
+              </article>
+              <article class="stat-card" data-tone="gold">
+                <div class="stat-top">
+                  <span class="stat-icon"><svg class="icon"><use href="#i-store"></use></svg></span>
+                  <span class="stat-trend">Order</span>
+                </div>
+                <p class="stat-label">Purchase order aktif</p>
+                <p class="stat-value" id="sc-stat-orders">-</p>
+                <p class="stat-sub">Dikirim atau sebagian diterima.</p>
+              </article>
+              <article class="stat-card" data-tone="rose">
+                <div class="stat-top">
+                  <span class="stat-icon"><svg class="icon"><use href="#i-clock"></use></svg></span>
+                  <span class="stat-trend">Gudang</span>
+                </div>
+                <p class="stat-label">Tugas fulfillment</p>
+                <p class="stat-value" id="sc-stat-fulfillment">-</p>
+                <p class="stat-sub">Put-away, picking, packing.</p>
+              </article>
+            </div>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Master pemasok</p>
+                  <h3>Supplier</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="sc-supplier-count" hidden>0 supplier</span>
+                  <button class="button button-primary button-sm" id="create-sc-supplier-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Supplier
+                  </button>
+                </div>
+              </div>
+              <div class="toolbar">
+                <span class="toolbar-count">Daftar vendor untuk pengadaan merchant.</span>
+                <button class="icon-button toolbar-refresh" id="refresh-sc-suppliers" type="button" aria-label="Segarkan supplier" title="Segarkan">
+                  <svg class="icon"><use href="#i-refresh"></use></svg>
+                </button>
+              </div>
+              <div class="table-host" id="sc-suppliers-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Permintaan internal</p>
+                  <h3>Purchase requisition</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="sc-requisition-count" hidden>0 permintaan</span>
+                  <button class="button button-primary button-sm" id="create-sc-requisition-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Permintaan
+                  </button>
+                </div>
+              </div>
+              <div class="table-host" id="sc-requisitions-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Penawaran vendor</p>
+                  <h3>Supplier quotation</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="sc-quotation-count" hidden>0 penawaran</span>
+                </div>
+              </div>
+              <div class="table-host" id="sc-quotations-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Pembelian ke supplier</p>
+                  <h3>Purchase order</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="sc-order-count" hidden>0 order</span>
+                </div>
+              </div>
+              <div class="table-host" id="sc-orders-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Barang datang</p>
+                  <h3>Penerimaan barang</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="sc-receipt-count" hidden>0 penerimaan</span>
+                </div>
+              </div>
+              <div class="table-host" id="sc-receipts-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Penerimaan gudang</p>
+                  <h3>Warehouse receipt</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="sc-warehouse-receipt-count" hidden>0 penerimaan</span>
+                </div>
+              </div>
+              <div class="table-host" id="sc-warehouse-receipts-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">SCM-02 warehouse</p>
+                  <h3>Tugas put-away</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="sc-putaway-count" hidden>0 tugas</span>
+                </div>
+              </div>
+              <div class="table-host" id="sc-putaway-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Reservasi stok</p>
+                  <h3>Alokasi gudang</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="sc-allocation-count" hidden>0 alokasi</span>
+                  <button class="button button-primary button-sm" id="create-sc-allocation-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Alokasi
+                  </button>
+                </div>
+              </div>
+              <div class="table-host" id="sc-allocations-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Pengambilan barang</p>
+                  <h3>Picking</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="sc-picking-count" hidden>0 tugas</span>
+                  <button class="button button-primary button-sm" id="create-sc-picking-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Picking
+                  </button>
+                </div>
+              </div>
+              <div class="table-host" id="sc-picking-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Kemasan pesanan</p>
+                  <h3>Packing</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="sc-packing-count" hidden>0 tugas</span>
+                  <button class="button button-primary button-sm" id="create-sc-packing-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Packing
+                  </button>
+                </div>
+              </div>
+              <div class="table-host" id="sc-packing-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Keluar gudang</p>
+                  <h3>Pengiriman</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="sc-dispatch-count" hidden>0 pengiriman</span>
+                  <button class="button button-primary button-sm" id="create-sc-dispatch-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Pengiriman
+                  </button>
+                </div>
+              </div>
+              <div class="table-host" id="sc-dispatch-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Barang kembali</p>
+                  <h3>Retur gudang</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="sc-return-count" hidden>0 retur</span>
+                  <button class="button button-primary button-sm" id="create-sc-return-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Retur
+                  </button>
+                </div>
+              </div>
+              <div class="table-host" id="sc-returns-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Pembelian bersama</p>
+                  <h3>Grup pembelian kolektif</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="sc-group-count" hidden>0 grup</span>
+                  <button class="button button-primary button-sm" id="create-sc-group-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Grup
+                  </button>
+                </div>
+              </div>
+              <div class="table-host" id="sc-groups-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Jejak fulfillment</p>
+                  <h3>Riwayat status</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="sc-history-count" hidden>0 riwayat</span>
+                </div>
+              </div>
+              <div class="table-host" id="sc-history-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+          </section>
 
           <section class="view" id="view-audit" hidden>
             <div class="section-head">

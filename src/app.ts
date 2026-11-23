@@ -19,6 +19,7 @@ import { organizationRoutes } from './routes/organizations';
 import { paymentRoutesIndex } from './routes/payments';
 import { posRoutesIndex } from './routes/pos';
 import { referenceRoutes } from './routes/reference';
+import { supplyChainRoutesIndex } from './routes/supply-chain';
 
 export const app = new Hono<AppEnv>();
 
@@ -71,6 +72,7 @@ app.route('/api/v1/commerce', commerceRoutes);
 app.route('/api/v1/payments', paymentRoutesIndex);
 app.route('/api/v1/pos', posRoutesIndex);
 app.route('/api/v1/inventory', inventoryRoutesIndex);
+app.route('/api/v1/supply-chain', supplyChainRoutesIndex);
 app.route('/api/v1/reference', referenceRoutes);
 app.route('/api/v1/audit-logs', auditRoutes);
 

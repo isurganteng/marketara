@@ -79,6 +79,21 @@ const PERMISSIONS: PermissionSeed[] = [
     name: 'Manage warehouses, locations, inventory items, and batches',
     module: 'inventory',
   },
+  {
+    code: 'supply_chain:read',
+    name: 'View suppliers, procurement documents, and fulfillment tasks',
+    module: 'supply_chain',
+  },
+  {
+    code: 'supply_chain:write',
+    name: 'Create purchase requests, orders, receipts, and fulfillment tasks',
+    module: 'supply_chain',
+  },
+  {
+    code: 'supply_chain:manage',
+    name: 'Approve procurement, manage suppliers, and warehouse fulfillment',
+    module: 'supply_chain',
+  },
   { code: 'audit:read', name: 'View audit logs', module: 'governance' },
 ];
 
@@ -100,6 +115,9 @@ const MEMBER_PERMISSIONS = [
   'inventory:read',
   'inventory:write',
   'inventory:manage',
+  'supply_chain:read',
+  'supply_chain:write',
+  'supply_chain:manage',
   'organization:read',
   'organization:write',
   'organization:member:manage',
@@ -130,6 +148,7 @@ const ROLE_SEEDS: Array<{ code: string; name: string; description: string; permi
       'payment:read',
       'pos:read',
       'inventory:read',
+      'supply_chain:read',
       'organization:read',
       'audit:read',
     ],

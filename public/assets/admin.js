@@ -12,6 +12,7 @@ const VIEW_TITLES = {
   payments: 'Pembayaran',
   pos: 'POS',
   inventory: 'Inventori',
+  'supply-chain': 'Rantai Pasok',
   audit: 'Audit log',
 };
 
@@ -83,6 +84,24 @@ const STATUS_LABELS = {
   quarantine: 'Karantina',
   discontinued: 'Dihentikan',
   blocked: 'Diblokir',
+  submitted: 'Diajukan',
+  accepted: 'Diterima vendor',
+  converted: 'Dikonversi',
+  ordered: 'Dipesan',
+  pending_approval: 'Menunggu persetujuan',
+  partially_received: 'Diterima sebagian',
+  in_progress: 'Sedang diproses',
+  picked: 'Sudah dipicking',
+  packing: 'Sedang packing',
+  packed: 'Siap kirim',
+  allocated: 'Dialokasikan',
+  released: 'Dilepas',
+  restocked: 'Kembali ke stok',
+  dispatched: 'Diberangkatkan',
+  in_transit: 'Dalam perjalanan',
+  delivered: 'Terkirim',
+  put_away: 'Sudah put-away',
+  urgent: 'Mendesak',
 };
 
 const STATUS_COLORS = {
@@ -207,6 +226,19 @@ const ENTITY_LABELS = {
   stock_adjustment: 'Penyesuaian stok',
   stock_count: 'Opname stok',
   inventory_batch: 'Batch persediaan',
+  supplier: 'Supplier',
+  purchase_requisition: 'Permintaan pembelian',
+  supplier_quotation: 'Penawaran supplier',
+  purchase_order: 'Purchase order',
+  goods_receipt: 'Penerimaan barang',
+  warehouse_receipt: 'Penerimaan gudang',
+  putaway_task: 'Tugas put-away',
+  warehouse_allocation: 'Alokasi gudang',
+  picking_task: 'Tugas picking',
+  packing_task: 'Tugas packing',
+  dispatch_record: 'Pengiriman',
+  warehouse_return: 'Retur gudang',
+  collective_purchase_group: 'Grup pembelian',
 };
 
 const state = {
@@ -222,6 +254,7 @@ const state = {
   payments: null,
   pos: null,
   inventory: null,
+  supplyChain: null,
   audit: null,
   pendingCount: 0,
   canWriteCommerce: false,
@@ -232,6 +265,8 @@ const state = {
   canManagePos: false,
   canWriteInventory: false,
   canManageInventory: false,
+  canWriteSupplyChain: false,
+  canManageSupplyChain: false,
   sequences: {
     overview: 0,
     markets: 0,
@@ -242,6 +277,7 @@ const state = {
     payments: 0,
     pos: 0,
     inventory: 0,
+    supplyChain: 0,
     audit: 0,
   },
   filters: {
@@ -555,6 +591,8 @@ function applyProfile(profile) {
   const canPayments = permissions.includes('*') || permissions.includes('payment:read');
   const canPos = permissions.includes('*') || permissions.includes('pos:read');
   const canInventory = permissions.includes('*') || permissions.includes('inventory:read');
+  const canSupplyChain =
+    permissions.includes('*') || permissions.includes('supply_chain:read');
   state.canWriteCommerce = permissions.includes('*') || permissions.includes('commerce:write');
   state.canManageCommerce = permissions.includes('*') || permissions.includes('commerce:manage');
   state.canWritePayments = permissions.includes('*') || permissions.includes('payment:write');
@@ -563,6 +601,10 @@ function applyProfile(profile) {
   state.canManagePos = permissions.includes('*') || permissions.includes('pos:manage');
   state.canWriteInventory = permissions.includes('*') || permissions.includes('inventory:write');
   state.canManageInventory = permissions.includes('*') || permissions.includes('inventory:manage');
+  state.canWriteSupplyChain =
+    permissions.includes('*') || permissions.includes('supply_chain:write');
+  state.canManageSupplyChain =
+    permissions.includes('*') || permissions.includes('supply_chain:manage');
   const commerceNav = $('[data-view="commerce"]');
   if (commerceNav) commerceNav.hidden = !canCommerce;
   const ordersNav = $('[data-view="orders"]');
@@ -573,6 +615,21 @@ function applyProfile(profile) {
   if (posNav) posNav.hidden = !canPos;
   const inventoryNav = $('[data-view="inventory"]');
   if (inventoryNav) inventoryNav.hidden = !canInventory;
+  const supplyChainNav = $('[data-view="supply-chain"]');
+  if (supplyChainNav) supplyChainNav.hidden = !canSupplyChain;
+  for (const selector of [
+    '#create-sc-supplier-button',
+    '#create-sc-requisition-button',
+    '#create-sc-allocation-button',
+    '#create-sc-picking-button',
+    '#create-sc-packing-button',
+    '#create-sc-dispatch-button',
+    '#create-sc-return-button',
+    '#create-sc-group-button',
+  ]) {
+    const button = $(selector);
+    if (button) button.hidden = !state.canManageSupplyChain;
+  }
   const createChannelButton = $('#create-channel-button');
   if (createChannelButton) createChannelButton.hidden = !state.canManageCommerce;
 
@@ -741,6 +798,7 @@ function loadView(view) {
   if (view === 'payments') return loadPayments();
   if (view === 'pos') return loadPos();
   if (view === 'inventory') return loadInventory();
+  if (view === 'supply-chain') return loadSupplyChain(true);
   if (view === 'audit') return loadAudit();
   return undefined;
 }
@@ -6818,6 +6876,1936 @@ function openInventoryBatchModal(batchId) {
 }
 
 
+/* ---------------------------- Supply chain ---------------------------- */
+
+const SC_PRIORITY_LABELS = {
+  low: 'Rendah',
+  normal: 'Normal',
+  high: 'Tinggi',
+  urgent: 'Mendesak',
+};
+
+const SC_TABLE_HOSTS = [
+  '#sc-suppliers-table',
+  '#sc-requisitions-table',
+  '#sc-quotations-table',
+  '#sc-orders-table',
+  '#sc-receipts-table',
+  '#sc-warehouse-receipts-table',
+  '#sc-putaway-table',
+  '#sc-allocations-table',
+  '#sc-picking-table',
+  '#sc-packing-table',
+  '#sc-dispatch-table',
+  '#sc-returns-table',
+  '#sc-groups-table',
+  '#sc-history-table',
+];
+
+function scPriority(value) {
+  return `<span class="status status-${escapeHtml(value)}">${escapeHtml(SC_PRIORITY_LABELS[value] ?? value ?? '—')}</span>`;
+}
+
+function scActions(items) {
+  const html = items.filter(Boolean).join(' ');
+  return html || '—';
+}
+
+function scButton(label, attributes) {
+  return `<button class="action-link" type="button" ${attributes}>${icon('arrow-right')} ${escapeHtml(label)}</button>`;
+}
+
+function scSetText(selector, value) {
+  const element = $(selector);
+  if (element) element.textContent = value;
+}
+
+function scSetBadge(selector, count, noun) {
+  const element = $(selector);
+  if (!element) return;
+  element.hidden = count <= 0;
+  element.textContent = `${formatNumber(count)} ${noun}`;
+}
+
+function scRenderTable(hostSelector, columns, rows, renderRow, emptyTitle, emptyText) {
+  const host = $(hostSelector);
+  if (!host) return;
+  if (!rows.length) {
+    host.innerHTML = emptyState(emptyTitle, emptyText);
+    return;
+  }
+  host.innerHTML = `
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr>${columns.map((column) => `<th>${escapeHtml(column)}</th>`).join('')}</tr></thead>
+        <tbody>${rows.map(renderRow).join('')}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function scSupplierOptions(suppliers, selectedId = '') {
+  return (
+    '<option value="">Pilih supplier</option>' +
+    suppliers
+      .map(
+        (row) =>
+          `<option value="${escapeHtml(row.id)}" ${row.id === selectedId ? 'selected' : ''}>${escapeHtml(row.name)} (${escapeHtml(row.code)})</option>`,
+      )
+      .join('')
+  );
+}
+
+async function scCommonData() {
+  const [merchants, warehouses, items] = await Promise.all([
+    api('/merchants?limit=100'),
+    api('/inventory/warehouses?limit=100'),
+    api('/inventory/items?limit=100'),
+  ]);
+  return {
+    merchants: merchants.data ?? [],
+    warehouses: warehouses.data ?? [],
+    items: items.data ?? [],
+  };
+}
+
+async function loadSupplyChain(force = false) {
+  const sequence = ++state.sequences.supplyChain;
+  if (!force && state.supplyChain) {
+    renderSupplyChain();
+    return;
+  }
+
+  for (const selector of SC_TABLE_HOSTS) {
+    const host = $(selector);
+    if (host) host.innerHTML = tableLoading(2);
+  }
+  for (const selector of [
+    '#sc-stat-suppliers',
+    '#sc-stat-requisitions',
+    '#sc-stat-orders',
+    '#sc-stat-fulfillment',
+  ]) {
+    scSetText(selector, '-');
+  }
+
+  try {
+    const paths = [
+      '/supply-chain/suppliers?limit=50',
+      '/supply-chain/purchase-requisitions?limit=50',
+      '/supply-chain/supplier-quotations?limit=50',
+      '/supply-chain/purchase-orders?limit=50',
+      '/supply-chain/goods-receipts?limit=50',
+      '/supply-chain/warehouse-receipts?limit=50',
+      '/supply-chain/putaway-tasks?limit=50',
+      '/supply-chain/warehouse-allocations?limit=50',
+      '/supply-chain/picking-tasks?limit=50',
+      '/supply-chain/packing-tasks?limit=50',
+      '/supply-chain/dispatch-records?limit=50',
+      '/supply-chain/warehouse-returns?limit=50',
+      '/supply-chain/collective-purchase-groups?limit=50',
+      '/supply-chain/fulfillment-status-histories?limit=50',
+    ];
+    const results = await Promise.all(paths.map((path) => api(path)));
+    if (sequence !== state.sequences.supplyChain) return;
+    state.supplyChain = {
+      suppliers: results[0].data ?? [],
+      requisitions: results[1].data ?? [],
+      quotations: results[2].data ?? [],
+      orders: results[3].data ?? [],
+      receipts: results[4].data ?? [],
+      warehouseReceipts: results[5].data ?? [],
+      putaway: results[6].data ?? [],
+      allocations: results[7].data ?? [],
+      picking: results[8].data ?? [],
+      packing: results[9].data ?? [],
+      dispatch: results[10].data ?? [],
+      returns: results[11].data ?? [],
+      groups: results[12].data ?? [],
+      histories: results[13].data ?? [],
+    };
+    renderSupplyChain();
+  } catch (error) {
+    if (sequence !== state.sequences.supplyChain) return;
+    for (const selector of SC_TABLE_HOSTS) {
+      const host = $(selector);
+      if (host) host.innerHTML = errorState(error.message, 'data-sc-retry');
+    }
+    showToast('Gagal memuat rantai pasok', error.message, 'error');
+  }
+}
+
+function renderSupplyChain() {
+  const data = state.supplyChain;
+  if (!data) return;
+
+  const activeSuppliers = data.suppliers.filter((row) => row.status === 'active').length;
+  const activeRequisitions = data.requisitions.filter(
+    (row) => !['converted', 'cancelled', 'rejected'].includes(row.status),
+  ).length;
+  const activeOrders = data.orders.filter((row) =>
+    ['ordered', 'partially_received'].includes(row.status),
+  ).length;
+  const activeTasks =
+    data.putaway.filter((row) => ['pending', 'in_progress'].includes(row.status)).length +
+    data.picking.filter((row) => ['pending', 'in_progress'].includes(row.status)).length +
+    data.packing.filter((row) => ['pending', 'packing'].includes(row.status)).length;
+
+  scSetText('#sc-stat-suppliers', formatNumber(activeSuppliers));
+  scSetText('#sc-stat-requisitions', formatNumber(activeRequisitions));
+  scSetText('#sc-stat-orders', formatNumber(activeOrders));
+  scSetText('#sc-stat-fulfillment', formatNumber(activeTasks));
+  const summaryBadge = $('#sc-summary-badge');
+  if (summaryBadge) {
+    summaryBadge.hidden = activeTasks <= 0;
+    summaryBadge.textContent = `${formatNumber(activeTasks)} tugas aktif`;
+  }
+  scSetBadge('#sc-supplier-count', data.suppliers.length, 'supplier');
+  scSetBadge('#sc-requisition-count', data.requisitions.length, 'permintaan');
+  scSetBadge('#sc-quotation-count', data.quotations.length, 'penawaran');
+  scSetBadge('#sc-order-count', data.orders.length, 'order');
+  scSetBadge('#sc-receipt-count', data.receipts.length, 'penerimaan');
+  scSetBadge('#sc-warehouse-receipt-count', data.warehouseReceipts.length, 'penerimaan');
+  scSetBadge('#sc-putaway-count', data.putaway.length, 'tugas');
+  scSetBadge('#sc-allocation-count', data.allocations.length, 'alokasi');
+  scSetBadge('#sc-picking-count', data.picking.length, 'tugas');
+  scSetBadge('#sc-packing-count', data.packing.length, 'tugas');
+  scSetBadge('#sc-dispatch-count', data.dispatch.length, 'pengiriman');
+  scSetBadge('#sc-return-count', data.returns.length, 'retur');
+  scSetBadge('#sc-group-count', data.groups.length, 'grup');
+  scSetBadge('#sc-history-count', data.histories.length, 'riwayat');
+
+  scRenderTable(
+    '#sc-suppliers-table',
+    ['Supplier', 'Kontak', 'Termin', 'Status', 'Aksi'],
+    data.suppliers,
+    (row) => `
+      <tr>
+        <td>
+          <div class="cell-title">${escapeHtml(row.name)}</div>
+          <div class="cell-muted">${escapeHtml(row.code)} • ${escapeHtml(row.merchantName)}</div>
+        </td>
+        <td>
+          <div class="cell-title">${escapeHtml(row.contactName || '—')}</div>
+          <div class="cell-muted">${escapeHtml(row.contactEmail || row.contactPhone || row.city || '—')}</div>
+        </td>
+        <td>${formatNumber(row.paymentTermDays)} hari</td>
+        <td>${statusBadge(row.status)}</td>
+        <td>—</td>
+      </tr>
+    `,
+    'Belum ada supplier',
+    'Tambahkan supplier agar pengadaan dan purchase order dapat dibuat.',
+  );
+
+  scRenderTable(
+    '#sc-requisitions-table',
+    ['Permintaan', 'Pedagang', 'Prioritas', 'Status', 'Aksi'],
+    data.requisitions,
+    (row) => {
+      const actions = [];
+      if (row.status === 'draft' && state.canWriteSupplyChain) {
+        actions.push(
+          scButton('Ajukan', `data-sc-pr-submit="${escapeHtml(row.id)}"`),
+        );
+      }
+      if (row.status === 'submitted' && state.canManageSupplyChain) {
+        actions.push(
+          scButton('Setujui', `data-sc-pr-approve="${escapeHtml(row.id)}"`),
+        );
+      }
+      if (row.status === 'approved' && state.canManageSupplyChain) {
+        actions.push(
+          scButton('Penawaran', `data-sc-pr-quote="${escapeHtml(row.id)}"`),
+          scButton('Buat PO', `data-sc-pr-convert="${escapeHtml(row.id)}"`),
+        );
+      }
+      return `
+        <tr>
+          <td>
+            <div class="cell-title">${escapeHtml(row.requisitionNumber)}</div>
+            <div class="cell-muted">${escapeHtml(row.title)} • ${escapeHtml(formatDate(row.createdAt))}</div>
+          </td>
+          <td>
+            <div class="cell-title">${escapeHtml(row.merchantName)}</div>
+            <div class="cell-muted">${escapeHtml(row.requesterName || '—')}</div>
+          </td>
+          <td>${scPriority(row.priority)}</td>
+          <td>${statusBadge(row.status)}</td>
+          <td>${scActions(actions)}</td>
+        </tr>
+      `;
+    },
+    'Belum ada permintaan pembelian',
+    'Buat permintaan untuk memulai alur pengadaan.',
+  );
+
+  scRenderTable(
+    '#sc-quotations-table',
+    ['Penawaran', 'Supplier', 'Nilai', 'Status', 'Aksi'],
+    data.quotations,
+    (row) => {
+      const actions = [];
+      if (['requested'].includes(row.status) && state.canWriteSupplyChain) {
+        actions.push(scButton('Ajukan', `data-sc-quote-submit="${escapeHtml(row.id)}"`));
+      }
+      if (row.status === 'submitted' && state.canManageSupplyChain) {
+        actions.push(scButton('Terima', `data-sc-quote-accept="${escapeHtml(row.id)}"`));
+      }
+      if (row.status === 'accepted' && state.canManageSupplyChain) {
+        actions.push(scButton('Buat PO', `data-sc-quote-convert="${escapeHtml(row.id)}"`));
+      }
+      return `
+        <tr>
+          <td>
+            <div class="cell-title">${escapeHtml(row.quotationNumber)}</div>
+            <div class="cell-muted">${escapeHtml(row.merchantName)} • ${escapeHtml(formatDate(row.createdAt))}</div>
+          </td>
+          <td>${escapeHtml(row.supplierName)}</td>
+          <td>
+            <div class="cell-title">${formatMoney(row.grandTotal, row.currency)}</div>
+            <div class="cell-muted">Berlaku s.d. ${escapeHtml(formatDate(row.validUntil))}</div>
+          </td>
+          <td>${statusBadge(row.status)}</td>
+          <td>${scActions(actions)}</td>
+        </tr>
+      `;
+    },
+    'Belum ada penawaran supplier',
+    'Buat penawaran dari permintaan pembelian yang sudah disetujui.',
+  );
+
+  scRenderTable(
+    '#sc-orders-table',
+    ['Purchase order', 'Supplier', 'Nilai', 'Status', 'Aksi'],
+    data.orders,
+    (row) => {
+      const actions = [];
+      if (row.status === 'draft' && state.canWriteSupplyChain) {
+        actions.push(scButton('Ajukan', `data-sc-po-submit="${escapeHtml(row.id)}"`));
+      }
+      if (row.status === 'pending_approval' && state.canManageSupplyChain) {
+        actions.push(scButton('Setujui', `data-sc-po-approve="${escapeHtml(row.id)}"`));
+      }
+      if (row.status === 'approved' && state.canWriteSupplyChain) {
+        actions.push(scButton('Kirim', `data-sc-po-send="${escapeHtml(row.id)}"`));
+      }
+      if (['ordered', 'partially_received'].includes(row.status) && state.canManageSupplyChain) {
+        actions.push(scButton('Terima', `data-sc-po-receive="${escapeHtml(row.id)}"`));
+      }
+      if (row.status === 'received' && state.canManageSupplyChain) {
+        actions.push(scButton('Tutup', `data-sc-po-close="${escapeHtml(row.id)}"`));
+      }
+      if (['draft', 'pending_approval', 'approved'].includes(row.status) && state.canManageSupplyChain) {
+        actions.push(scButton('Batal', `data-sc-po-cancel="${escapeHtml(row.id)}"`));
+      }
+      return `
+        <tr>
+          <td>
+            <div class="cell-title">${escapeHtml(row.orderNumber)}</div>
+            <div class="cell-muted">${escapeHtml(row.merchantName)} • ${escapeHtml(formatDate(row.createdAt))}</div>
+          </td>
+          <td>
+            <div class="cell-title">${escapeHtml(row.supplierName)}</div>
+            <div class="cell-muted">ETA ${escapeHtml(formatDate(row.expectedDeliveryDate))}</div>
+          </td>
+          <td class="cell-nowrap">${formatMoney(row.grandTotal, row.currency)}</td>
+          <td>${statusBadge(row.status)}</td>
+          <td>${scActions(actions)}</td>
+        </tr>
+      `;
+    },
+    'Belum ada purchase order',
+    'Konversi permintaan atau penawaran supplier menjadi purchase order.',
+  );
+
+  scRenderTable(
+    '#sc-receipts-table',
+    ['Penerimaan', 'PO / Supplier', 'Status', 'Aksi'],
+    data.receipts,
+    (row) => `
+      <tr>
+        <td>
+          <div class="cell-title">${escapeHtml(row.receiptNumber)}</div>
+          <div class="cell-muted">${escapeHtml(row.merchantName)} • ${escapeHtml(formatDateTime(row.createdAt))}</div>
+        </td>
+        <td>
+          <div class="cell-title">${escapeHtml(row.purchaseOrderNumber || 'Tanpa PO')}</div>
+          <div class="cell-muted">${escapeHtml(row.supplierName || '—')}</div>
+        </td>
+        <td>${statusBadge(row.status)}</td>
+        <td>${scActions([
+          row.status === 'draft' && state.canWriteSupplyChain
+            ? scButton('Selesaikan', `data-sc-gr-complete="${escapeHtml(row.id)}"`)
+            : '',
+        ])}</td>
+      </tr>
+    `,
+    'Belum ada penerimaan barang',
+    'Penerimaan dibuat dari purchase order yang sudah dikirim.',
+  );
+
+  scRenderTable(
+    '#sc-warehouse-receipts-table',
+    ['Penerimaan', 'Gudang', 'Kuantitas', 'Status', 'Aksi'],
+    data.warehouseReceipts,
+    (row) => `
+      <tr>
+        <td>
+          <div class="cell-title">${escapeHtml(row.receiptNumber)}</div>
+          <div class="cell-muted">${escapeHtml(row.merchantName)} • ${escapeHtml(formatDateTime(row.createdAt))}</div>
+        </td>
+        <td>
+          <div class="cell-title">${escapeHtml(row.warehouseName)}</div>
+          <div class="cell-muted">Sumber ${escapeHtml(row.source || '—')}</div>
+        </td>
+        <td>
+          <div class="cell-title">${formatNumber(row.receivedQuantity)} / ${formatNumber(row.expectedQuantity)}</div>
+        </td>
+        <td>${statusBadge(row.status)}</td>
+        <td>—</td>
+      </tr>
+    `,
+    'Belum ada penerimaan gudang',
+    'Penerimaan gudang dibuat otomatis saat barang diterima dari supplier.',
+  );
+
+  scRenderTable(
+    '#sc-putaway-table',
+    ['Tugas', 'Barang', 'Tujuan', 'Status', 'Aksi'],
+    data.putaway,
+    (row) => `
+      <tr>
+        <td>
+          <div class="cell-title">${escapeHtml(row.taskNumber)}</div>
+          <div class="cell-muted">${escapeHtml(row.warehouseName)} • ${escapeHtml(formatDateTime(row.createdAt))}</div>
+        </td>
+        <td>
+          <div class="cell-title">${escapeHtml(row.inventoryItemName)}</div>
+          <div class="cell-muted">${formatNumber(row.quantity)} unit • batch ${escapeHtml(row.batchNumber || '—')}</div>
+        </td>
+        <td>${escapeHtml(shortId(row.destinationLocationId))}</td>
+        <td>${statusBadge(row.status)}</td>
+        <td>${scActions([
+          ['pending', 'in_progress'].includes(row.status) && state.canWriteSupplyChain
+            ? scButton('Proses', `data-sc-putaway-process="${escapeHtml(row.id)}"`)
+            : '',
+        ])}</td>
+      </tr>
+    `,
+    'Belum ada tugas put-away',
+    'Tugas put-away dibuat otomatis setelah penerimaan barang selesai.',
+  );
+
+  scRenderTable(
+    '#sc-allocations-table',
+    ['Alokasi', 'Barang', 'Jumlah', 'Status', 'Aksi'],
+    data.allocations,
+    (row) => `
+      <tr>
+        <td>
+          <div class="cell-title">${escapeHtml(row.allocationNumber)}</div>
+          <div class="cell-muted">${escapeHtml(row.warehouseName)} • ${escapeHtml(row.orderNumber || 'Tanpa order')}</div>
+        </td>
+        <td>
+          <div class="cell-title">${escapeHtml(row.inventoryItemName)}</div>
+          <div class="cell-muted">${escapeHtml(row.merchantName)}</div>
+        </td>
+        <td>${formatNumber(row.quantity)}</td>
+        <td>${statusBadge(row.status)}</td>
+        <td>${scActions([
+          row.status === 'allocated' && state.canWriteSupplyChain
+            ? scButton('Lepas', `data-sc-alloc-release="${escapeHtml(row.id)}"`)
+            : '',
+        ])}</td>
+      </tr>
+    `,
+    'Belum ada alokasi gudang',
+    'Alokasikan stok untuk mereservasi barang sebelum picking.',
+  );
+
+  scRenderTable(
+    '#sc-picking-table',
+    ['Picking', 'Gudang', 'Prioritas', 'Status', 'Aksi'],
+    data.picking,
+    (row) => `
+      <tr>
+        <td>
+          <div class="cell-title">${escapeHtml(row.taskNumber)}</div>
+          <div class="cell-muted">${escapeHtml(row.orderNumber || row.merchantName)}</div>
+        </td>
+        <td>${escapeHtml(row.warehouseName)}</td>
+        <td>${scPriority(row.priority)}</td>
+        <td>${statusBadge(row.status)}</td>
+        <td>${scActions([
+          row.status === 'pending' && state.canWriteSupplyChain
+            ? scButton('Mulai', `data-sc-pick-start="${escapeHtml(row.id)}"`)
+            : '',
+          row.status === 'in_progress' && state.canWriteSupplyChain
+            ? scButton('Selesai', `data-sc-pick-complete="${escapeHtml(row.id)}"`)
+            : '',
+          row.status === 'picked' && state.canManageSupplyChain
+            ? scButton('Packing', `data-sc-pick-pack="${escapeHtml(row.id)}"`)
+            : '',
+        ])}</td>
+      </tr>
+    `,
+    'Belum ada tugas picking',
+    'Buat picking dari alokasi gudang yang masih aktif.',
+  );
+
+  scRenderTable(
+    '#sc-packing-table',
+    ['Packing', 'Gudang', 'Paket', 'Status', 'Aksi'],
+    data.packing,
+    (row) => `
+      <tr>
+        <td>
+          <div class="cell-title">${escapeHtml(row.taskNumber)}</div>
+          <div class="cell-muted">${escapeHtml(row.orderNumber || row.merchantName)}</div>
+        </td>
+        <td>${escapeHtml(row.warehouseName)}</td>
+        <td>
+          <div class="cell-title">${formatNumber(row.packageCount)} paket</div>
+          <div class="cell-muted">${row.weightGram ? `${formatNumber(row.weightGram)} gram` : 'Berat belum diisi'}</div>
+        </td>
+        <td>${statusBadge(row.status)}</td>
+        <td>${scActions([
+          row.status === 'pending' && state.canWriteSupplyChain
+            ? scButton('Mulai', `data-sc-pack-start="${escapeHtml(row.id)}"`)
+            : '',
+          row.status === 'packing' && state.canWriteSupplyChain
+            ? scButton('Selesai', `data-sc-pack-complete="${escapeHtml(row.id)}"`)
+            : '',
+          row.status === 'packed' && state.canManageSupplyChain
+            ? scButton('Kirim', `data-sc-pack-dispatch="${escapeHtml(row.id)}"`)
+            : '',
+        ])}</td>
+      </tr>
+    `,
+    'Belum ada tugas packing',
+    'Buat packing dari tugas picking yang sudah selesai.',
+  );
+
+  scRenderTable(
+    '#sc-dispatch-table',
+    ['Pengiriman', 'Kurir', 'Status', 'Aksi'],
+    data.dispatch,
+    (row) => `
+      <tr>
+        <td>
+          <div class="cell-title">${escapeHtml(row.dispatchNumber)}</div>
+          <div class="cell-muted">${escapeHtml(row.warehouseName)} • ${escapeHtml(row.orderNumber || row.merchantName)}</div>
+        </td>
+        <td>
+          <div class="cell-title">${escapeHtml(row.courierName || '—')}</div>
+          <div class="cell-muted">${escapeHtml(row.trackingNumber || 'Tanpa resi')}</div>
+        </td>
+        <td>${statusBadge(row.status)}</td>
+        <td>${scActions([
+          row.status === 'pending' && state.canWriteSupplyChain
+            ? scButton('Berangkat', `data-sc-dispatch-send="${escapeHtml(row.id)}"`)
+            : '',
+          ['dispatched', 'in_transit'].includes(row.status) && state.canWriteSupplyChain
+            ? scButton('Terkirim', `data-sc-dispatch-deliver="${escapeHtml(row.id)}"`)
+            : '',
+        ])}</td>
+      </tr>
+    `,
+    'Belum ada pengiriman',
+    'Buat pengiriman dari paket yang sudah selesai dipacking.',
+  );
+
+  scRenderTable(
+    '#sc-returns-table',
+    ['Retur', 'Alasan', 'Jumlah', 'Status', 'Aksi'],
+    data.returns,
+    (row) => `
+      <tr>
+        <td>
+          <div class="cell-title">${escapeHtml(row.returnNumber)}</div>
+          <div class="cell-muted">${escapeHtml(row.warehouseName)} • ${escapeHtml(row.orderNumber || row.merchantName)}</div>
+        </td>
+        <td>${escapeHtml(row.reason)}</td>
+        <td>${formatNumber(row.quantity)}</td>
+        <td>${statusBadge(row.status)}</td>
+        <td>${scActions([
+          row.status === 'requested' && state.canManageSupplyChain
+            ? scButton('Setujui', `data-sc-return-approve="${escapeHtml(row.id)}"`)
+            : '',
+          row.status === 'approved' && state.canWriteSupplyChain
+            ? scButton('Terima', `data-sc-return-receive="${escapeHtml(row.id)}"`)
+            : '',
+          row.status === 'received' && state.canWriteSupplyChain
+            ? scButton('Restock', `data-sc-return-restock="${escapeHtml(row.id)}"`)
+            : '',
+          ['requested', 'approved'].includes(row.status) && state.canManageSupplyChain
+            ? scButton('Tolak', `data-sc-return-reject="${escapeHtml(row.id)}"`)
+            : '',
+        ])}</td>
+      </tr>
+    `,
+    'Belum ada retur gudang',
+    'Catat retur pelanggan atau barang yang kembali ke gudang.',
+  );
+
+  scRenderTable(
+    '#sc-groups-table',
+    ['Grup', 'Target', 'Harga target', 'Status', 'Aksi'],
+    data.groups,
+    (row) => `
+      <tr>
+        <td>
+          <div class="cell-title">${escapeHtml(row.groupNumber)}</div>
+          <div class="cell-muted">${escapeHtml(row.title)} • ${escapeHtml(row.merchantName)}</div>
+        </td>
+        <td>
+          <div class="cell-title">${formatNumber(row.currentQuantity)} / ${formatNumber(row.targetQuantity)} ${escapeHtml(row.unit)}</div>
+          <div class="cell-muted">Tutup ${escapeHtml(formatDateTime(row.closesAt))}</div>
+        </td>
+        <td>${formatMoney(row.targetPrice)} / ${escapeHtml(row.unit)}</td>
+        <td>${statusBadge(row.status)}</td>
+        <td>${scActions([
+          row.status === 'open' && state.canManageSupplyChain
+            ? scButton('Tutup', `data-sc-group-close="${escapeHtml(row.id)}"`)
+            : '',
+        ])}</td>
+      </tr>
+    `,
+    'Belum ada grup pembelian',
+    'Buat grup pembelian kolektif untuk menyatukan kebutuhan merchant.',
+  );
+
+  scRenderTable(
+    '#sc-history-table',
+    ['Waktu', 'Entitas', 'Perubahan status', 'Catatan'],
+    data.histories,
+    (row) => `
+      <tr>
+        <td>
+          <div class="cell-title">${escapeHtml(formatDateTime(row.createdAt))}</div>
+          <div class="cell-muted">${escapeHtml(row.changedByName || 'Sistem')}</div>
+        </td>
+        <td>
+          <div class="cell-title">${escapeHtml(entityLabel(row.entityType))}</div>
+          <div class="cell-muted">${escapeHtml(shortId(row.entityId))}</div>
+        </td>
+        <td>
+          <div class="cell-title">${escapeHtml(row.fromStatus ? statusLabel(row.fromStatus) : 'Awal')} → ${escapeHtml(statusLabel(row.toStatus))}</div>
+        </td>
+        <td>${escapeHtml(row.note || '—')}</td>
+      </tr>
+    `,
+    'Belum ada riwayat fulfillment',
+    'Riwayat muncul saat put-away, picking, packing, pengiriman, atau retur berubah status.',
+  );
+}
+
+async function scRunAction(path, successTitle, options = {}) {
+  try {
+    await api(path, {
+      method: options.method ?? 'POST',
+      body: options.body ?? {},
+    });
+    showToast(successTitle);
+    await loadSupplyChain(true);
+  } catch (error) {
+    showToast('Aksi gagal', error.message, 'error');
+  }
+}
+
+/* ---------------------- Supply chain modal helpers --------------------- */
+
+async function openScSupplierModal() {
+  openModal({
+    title: 'Supplier baru',
+    kicker: 'Rantai pasok',
+    subtitle: 'Memuat pedagang...',
+    body: tableLoading(4),
+  });
+  try {
+    const merchants = (await api('/merchants?limit=100')).data ?? [];
+    if (!merchants.length) {
+      closeModal();
+      showToast('Data belum tersedia', 'Tambahkan pedagang terlebih dahulu.', 'error');
+      return;
+    }
+    const modal = openModal({
+      title: 'Supplier baru',
+      kicker: 'Rantai pasok',
+      subtitle: 'Supplier terikat pada satu pedagang dan digunakan oleh pengadaan.',
+      body: `
+        <form id="sc-supplier-form" class="form-grid">
+          <label class="field field-span">
+            <span>Pedagang *</span>
+            <select name="merchantId" required>${inventoryMerchantOptions(merchants)}</select>
+          </label>
+          <label class="field field-span">
+            <span>Nama supplier *</span>
+            <input name="name" required minlength="2" maxlength="255" placeholder="Contoh: PT Sumber Pangan" />
+          </label>
+          <label class="field">
+            <span>Nama kontak</span>
+            <input name="contactName" maxlength="255" />
+          </label>
+          <label class="field">
+            <span>Email</span>
+            <input name="contactEmail" type="email" maxlength="255" />
+          </label>
+          <label class="field">
+            <span>Telepon</span>
+            <input name="contactPhone" maxlength="32" />
+          </label>
+          <label class="field">
+            <span>Kota</span>
+            <input name="city" maxlength="120" />
+          </label>
+          <label class="field">
+            <span>Termin (hari)</span>
+            <input name="paymentTermDays" type="number" min="0" max="3650" value="0" />
+          </label>
+          <label class="field">
+            <span>Status</span>
+            <select name="status">
+              <option value="active">Aktif</option>
+              <option value="inactive">Nonaktif</option>
+              <option value="suspended">Ditangguhkan</option>
+            </select>
+          </label>
+          <label class="field field-span">
+            <span>Alamat</span>
+            <textarea name="address" rows="2" maxlength="2000"></textarea>
+          </label>
+        </form>
+      `,
+      footer: `
+        <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+        <button class="button button-primary" type="submit" form="sc-supplier-form" id="sc-supplier-submit">${icon('check')} Simpan supplier</button>
+      `,
+    });
+    const form = modal.querySelector('#sc-supplier-form');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const submit = modal.querySelector('#sc-supplier-submit');
+      submit.disabled = true;
+      try {
+        await api('/supply-chain/suppliers', {
+          method: 'POST',
+          body: {
+            merchantId: String(data.get('merchantId') ?? ''),
+            name: String(data.get('name') ?? '').trim(),
+            contactName: String(data.get('contactName') ?? '').trim() || undefined,
+            contactEmail: String(data.get('contactEmail') ?? '').trim() || undefined,
+            contactPhone: String(data.get('contactPhone') ?? '').trim() || undefined,
+            city: String(data.get('city') ?? '').trim() || undefined,
+            paymentTermDays: Number(data.get('paymentTermDays') ?? 0),
+            status: String(data.get('status') ?? 'active'),
+            address: String(data.get('address') ?? '').trim() || undefined,
+          },
+        });
+        closeModal();
+        showToast('Supplier dibuat');
+        await loadSupplyChain(true);
+      } catch (error) {
+        submit.disabled = false;
+        showToast('Gagal menyimpan', error.message, 'error');
+      }
+    });
+  } catch (error) {
+    closeModal();
+    showToast('Gagal memuat data', error.message, 'error');
+  }
+}
+
+async function openScRequisitionModal() {
+  openModal({
+    title: 'Permintaan pembelian',
+    kicker: 'Pengadaan',
+    subtitle: 'Memuat pedagang, gudang, dan item...',
+    body: tableLoading(4),
+  });
+  try {
+    const { merchants, warehouses, items } = await scCommonData();
+    if (!merchants.length) {
+      closeModal();
+      showToast('Data belum tersedia', 'Tambahkan pedagang terlebih dahulu.', 'error');
+      return;
+    }
+    const firstMerchant = merchants[0].id;
+    const modal = openModal({
+      title: 'Permintaan pembelian',
+      kicker: 'Pengadaan',
+      subtitle: 'Permintaan berisi satu baris item; dapat diajukan dan disetujui sebelum menjadi PO.',
+      wide: true,
+      body: `
+        <form id="sc-requisition-form" class="form-grid">
+          <label class="field">
+            <span>Pedagang *</span>
+            <select name="merchantId" id="sc-pr-merchant" required>${inventoryMerchantOptions(merchants, firstMerchant)}</select>
+          </label>
+          <label class="field">
+            <span>Gudang tujuan</span>
+            <select name="warehouseId" id="sc-pr-warehouse">${inventoryWarehouseOptions(warehouses, '', firstMerchant)}</select>
+          </label>
+          <label class="field field-span">
+            <span>Judul permintaan *</span>
+            <input name="title" required minlength="3" maxlength="255" placeholder="Contoh: Bahan baku minggu ini" />
+          </label>
+          <label class="field">
+            <span>Prioritas</span>
+            <select name="priority">
+              <option value="normal">Normal</option>
+              <option value="low">Rendah</option>
+              <option value="high">Tinggi</option>
+              <option value="urgent">Mendesak</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Dibutuhkan sebelum</span>
+            <input name="neededBy" type="date" />
+          </label>
+          <label class="field">
+            <span>Item persediaan</span>
+            <select name="inventoryItemId" id="sc-pr-item">${inventoryItemOptions(items, firstMerchant)}</select>
+          </label>
+          <label class="field">
+            <span>Jumlah *</span>
+            <input name="quantity" type="number" min="0.001" step="0.001" required value="1" />
+          </label>
+          <label class="field">
+            <span>Estimasi harga satuan</span>
+            <input name="estimatedUnitPrice" type="number" min="0" step="0.01" value="0" />
+          </label>
+          <label class="field field-span">
+            <span>Deskripsi item *</span>
+            <input name="description" id="sc-pr-description" required minlength="2" maxlength="500" placeholder="Nama bahan atau barang" />
+          </label>
+          <label class="field field-span">
+            <span>Catatan</span>
+            <textarea name="notes" rows="2" maxlength="2000"></textarea>
+          </label>
+        </form>
+      `,
+      footer: `
+        <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+        <button class="button button-primary" type="submit" form="sc-requisition-form" id="sc-pr-submit">${icon('check')} Simpan permintaan</button>
+      `,
+    });
+    const form = modal.querySelector('#sc-requisition-form');
+    const merchantSelect = modal.querySelector('#sc-pr-merchant');
+    const warehouseSelect = modal.querySelector('#sc-pr-warehouse');
+    const itemSelect = modal.querySelector('#sc-pr-item');
+    const descriptionInput = modal.querySelector('#sc-pr-description');
+    const refreshMerchant = () => {
+      warehouseSelect.innerHTML = inventoryWarehouseOptions(warehouses, '', merchantSelect.value);
+      itemSelect.innerHTML = inventoryItemOptions(items, merchantSelect.value);
+    };
+    merchantSelect.addEventListener('change', refreshMerchant);
+    itemSelect.addEventListener('change', () => {
+      const item = items.find((row) => row.id === itemSelect.value);
+      if (item && !descriptionInput.value.trim()) descriptionInput.value = item.productName ?? '';
+    });
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const submit = modal.querySelector('#sc-pr-submit');
+      const itemId = String(data.get('inventoryItemId') ?? '');
+      const selectedItem = items.find((row) => row.id === itemId);
+      const description =
+        String(data.get('description') ?? '').trim() || selectedItem?.productName || '';
+      if (!description) {
+        showToast('Data belum lengkap', 'Pilih item atau isi deskripsi item.', 'error');
+        return;
+      }
+      submit.disabled = true;
+      try {
+        await api('/supply-chain/purchase-requisitions', {
+          method: 'POST',
+          body: {
+            merchantId: merchantSelect.value,
+            warehouseId: warehouseSelect.value || undefined,
+            title: String(data.get('title') ?? '').trim(),
+            priority: String(data.get('priority') ?? 'normal'),
+            neededBy: String(data.get('neededBy') ?? '').trim() || undefined,
+            notes: String(data.get('notes') ?? '').trim() || undefined,
+            items: [
+              {
+                inventoryItemId: itemId || undefined,
+                description,
+                quantity: String(data.get('quantity') ?? '0'),
+                estimatedUnitPrice: String(data.get('estimatedUnitPrice') ?? '0'),
+              },
+            ],
+          },
+        });
+        closeModal();
+        showToast('Permintaan pembelian dibuat');
+        await loadSupplyChain(true);
+      } catch (error) {
+        submit.disabled = false;
+        showToast('Gagal menyimpan', error.message, 'error');
+      }
+    });
+  } catch (error) {
+    closeModal();
+    showToast('Gagal memuat data', error.message, 'error');
+  }
+}
+
+async function openScQuotationModal(requisitionId) {
+  openModal({
+    title: 'Penawaran supplier',
+    kicker: 'Pengadaan',
+    subtitle: 'Memuat detail permintaan...',
+    body: tableLoading(4),
+  });
+  try {
+    const requisitionResult = await api(`/supply-chain/purchase-requisitions/${requisitionId}`);
+    const requisition = requisitionResult.data;
+    const supplierResult = await api(
+      `/supply-chain/supplier-options?merchantId=${encodeURIComponent(requisition.merchantId)}`,
+    );
+    const suppliers = supplierResult.data ?? [];
+    if (!suppliers.length) {
+      closeModal();
+      showToast('Supplier belum ada', 'Tambahkan supplier untuk pedagang ini terlebih dahulu.', 'error');
+      return;
+    }
+    const lines = requisition.items ?? [];
+    if (!lines.length) {
+      closeModal();
+      showToast('Permintaan kosong', 'Permintaan tidak memiliki item.', 'error');
+      return;
+    }
+    const modal = openModal({
+      title: 'Penawaran supplier',
+      kicker: 'Pengadaan',
+      subtitle: `${requisition.requisitionNumber} • ${requisition.merchantName}`,
+      wide: true,
+      body: `
+        <form id="sc-quotation-form" class="form-grid">
+          <label class="field field-span">
+            <span>Supplier *</span>
+            <select name="supplierId" required>${scSupplierOptions(suppliers)}</select>
+          </label>
+          <label class="field">
+            <span>Berlaku sampai</span>
+            <input name="validUntil" type="date" />
+          </label>
+          <label class="field">
+            <span>Termin pembayaran (hari)</span>
+            <input name="paymentTermDays" type="number" min="0" max="3650" value="0" />
+          </label>
+          <label class="field">
+            <span>Estimasi pengiriman (hari)</span>
+            <input name="deliveryDays" type="number" min="0" max="3650" />
+          </label>
+          <label class="field field-span">
+            <span>Catatan</span>
+            <textarea name="notes" rows="2" maxlength="2000"></textarea>
+          </label>
+          <div class="field field-span">
+            <span>Item penawaran</span>
+            <div class="cell-muted">${lines.map((line) => `${escapeHtml(line.description)} • ${formatNumber(line.quantity)} × ${formatMoney(line.estimatedUnitPrice)}`).join('<br />')}</div>
+          </div>
+        </form>
+      `,
+      footer: `
+        <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+        <button class="button button-primary" type="submit" form="sc-quotation-form" id="sc-quotation-submit">${icon('check')} Simpan penawaran</button>
+      `,
+    });
+    const form = modal.querySelector('#sc-quotation-form');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const submit = modal.querySelector('#sc-quotation-submit');
+      submit.disabled = true;
+      try {
+        await api('/supply-chain/supplier-quotations', {
+          method: 'POST',
+          body: {
+            merchantId: requisition.merchantId,
+            supplierId: String(data.get('supplierId') ?? ''),
+            requisitionId,
+            validUntil: String(data.get('validUntil') ?? '').trim() || undefined,
+            paymentTermDays: Number(data.get('paymentTermDays') ?? 0),
+            deliveryDays: String(data.get('deliveryDays') ?? '').trim()
+              ? Number(data.get('deliveryDays'))
+              : undefined,
+            notes: String(data.get('notes') ?? '').trim() || undefined,
+            items: lines.map((line) => ({
+              inventoryItemId: line.inventoryItemId ?? undefined,
+              description: line.description,
+              quantity: line.quantity,
+              unitPrice: line.estimatedUnitPrice ?? '0',
+            })),
+          },
+        });
+        closeModal();
+        showToast('Penawaran supplier dibuat');
+        await loadSupplyChain(true);
+      } catch (error) {
+        submit.disabled = false;
+        showToast('Gagal menyimpan', error.message, 'error');
+      }
+    });
+  } catch (error) {
+    closeModal();
+    showToast('Gagal memuat data', error.message, 'error');
+  }
+}
+
+async function openScConvertRequisitionModal(requisitionId) {
+  const requisition = state.supplyChain?.requisitions.find((row) => row.id === requisitionId);
+  if (!requisition) return;
+  openModal({
+    title: 'Buat purchase order',
+    kicker: 'Pengadaan',
+    subtitle: 'Memuat supplier dan gudang...',
+    body: tableLoading(4),
+  });
+  try {
+    const [{ warehouses }, suppliersResult] = await Promise.all([
+      scCommonData(),
+      api(`/supply-chain/supplier-options?merchantId=${encodeURIComponent(requisition.merchantId)}`),
+    ]);
+    const suppliers = suppliersResult.data ?? [];
+    if (!suppliers.length) {
+      closeModal();
+      showToast('Supplier belum ada', 'Tambahkan supplier untuk pedagang ini terlebih dahulu.', 'error');
+      return;
+    }
+    const modal = openModal({
+      title: 'Buat purchase order',
+      kicker: 'Pengadaan',
+      subtitle: `${requisition.requisitionNumber} • ${requisition.title}`,
+      body: `
+        <form id="sc-convert-pr-form" class="form-grid">
+          <label class="field field-span">
+            <span>Supplier *</span>
+            <select name="supplierId" required>${scSupplierOptions(suppliers)}</select>
+          </label>
+          <label class="field field-span">
+            <span>Gudang tujuan</span>
+            <select name="warehouseId">${inventoryWarehouseOptions(warehouses, '', requisition.merchantId)}</select>
+          </label>
+          <label class="field">
+            <span>Perkiraan pengiriman</span>
+            <input name="expectedDeliveryDate" type="date" />
+          </label>
+          <label class="field">
+            <span>Termin pembayaran (hari)</span>
+            <input name="paymentTermDays" type="number" min="0" max="3650" value="0" />
+          </label>
+        </form>
+      `,
+      footer: `
+        <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+        <button class="button button-primary" type="submit" form="sc-convert-pr-form" id="sc-convert-pr-submit">${icon('check')} Buat PO</button>
+      `,
+    });
+    const form = modal.querySelector('#sc-convert-pr-form');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const submit = modal.querySelector('#sc-convert-pr-submit');
+      submit.disabled = true;
+      try {
+        await api(`/supply-chain/purchase-requisitions/${requisitionId}/convert`, {
+          method: 'POST',
+          body: {
+            supplierId: String(data.get('supplierId') ?? ''),
+            warehouseId: String(data.get('warehouseId') ?? '').trim() || undefined,
+            expectedDeliveryDate: String(data.get('expectedDeliveryDate') ?? '').trim() || undefined,
+            paymentTermDays: Number(data.get('paymentTermDays') ?? 0),
+          },
+        });
+        closeModal();
+        showToast('Purchase order dibuat');
+        await loadSupplyChain(true);
+      } catch (error) {
+        submit.disabled = false;
+        showToast('Gagal membuat PO', error.message, 'error');
+      }
+    });
+  } catch (error) {
+    closeModal();
+    showToast('Gagal memuat data', error.message, 'error');
+  }
+}
+
+async function openScConvertQuotationModal(quotationId) {
+  const quotation = state.supplyChain?.quotations.find((row) => row.id === quotationId);
+  if (!quotation) return;
+  openModal({
+    title: 'Buat PO dari penawaran',
+    kicker: 'Pengadaan',
+    subtitle: 'Memuat gudang...',
+    body: tableLoading(3),
+  });
+  try {
+    const warehouses = (await api('/inventory/warehouses?limit=100')).data ?? [];
+    const modal = openModal({
+      title: 'Buat PO dari penawaran',
+      kicker: 'Pengadaan',
+      subtitle: `${quotation.quotationNumber} • ${quotation.supplierName}`,
+      body: `
+        <form id="sc-convert-quotation-form" class="form-grid">
+          <label class="field field-span">
+            <span>Gudang tujuan</span>
+            <select name="warehouseId">${inventoryWarehouseOptions(warehouses, '', quotation.merchantId)}</select>
+          </label>
+          <label class="field field-span">
+            <span>Perkiraan pengiriman</span>
+            <input name="expectedDeliveryDate" type="date" />
+          </label>
+        </form>
+      `,
+      footer: `
+        <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+        <button class="button button-primary" type="submit" form="sc-convert-quotation-form" id="sc-convert-quotation-submit">${icon('check')} Buat PO</button>
+      `,
+    });
+    const form = modal.querySelector('#sc-convert-quotation-form');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const submit = modal.querySelector('#sc-convert-quotation-submit');
+      submit.disabled = true;
+      try {
+        await api(`/supply-chain/supplier-quotations/${quotationId}/convert`, {
+          method: 'POST',
+          body: {
+            warehouseId: String(data.get('warehouseId') ?? '').trim() || undefined,
+            expectedDeliveryDate: String(data.get('expectedDeliveryDate') ?? '').trim() || undefined,
+          },
+        });
+        closeModal();
+        showToast('Purchase order dibuat');
+        await loadSupplyChain(true);
+      } catch (error) {
+        submit.disabled = false;
+        showToast('Gagal membuat PO', error.message, 'error');
+      }
+    });
+  } catch (error) {
+    closeModal();
+    showToast('Gagal memuat data', error.message, 'error');
+  }
+}
+
+async function openScGoodsReceiptModal(orderId) {
+  openModal({
+    title: 'Penerimaan barang',
+    kicker: 'Gudang',
+    subtitle: 'Memuat purchase order...',
+    body: tableLoading(4),
+  });
+  try {
+    const orderResult = await api(`/supply-chain/purchase-orders/${orderId}`);
+    const order = orderResult.data;
+    const warehouses = (await api('/inventory/warehouses?limit=100')).data ?? [];
+    const merchantWarehouses = warehouses.filter((row) => row.merchantId === order.merchantId);
+    if (!merchantWarehouses.length) {
+      closeModal();
+      showToast('Gudang belum ada', 'Tambahkan gudang untuk pedagang ini terlebih dahulu.', 'error');
+      return;
+    }
+    const lines = (order.items ?? []).filter(
+      (line) => Number(line.quantity) - Number(line.receivedQuantity ?? 0) > 0,
+    );
+    if (!lines.length) {
+      closeModal();
+      showToast('Tidak ada sisa', 'Semua item purchase order sudah diterima.', 'error');
+      return;
+    }
+    const defaultWarehouse = merchantWarehouses.find((row) => row.id === order.warehouseId) ?? merchantWarehouses[0];
+    const modal = openModal({
+      title: 'Penerimaan barang',
+      kicker: 'Gudang',
+      subtitle: `${order.orderNumber} • ${order.supplierName}`,
+      wide: true,
+      body: `
+        <form id="sc-gr-form" class="form-grid">
+          <label class="field">
+            <span>Gudang *</span>
+            <select name="warehouseId" id="sc-gr-warehouse" required>${inventoryWarehouseOptions(merchantWarehouses, defaultWarehouse.id)}</select>
+          </label>
+          <label class="field">
+            <span>Lokasi penerimaan *</span>
+            <select name="warehouseLocationId" id="sc-gr-location" required></select>
+          </label>
+          <label class="field">
+            <span>Batch number</span>
+            <input name="batchNumber" maxlength="100" placeholder="Opsional" />
+          </label>
+          <label class="field">
+            <span>Catatan</span>
+            <input name="notes" maxlength="2000" placeholder="Kondisi barang" />
+          </label>
+          <div class="field field-span">
+            <span>Item diterima</span>
+            <div class="table-wrap">
+              <table class="table">
+                <thead><tr><th>Item</th><th>Sisa</th><th>Diterima</th><th>Ditolak</th></tr></thead>
+                <tbody>
+                  ${lines
+                    .map((line) => {
+                      const remaining = Number(line.quantity) - Number(line.receivedQuantity ?? 0);
+                      return `
+                        <tr data-sc-gr-line data-po-item="${escapeHtml(line.id)}" data-inventory-item="${escapeHtml(line.inventoryItemId || '')}" data-description="${escapeHtml(line.description)}" data-unit-cost="${escapeHtml(line.unitPrice ?? '0')}">
+                          <td>${escapeHtml(line.description)}</td>
+                          <td>${formatNumber(remaining)}</td>
+                          <td><input class="sc-gr-received" type="number" min="0" step="0.001" max="${remaining}" value="${remaining}" style="max-width: 110px;" /></td>
+                          <td><input class="sc-gr-rejected" type="number" min="0" step="0.001" value="0" style="max-width: 110px;" /></td>
+                        </tr>
+                      `;
+                    })
+                    .join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </form>
+      `,
+      footer: `
+        <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+        <button class="button button-primary" type="submit" form="sc-gr-form" id="sc-gr-submit">${icon('check')} Simpan penerimaan</button>
+      `,
+    });
+    const form = modal.querySelector('#sc-gr-form');
+    const locationSelect = modal.querySelector('#sc-gr-location');
+    const warehouseSelect = modal.querySelector('#sc-gr-warehouse');
+    const refreshLocations = async () => {
+      locationSelect.innerHTML = await inventoryLocationOptions(warehouseSelect.value);
+    };
+    warehouseSelect.addEventListener('change', () => {
+      void refreshLocations();
+    });
+    await refreshLocations();
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const submit = modal.querySelector('#sc-gr-submit');
+      const batchNumber = String(data.get('batchNumber') ?? '').trim() || undefined;
+      const items = [...form.querySelectorAll('[data-sc-gr-line]')]
+        .map((line) => {
+          const received = Number(line.querySelector('.sc-gr-received')?.value ?? 0);
+          const rejected = Number(line.querySelector('.sc-gr-rejected')?.value ?? 0);
+          if (received <= 0) return null;
+          return {
+            purchaseOrderItemId: line.dataset.poItem,
+            inventoryItemId: line.dataset.inventoryItem || undefined,
+            description: line.dataset.description,
+            quantityReceived: String(received),
+            quantityRejected: String(rejected || 0),
+            unitCost: line.dataset.unitCost || '0',
+            batchNumber,
+          };
+        })
+        .filter(Boolean);
+      if (!items.length) {
+        showToast('Belum ada item', 'Isi jumlah diterima lebih dari 0.', 'error');
+        return;
+      }
+      if (!locationSelect.value) {
+        showToast('Lokasi belum dipilih', 'Pilih lokasi penerimaan barang.', 'error');
+        return;
+      }
+      submit.disabled = true;
+      try {
+        await api('/supply-chain/goods-receipts', {
+          method: 'POST',
+          body: {
+            merchantId: order.merchantId,
+            warehouseId: warehouseSelect.value,
+            warehouseLocationId: locationSelect.value,
+            purchaseOrderId: order.id,
+            notes: String(data.get('notes') ?? '').trim() || undefined,
+            items,
+          },
+        });
+        closeModal();
+        showToast('Penerimaan barang dibuat');
+        await loadSupplyChain(true);
+      } catch (error) {
+        submit.disabled = false;
+        showToast('Gagal menyimpan', error.message, 'error');
+      }
+    });
+  } catch (error) {
+    closeModal();
+    showToast('Gagal memuat data', error.message, 'error');
+  }
+}
+
+async function openScPutawayModal(taskId) {
+  const task = state.supplyChain?.putaway.find((row) => row.id === taskId);
+  if (!task) return;
+  openModal({
+    title: 'Proses put-away',
+    kicker: 'Gudang',
+    subtitle: 'Memuat lokasi penyimpanan...',
+    body: tableLoading(3),
+  });
+  try {
+    const locations = await inventoryLocationOptions(task.warehouseId, task.destinationLocationId ?? '');
+    const modal = openModal({
+      title: 'Proses put-away',
+      kicker: 'Gudang',
+      subtitle: `${task.taskNumber} • ${task.inventoryItemName}`,
+      body: `
+        <form id="sc-putaway-form" class="form-grid">
+          <label class="field field-span">
+            <span>Lokasi tujuan *</span>
+            <select name="destinationLocationId" required>${locations}</select>
+          </label>
+          <div class="field field-span">
+            <div class="cell-muted">${formatNumber(task.quantity)} unit • batch ${escapeHtml(task.batchNumber || '—')}</div>
+          </div>
+        </form>
+      `,
+      footer: `
+        <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+        <button class="button button-primary" type="submit" form="sc-putaway-form" id="sc-putaway-submit">${icon('check')} Selesaikan put-away</button>
+      `,
+    });
+    const form = modal.querySelector('#sc-putaway-form');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const destinationLocationId = String(data.get('destinationLocationId') ?? '');
+      if (!destinationLocationId) {
+        showToast('Lokasi belum dipilih', 'Pilih lokasi tujuan penyimpanan.', 'error');
+        return;
+      }
+      const submit = modal.querySelector('#sc-putaway-submit');
+      submit.disabled = true;
+      try {
+        await api(`/supply-chain/putaway-tasks/${taskId}`, {
+          method: 'PATCH',
+          body: { destinationLocationId },
+        });
+        await api(`/supply-chain/putaway-tasks/${taskId}/complete`, { method: 'POST', body: {} });
+        closeModal();
+        showToast('Put-away selesai');
+        await loadSupplyChain(true);
+      } catch (error) {
+        submit.disabled = false;
+        showToast('Gagal memproses', error.message, 'error');
+      }
+    });
+  } catch (error) {
+    closeModal();
+    showToast('Gagal memuat data', error.message, 'error');
+  }
+}
+
+async function openScAllocationModal() {
+  openModal({
+    title: 'Alokasi gudang',
+    kicker: 'Gudang',
+    subtitle: 'Memuat data gudang...',
+    body: tableLoading(4),
+  });
+  try {
+    const { merchants, warehouses, items } = await scCommonData();
+    if (!warehouses.length || !items.length) {
+      closeModal();
+      showToast('Data belum tersedia', 'Tambahkan gudang dan item persediaan terlebih dahulu.', 'error');
+      return;
+    }
+    const firstMerchant = warehouses[0].merchantId;
+    const modal = openModal({
+      title: 'Alokasi gudang',
+      kicker: 'Gudang',
+      subtitle: 'Alokasi mereservasi stok untuk order sebelum picking.',
+      body: `
+        <form id="sc-allocation-form" class="form-grid">
+          <label class="field field-span">
+            <span>Pedagang *</span>
+            <select name="merchantId" id="sc-alloc-merchant" required>${inventoryMerchantOptions(merchants, firstMerchant)}</select>
+          </label>
+          <label class="field">
+            <span>Gudang *</span>
+            <select name="warehouseId" id="sc-alloc-warehouse" required>${inventoryWarehouseOptions(warehouses, '', firstMerchant)}</select>
+          </label>
+          <label class="field">
+            <span>Lokasi *</span>
+            <select name="warehouseLocationId" id="sc-alloc-location" required></select>
+          </label>
+          <label class="field field-span">
+            <span>Item *</span>
+            <select name="inventoryItemId" id="sc-alloc-item" required>${inventoryItemOptions(items, firstMerchant)}</select>
+          </label>
+          <label class="field">
+            <span>Jumlah *</span>
+            <input name="quantity" type="number" min="0.001" step="0.001" required value="1" />
+          </label>
+          <label class="field">
+            <span>Catatan</span>
+            <input name="notes" maxlength="2000" />
+          </label>
+        </form>
+      `,
+      footer: `
+        <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+        <button class="button button-primary" type="submit" form="sc-allocation-form" id="sc-alloc-submit">${icon('check')} Simpan alokasi</button>
+      `,
+    });
+    const form = modal.querySelector('#sc-allocation-form');
+    const merchantSelect = modal.querySelector('#sc-alloc-merchant');
+    const warehouseSelect = modal.querySelector('#sc-alloc-warehouse');
+    const locationSelect = modal.querySelector('#sc-alloc-location');
+    const itemSelect = modal.querySelector('#sc-alloc-item');
+    const refreshLocations = async () => {
+      locationSelect.innerHTML = await inventoryLocationOptions(warehouseSelect.value);
+    };
+    const refreshMerchant = async () => {
+      warehouseSelect.innerHTML = inventoryWarehouseOptions(warehouses, '', merchantSelect.value);
+      itemSelect.innerHTML = inventoryItemOptions(items, merchantSelect.value);
+      await refreshLocations();
+    };
+    merchantSelect.addEventListener('change', () => {
+      void refreshMerchant();
+    });
+    warehouseSelect.addEventListener('change', () => {
+      void refreshLocations();
+    });
+    await refreshLocations();
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const submit = modal.querySelector('#sc-alloc-submit');
+      if (!locationSelect.value) {
+        showToast('Lokasi belum dipilih', 'Pilih lokasi stok.', 'error');
+        return;
+      }
+      submit.disabled = true;
+      try {
+        await api('/supply-chain/warehouse-allocations', {
+          method: 'POST',
+          body: {
+            merchantId: merchantSelect.value,
+            warehouseId: warehouseSelect.value,
+            warehouseLocationId: locationSelect.value,
+            inventoryItemId: itemSelect.value,
+            quantity: String(data.get('quantity') ?? '0'),
+            notes: String(data.get('notes') ?? '').trim() || undefined,
+          },
+        });
+        closeModal();
+        showToast('Alokasi dibuat');
+        await loadSupplyChain(true);
+      } catch (error) {
+        submit.disabled = false;
+        showToast('Gagal menyimpan', error.message, 'error');
+      }
+    });
+  } catch (error) {
+    closeModal();
+    showToast('Gagal memuat data', error.message, 'error');
+  }
+}
+
+async function openScPickingModal(prefillAllocationId = '') {
+  openModal({
+    title: 'Tugas picking',
+    kicker: 'Gudang',
+    subtitle: 'Memuat alokasi aktif...',
+    body: tableLoading(3),
+  });
+  try {
+    const allocations = (await api('/supply-chain/warehouse-allocations?limit=100&status=allocated')).data ?? [];
+    if (!allocations.length) {
+      closeModal();
+      showToast('Belum ada alokasi', 'Buat alokasi gudang terlebih dahulu.', 'error');
+      return;
+    }
+    const selected = allocations.find((row) => row.id === prefillAllocationId) ?? allocations[0];
+    const modal = openModal({
+      title: 'Tugas picking',
+      kicker: 'Gudang',
+      subtitle: 'Picking mengambil barang dari lokasi alokasi.',
+      body: `
+        <form id="sc-picking-form" class="form-grid">
+          <label class="field field-span">
+            <span>Alokasi *</span>
+            <select name="allocationId" required>
+              ${allocations
+                .map(
+                  (row) =>
+                    `<option value="${escapeHtml(row.id)}" ${row.id === selected.id ? 'selected' : ''}>${escapeHtml(row.allocationNumber)} • ${escapeHtml(row.inventoryItemName)} • ${formatNumber(row.quantity)}</option>`,
+                )
+                .join('')}
+            </select>
+          </label>
+          <label class="field">
+            <span>Prioritas</span>
+            <select name="priority">
+              <option value="normal">Normal</option>
+              <option value="low">Rendah</option>
+              <option value="high">Tinggi</option>
+              <option value="urgent">Mendesak</option>
+            </select>
+          </label>
+          <label class="field field-span">
+            <span>Catatan</span>
+            <textarea name="notes" rows="2" maxlength="2000"></textarea>
+          </label>
+        </form>
+      `,
+      footer: `
+        <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+        <button class="button button-primary" type="submit" form="sc-picking-form" id="sc-picking-submit">${icon('check')} Buat picking</button>
+      `,
+    });
+    const form = modal.querySelector('#sc-picking-form');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const allocationId = String(data.get('allocationId') ?? '');
+      const allocation = allocations.find((row) => row.id === allocationId);
+      if (!allocation) return;
+      const submit = modal.querySelector('#sc-picking-submit');
+      submit.disabled = true;
+      try {
+        await api('/supply-chain/picking-tasks', {
+          method: 'POST',
+          body: {
+            merchantId: allocation.merchantId,
+            warehouseId: allocation.warehouseId,
+            allocationId,
+            priority: String(data.get('priority') ?? 'normal'),
+            notes: String(data.get('notes') ?? '').trim() || undefined,
+          },
+        });
+        closeModal();
+        showToast('Tugas picking dibuat');
+        await loadSupplyChain(true);
+      } catch (error) {
+        submit.disabled = false;
+        showToast('Gagal membuat picking', error.message, 'error');
+      }
+    });
+  } catch (error) {
+    closeModal();
+    showToast('Gagal memuat data', error.message, 'error');
+  }
+}
+
+async function openScPackingModal(prefillPickingId = '') {
+  openModal({
+    title: 'Tugas packing',
+    kicker: 'Gudang',
+    subtitle: 'Memuat picking selesai...',
+    body: tableLoading(3),
+  });
+  try {
+    const picking = (await api('/supply-chain/picking-tasks?limit=100&status=picked')).data ?? [];
+    if (!picking.length) {
+      closeModal();
+      showToast('Belum ada picking selesai', 'Selesaikan tugas picking terlebih dahulu.', 'error');
+      return;
+    }
+    const selected = picking.find((row) => row.id === prefillPickingId) ?? picking[0];
+    const modal = openModal({
+      title: 'Tugas packing',
+      kicker: 'Gudang',
+      subtitle: 'Packing menyiapkan paket sebelum pengiriman.',
+      body: `
+        <form id="sc-packing-form" class="form-grid">
+          <label class="field field-span">
+            <span>Picking *</span>
+            <select name="pickingTaskId" required>
+              ${picking
+                .map(
+                  (row) =>
+                    `<option value="${escapeHtml(row.id)}" ${row.id === selected.id ? 'selected' : ''}>${escapeHtml(row.taskNumber)} • ${escapeHtml(row.merchantName)}</option>`,
+                )
+                .join('')}
+            </select>
+          </label>
+          <label class="field">
+            <span>Jumlah paket *</span>
+            <input name="packageCount" type="number" min="1" max="1000" value="1" required />
+          </label>
+          <label class="field">
+            <span>Berat (gram)</span>
+            <input name="weightGram" type="number" min="0" />
+          </label>
+          <label class="field">
+            <span>Dimensi</span>
+            <input name="dimensions" maxlength="64" placeholder="Contoh: 20x20x15" />
+          </label>
+          <label class="field field-span">
+            <span>Catatan</span>
+            <textarea name="notes" rows="2" maxlength="2000"></textarea>
+          </label>
+        </form>
+      `,
+      footer: `
+        <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+        <button class="button button-primary" type="submit" form="sc-packing-form" id="sc-packing-submit">${icon('check')} Buat packing</button>
+      `,
+    });
+    const form = modal.querySelector('#sc-packing-form');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const pickingTaskId = String(data.get('pickingTaskId') ?? '');
+      const pickingRow = picking.find((row) => row.id === pickingTaskId);
+      if (!pickingRow) return;
+      const submit = modal.querySelector('#sc-packing-submit');
+      submit.disabled = true;
+      try {
+        await api('/supply-chain/packing-tasks', {
+          method: 'POST',
+          body: {
+            merchantId: pickingRow.merchantId,
+            warehouseId: pickingRow.warehouseId,
+            pickingTaskId,
+            packageCount: Number(data.get('packageCount') ?? 1),
+            weightGram: String(data.get('weightGram') ?? '').trim()
+              ? Number(data.get('weightGram'))
+              : undefined,
+            dimensions: String(data.get('dimensions') ?? '').trim() || undefined,
+            notes: String(data.get('notes') ?? '').trim() || undefined,
+          },
+        });
+        closeModal();
+        showToast('Tugas packing dibuat');
+        await loadSupplyChain(true);
+      } catch (error) {
+        submit.disabled = false;
+        showToast('Gagal membuat packing', error.message, 'error');
+      }
+    });
+  } catch (error) {
+    closeModal();
+    showToast('Gagal memuat data', error.message, 'error');
+  }
+}
+
+async function openScDispatchModal(prefillPackingId = '') {
+  openModal({
+    title: 'Pengiriman',
+    kicker: 'Gudang',
+    subtitle: 'Memuat paket siap kirim...',
+    body: tableLoading(3),
+  });
+  try {
+    const packing = (await api('/supply-chain/packing-tasks?limit=100&status=packed')).data ?? [];
+    if (!packing.length) {
+      closeModal();
+      showToast('Belum ada paket siap kirim', 'Selesaikan tugas packing terlebih dahulu.', 'error');
+      return;
+    }
+    const selected = packing.find((row) => row.id === prefillPackingId) ?? packing[0];
+    const modal = openModal({
+      title: 'Pengiriman',
+      kicker: 'Gudang',
+      subtitle: 'Catat pengiriman paket ke pelanggan.',
+      body: `
+        <form id="sc-dispatch-form" class="form-grid">
+          <label class="field field-span">
+            <span>Packing *</span>
+            <select name="packingTaskId" required>
+              ${packing
+                .map(
+                  (row) =>
+                    `<option value="${escapeHtml(row.id)}" ${row.id === selected.id ? 'selected' : ''}>${escapeHtml(row.taskNumber)} • ${escapeHtml(row.merchantName)}</option>`,
+                )
+                .join('')}
+            </select>
+          </label>
+          <label class="field">
+            <span>Kurir</span>
+            <input name="courierName" maxlength="255" />
+          </label>
+          <label class="field">
+            <span>Nomor resi</span>
+            <input name="trackingNumber" maxlength="128" />
+          </label>
+          <label class="field">
+            <span>Nomor kendaraan</span>
+            <input name="vehicleNumber" maxlength="64" />
+          </label>
+          <label class="field">
+            <span>Nama penerima</span>
+            <input name="recipientName" maxlength="255" />
+          </label>
+          <label class="field field-span">
+            <span>Catatan</span>
+            <textarea name="notes" rows="2" maxlength="2000"></textarea>
+          </label>
+        </form>
+      `,
+      footer: `
+        <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+        <button class="button button-primary" type="submit" form="sc-dispatch-form" id="sc-dispatch-submit">${icon('check')} Buat pengiriman</button>
+      `,
+    });
+    const form = modal.querySelector('#sc-dispatch-form');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const packingTaskId = String(data.get('packingTaskId') ?? '');
+      const packingRow = packing.find((row) => row.id === packingTaskId);
+      if (!packingRow) return;
+      const submit = modal.querySelector('#sc-dispatch-submit');
+      submit.disabled = true;
+      try {
+        await api('/supply-chain/dispatch-records', {
+          method: 'POST',
+          body: {
+            merchantId: packingRow.merchantId,
+            warehouseId: packingRow.warehouseId,
+            packingTaskId,
+            courierName: String(data.get('courierName') ?? '').trim() || undefined,
+            trackingNumber: String(data.get('trackingNumber') ?? '').trim() || undefined,
+            vehicleNumber: String(data.get('vehicleNumber') ?? '').trim() || undefined,
+            recipientName: String(data.get('recipientName') ?? '').trim() || undefined,
+            notes: String(data.get('notes') ?? '').trim() || undefined,
+          },
+        });
+        closeModal();
+        showToast('Pengiriman dibuat');
+        await loadSupplyChain(true);
+      } catch (error) {
+        submit.disabled = false;
+        showToast('Gagal membuat pengiriman', error.message, 'error');
+      }
+    });
+  } catch (error) {
+    closeModal();
+    showToast('Gagal memuat data', error.message, 'error');
+  }
+}
+
+async function openScReturnModal() {
+  openModal({
+    title: 'Retur gudang',
+    kicker: 'Gudang',
+    subtitle: 'Memuat data gudang...',
+    body: tableLoading(4),
+  });
+  try {
+    const { merchants, warehouses, items } = await scCommonData();
+    if (!warehouses.length) {
+      closeModal();
+      showToast('Gudang belum ada', 'Tambahkan gudang terlebih dahulu.', 'error');
+      return;
+    }
+    const firstMerchant = warehouses[0].merchantId;
+    const modal = openModal({
+      title: 'Retur gudang',
+      kicker: 'Gudang',
+      subtitle: 'Catat barang yang kembali ke gudang.',
+      body: `
+        <form id="sc-return-form" class="form-grid">
+          <label class="field field-span">
+            <span>Pedagang *</span>
+            <select name="merchantId" id="sc-return-merchant" required>${inventoryMerchantOptions(merchants, firstMerchant)}</select>
+          </label>
+          <label class="field">
+            <span>Gudang *</span>
+            <select name="warehouseId" id="sc-return-warehouse" required>${inventoryWarehouseOptions(warehouses, '', firstMerchant)}</select>
+          </label>
+          <label class="field">
+            <span>Lokasi *</span>
+            <select name="warehouseLocationId" id="sc-return-location" required></select>
+          </label>
+          <label class="field field-span">
+            <span>Item *</span>
+            <select name="inventoryItemId" id="sc-return-item" required>${inventoryItemOptions(items, firstMerchant)}</select>
+          </label>
+          <label class="field">
+            <span>Jumlah *</span>
+            <input name="quantity" type="number" min="0.001" step="0.001" required value="1" />
+          </label>
+          <label class="field field-span">
+            <span>Alasan *</span>
+            <input name="reason" required minlength="3" maxlength="2000" placeholder="Contoh: barang rusak dari pelanggan" />
+          </label>
+          <label class="field field-span">
+            <span>Catatan</span>
+            <textarea name="notes" rows="2" maxlength="2000"></textarea>
+          </label>
+        </form>
+      `,
+      footer: `
+        <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+        <button class="button button-primary" type="submit" form="sc-return-form" id="sc-return-submit">${icon('check')} Simpan retur</button>
+      `,
+    });
+    const form = modal.querySelector('#sc-return-form');
+    const merchantSelect = modal.querySelector('#sc-return-merchant');
+    const warehouseSelect = modal.querySelector('#sc-return-warehouse');
+    const locationSelect = modal.querySelector('#sc-return-location');
+    const itemSelect = modal.querySelector('#sc-return-item');
+    const refreshLocations = async () => {
+      locationSelect.innerHTML = await inventoryLocationOptions(warehouseSelect.value);
+    };
+    const refreshMerchant = async () => {
+      warehouseSelect.innerHTML = inventoryWarehouseOptions(warehouses, '', merchantSelect.value);
+      itemSelect.innerHTML = inventoryItemOptions(items, merchantSelect.value);
+      await refreshLocations();
+    };
+    merchantSelect.addEventListener('change', () => {
+      void refreshMerchant();
+    });
+    warehouseSelect.addEventListener('change', () => {
+      void refreshLocations();
+    });
+    await refreshLocations();
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      if (!locationSelect.value || !itemSelect.value) {
+        showToast('Data belum lengkap', 'Pilih lokasi dan item retur.', 'error');
+        return;
+      }
+      const submit = modal.querySelector('#sc-return-submit');
+      submit.disabled = true;
+      try {
+        await api('/supply-chain/warehouse-returns', {
+          method: 'POST',
+          body: {
+            merchantId: merchantSelect.value,
+            warehouseId: warehouseSelect.value,
+            warehouseLocationId: locationSelect.value,
+            inventoryItemId: itemSelect.value,
+            quantity: String(data.get('quantity') ?? '0'),
+            reason: String(data.get('reason') ?? '').trim(),
+            notes: String(data.get('notes') ?? '').trim() || undefined,
+          },
+        });
+        closeModal();
+        showToast('Retur gudang dibuat');
+        await loadSupplyChain(true);
+      } catch (error) {
+        submit.disabled = false;
+        showToast('Gagal menyimpan retur', error.message, 'error');
+      }
+    });
+  } catch (error) {
+    closeModal();
+    showToast('Gagal memuat data', error.message, 'error');
+  }
+}
+
+async function openScGroupModal() {
+  openModal({
+    title: 'Grup pembelian kolektif',
+    kicker: 'Pengadaan',
+    subtitle: 'Memuat pedagang...',
+    body: tableLoading(3),
+  });
+  try {
+    const merchants = (await api('/merchants?limit=100')).data ?? [];
+    if (!merchants.length) {
+      closeModal();
+      showToast('Pedagang belum ada', 'Tambahkan pedagang terlebih dahulu.', 'error');
+      return;
+    }
+    const firstMerchant = merchants[0].id;
+    const modal = openModal({
+      title: 'Grup pembelian kolektif',
+      kicker: 'Pengadaan',
+      subtitle: 'Gabungkan kebutuhan pembelian untuk mendapatkan harga lebih baik.',
+      body: `
+        <form id="sc-group-form" class="form-grid">
+          <label class="field">
+            <span>Pedagang *</span>
+            <select name="merchantId" id="sc-group-merchant" required>${inventoryMerchantOptions(merchants, firstMerchant)}</select>
+          </label>
+          <label class="field">
+            <span>Supplier</span>
+            <select name="supplierId" id="sc-group-supplier"><option value="">Pilih supplier</option></select>
+          </label>
+          <label class="field field-span">
+            <span>Judul *</span>
+            <input name="title" required minlength="3" maxlength="255" placeholder="Contoh: Pembelian minyak goreng bersama" />
+          </label>
+          <label class="field">
+            <span>Target jumlah *</span>
+            <input name="targetQuantity" type="number" min="0.001" step="0.001" required value="1" />
+          </label>
+          <label class="field">
+            <span>Satuan</span>
+            <input name="unit" maxlength="32" value="pcs" />
+          </label>
+          <label class="field">
+            <span>Harga target</span>
+            <input name="targetPrice" type="number" min="0" step="0.01" value="0" />
+          </label>
+          <label class="field">
+            <span>Ditutup pada</span>
+            <input name="closesAt" type="datetime-local" />
+          </label>
+          <label class="field field-span">
+            <span>Deskripsi</span>
+            <textarea name="description" rows="2" maxlength="2000"></textarea>
+          </label>
+        </form>
+      `,
+      footer: `
+        <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+        <button class="button button-primary" type="submit" form="sc-group-form" id="sc-group-submit">${icon('check')} Simpan grup</button>
+      `,
+    });
+    const form = modal.querySelector('#sc-group-form');
+    const merchantSelect = modal.querySelector('#sc-group-merchant');
+    const supplierSelect = modal.querySelector('#sc-group-supplier');
+    const refreshSuppliers = async () => {
+      supplierSelect.innerHTML = '<option value="">Pilih supplier</option>';
+      if (!merchantSelect.value) return;
+      const result = await api(
+        `/supply-chain/supplier-options?merchantId=${encodeURIComponent(merchantSelect.value)}`,
+      );
+      supplierSelect.innerHTML = scSupplierOptions(result.data ?? []);
+    };
+    merchantSelect.addEventListener('change', () => {
+      void refreshSuppliers();
+    });
+    await refreshSuppliers();
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const submit = modal.querySelector('#sc-group-submit');
+      const closesAt = String(data.get('closesAt') ?? '').trim();
+      submit.disabled = true;
+      try {
+        await api('/supply-chain/collective-purchase-groups', {
+          method: 'POST',
+          body: {
+            merchantId: merchantSelect.value,
+            supplierId: supplierSelect.value || undefined,
+            title: String(data.get('title') ?? '').trim(),
+            targetQuantity: String(data.get('targetQuantity') ?? '0'),
+            unit: String(data.get('unit') ?? 'pcs').trim() || 'pcs',
+            targetPrice: String(data.get('targetPrice') ?? '0'),
+            closesAt: closesAt ? new Date(closesAt).toISOString() : undefined,
+            description: String(data.get('description') ?? '').trim() || undefined,
+          },
+        });
+        closeModal();
+        showToast('Grup pembelian dibuat');
+        await loadSupplyChain(true);
+      } catch (error) {
+        submit.disabled = false;
+        showToast('Gagal menyimpan', error.message, 'error');
+      }
+    });
+  } catch (error) {
+    closeModal();
+    showToast('Gagal memuat data', error.message, 'error');
+  }
+}
+
 /* --------------------------------- Audit ------------------------------ */
 
 async function loadAudit(force = false) {
@@ -7241,6 +9229,31 @@ function bindEvents() {
   $('#create-inventory-adjustment-button').addEventListener('click', () => openInventoryAdjustmentModal());
   $('#create-inventory-count-button').addEventListener('click', openInventoryCountModal);
 
+  for (const selector of [
+    '#refresh-sc-suppliers',
+    '#refresh-sc-requisitions',
+    '#refresh-sc-quotations',
+    '#refresh-sc-orders',
+    '#refresh-sc-receipts',
+    '#refresh-sc-putaway',
+    '#refresh-sc-allocations',
+    '#refresh-sc-picking',
+    '#refresh-sc-packing',
+    '#refresh-sc-dispatch',
+    '#refresh-sc-returns',
+    '#refresh-sc-groups',
+  ]) {
+    $(selector)?.addEventListener('click', () => loadSupplyChain(true));
+  }
+  $('#create-sc-supplier-button').addEventListener('click', () => openScSupplierModal());
+  $('#create-sc-requisition-button').addEventListener('click', () => openScRequisitionModal());
+  $('#create-sc-allocation-button').addEventListener('click', () => openScAllocationModal());
+  $('#create-sc-picking-button').addEventListener('click', () => openScPickingModal());
+  $('#create-sc-packing-button').addEventListener('click', () => openScPackingModal());
+  $('#create-sc-dispatch-button').addEventListener('click', () => openScDispatchModal());
+  $('#create-sc-return-button').addEventListener('click', () => openScReturnModal());
+  $('#create-sc-group-button').addEventListener('click', () => openScGroupModal());
+
   $('#audit-search').addEventListener(
     'input',
     debounce((event) => {
@@ -7473,6 +9486,253 @@ function bindEvents() {
     const inventoryBatchEdit = event.target.closest('[data-inventory-batch-edit]');
     if (inventoryBatchEdit) {
       openInventoryBatchModal(inventoryBatchEdit.dataset.inventoryBatchEdit);
+      return;
+    }
+
+    if (event.target.closest('[data-sc-retry]')) {
+      loadSupplyChain(true);
+      return;
+    }
+
+    const prSubmit = event.target.closest('[data-sc-pr-submit]');
+    if (prSubmit) {
+      void scRunAction(
+        `/supply-chain/purchase-requisitions/${prSubmit.dataset.scPrSubmit}/submit`,
+        'Permintaan diajukan',
+      );
+      return;
+    }
+
+    const prApprove = event.target.closest('[data-sc-pr-approve]');
+    if (prApprove) {
+      void scRunAction(
+        `/supply-chain/purchase-requisitions/${prApprove.dataset.scPrApprove}/approve`,
+        'Permintaan disetujui',
+      );
+      return;
+    }
+
+    const prQuote = event.target.closest('[data-sc-pr-quote]');
+    if (prQuote) {
+      void openScQuotationModal(prQuote.dataset.scPrQuote);
+      return;
+    }
+
+    const prConvert = event.target.closest('[data-sc-pr-convert]');
+    if (prConvert) {
+      void openScConvertRequisitionModal(prConvert.dataset.scPrConvert);
+      return;
+    }
+
+    const quoteSubmit = event.target.closest('[data-sc-quote-submit]');
+    if (quoteSubmit) {
+      void scRunAction(
+        `/supply-chain/supplier-quotations/${quoteSubmit.dataset.scQuoteSubmit}/submit`,
+        'Penawaran diajukan',
+      );
+      return;
+    }
+
+    const quoteAccept = event.target.closest('[data-sc-quote-accept]');
+    if (quoteAccept) {
+      void scRunAction(
+        `/supply-chain/supplier-quotations/${quoteAccept.dataset.scQuoteAccept}/accept`,
+        'Penawaran diterima',
+      );
+      return;
+    }
+
+    const quoteConvert = event.target.closest('[data-sc-quote-convert]');
+    if (quoteConvert) {
+      void openScConvertQuotationModal(quoteConvert.dataset.scQuoteConvert);
+      return;
+    }
+
+    const poSubmit = event.target.closest('[data-sc-po-submit]');
+    if (poSubmit) {
+      void scRunAction(
+        `/supply-chain/purchase-orders/${poSubmit.dataset.scPoSubmit}/submit`,
+        'PO diajukan untuk persetujuan',
+      );
+      return;
+    }
+
+    const poApprove = event.target.closest('[data-sc-po-approve]');
+    if (poApprove) {
+      void scRunAction(
+        `/supply-chain/purchase-orders/${poApprove.dataset.scPoApprove}/approve`,
+        'PO disetujui',
+      );
+      return;
+    }
+
+    const poSend = event.target.closest('[data-sc-po-send]');
+    if (poSend) {
+      void scRunAction(
+        `/supply-chain/purchase-orders/${poSend.dataset.scPoSend}/send`,
+        'PO dikirim ke supplier',
+      );
+      return;
+    }
+
+    const poReceive = event.target.closest('[data-sc-po-receive]');
+    if (poReceive) {
+      void openScGoodsReceiptModal(poReceive.dataset.scPoReceive);
+      return;
+    }
+
+    const poClose = event.target.closest('[data-sc-po-close]');
+    if (poClose) {
+      void scRunAction(
+        `/supply-chain/purchase-orders/${poClose.dataset.scPoClose}/close`,
+        'PO ditutup',
+      );
+      return;
+    }
+
+    const poCancel = event.target.closest('[data-sc-po-cancel]');
+    if (poCancel) {
+      void scRunAction(
+        `/supply-chain/purchase-orders/${poCancel.dataset.scPoCancel}/cancel`,
+        'PO dibatalkan',
+      );
+      return;
+    }
+
+    const grComplete = event.target.closest('[data-sc-gr-complete]');
+    if (grComplete) {
+      void scRunAction(
+        `/supply-chain/goods-receipts/${grComplete.dataset.scGrComplete}/complete`,
+        'Penerimaan barang selesai',
+      );
+      return;
+    }
+
+    const putawayProcess = event.target.closest('[data-sc-putaway-process]');
+    if (putawayProcess) {
+      void openScPutawayModal(putawayProcess.dataset.scPutawayProcess);
+      return;
+    }
+
+    const allocationRelease = event.target.closest('[data-sc-alloc-release]');
+    if (allocationRelease) {
+      void scRunAction(
+        `/supply-chain/warehouse-allocations/${allocationRelease.dataset.scAllocRelease}/release`,
+        'Alokasi dilepas',
+      );
+      return;
+    }
+
+    const pickStart = event.target.closest('[data-sc-pick-start]');
+    if (pickStart) {
+      void scRunAction(
+        `/supply-chain/picking-tasks/${pickStart.dataset.scPickStart}/start`,
+        'Picking dimulai',
+      );
+      return;
+    }
+
+    const pickComplete = event.target.closest('[data-sc-pick-complete]');
+    if (pickComplete) {
+      void scRunAction(
+        `/supply-chain/picking-tasks/${pickComplete.dataset.scPickComplete}/complete`,
+        'Picking selesai',
+        { body: { items: [] } },
+      );
+      return;
+    }
+
+    const pickPack = event.target.closest('[data-sc-pick-pack]');
+    if (pickPack) {
+      void openScPackingModal(pickPack.dataset.scPickPack);
+      return;
+    }
+
+    const packStart = event.target.closest('[data-sc-pack-start]');
+    if (packStart) {
+      void scRunAction(
+        `/supply-chain/packing-tasks/${packStart.dataset.scPackStart}/start`,
+        'Packing dimulai',
+      );
+      return;
+    }
+
+    const packComplete = event.target.closest('[data-sc-pack-complete]');
+    if (packComplete) {
+      void scRunAction(
+        `/supply-chain/packing-tasks/${packComplete.dataset.scPackComplete}/complete`,
+        'Packing selesai',
+      );
+      return;
+    }
+
+    const packDispatch = event.target.closest('[data-sc-pack-dispatch]');
+    if (packDispatch) {
+      void openScDispatchModal(packDispatch.dataset.scPackDispatch);
+      return;
+    }
+
+    const dispatchSend = event.target.closest('[data-sc-dispatch-send]');
+    if (dispatchSend) {
+      void scRunAction(
+        `/supply-chain/dispatch-records/${dispatchSend.dataset.scDispatchSend}/dispatch`,
+        'Paket diberangkatkan',
+      );
+      return;
+    }
+
+    const dispatchDeliver = event.target.closest('[data-sc-dispatch-deliver]');
+    if (dispatchDeliver) {
+      void scRunAction(
+        `/supply-chain/dispatch-records/${dispatchDeliver.dataset.scDispatchDeliver}/deliver`,
+        'Paket ditandai terkirim',
+      );
+      return;
+    }
+
+    const returnApprove = event.target.closest('[data-sc-return-approve]');
+    if (returnApprove) {
+      void scRunAction(
+        `/supply-chain/warehouse-returns/${returnApprove.dataset.scReturnApprove}/approve`,
+        'Retur disetujui',
+      );
+      return;
+    }
+
+    const returnReceive = event.target.closest('[data-sc-return-receive]');
+    if (returnReceive) {
+      void scRunAction(
+        `/supply-chain/warehouse-returns/${returnReceive.dataset.scReturnReceive}/receive`,
+        'Retur diterima gudang',
+      );
+      return;
+    }
+
+    const returnRestock = event.target.closest('[data-sc-return-restock]');
+    if (returnRestock) {
+      void scRunAction(
+        `/supply-chain/warehouse-returns/${returnRestock.dataset.scReturnRestock}/restock`,
+        'Retur kembali ke stok',
+        { body: {} },
+      );
+      return;
+    }
+
+    const returnReject = event.target.closest('[data-sc-return-reject]');
+    if (returnReject) {
+      void scRunAction(
+        `/supply-chain/warehouse-returns/${returnReject.dataset.scReturnReject}/reject`,
+        'Retur ditolak',
+      );
+      return;
+    }
+
+    const groupClose = event.target.closest('[data-sc-group-close]');
+    if (groupClose) {
+      void scRunAction(
+        `/supply-chain/collective-purchase-groups/${groupClose.dataset.scGroupClose}/close`,
+        'Grup pembelian ditutup',
+      );
       return;
     }
 

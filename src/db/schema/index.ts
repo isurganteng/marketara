@@ -6,3 +6,5 @@ export * from './inventory';
 export * from './payment';
 export * from './supply-chain';
 export * from './marketing';
+export * from './business';
+export * from './funding';

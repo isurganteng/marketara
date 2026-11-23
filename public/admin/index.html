@@ -194,6 +194,14 @@
             <svg class="icon"><use href="#i-merchants"></use></svg>
             <span>CRM</span>
           </button>
+          <button class="nav-item" type="button" data-view="business">
+            <svg class="icon"><use href="#i-spark"></use></svg>
+            <span>Bisnis</span>
+          </button>
+          <button class="nav-item" type="button" data-view="funding">
+            <svg class="icon"><use href="#i-wallet"></use></svg>
+            <span>Pendanaan</span>
+          </button>
           <button class="nav-item" type="button" data-view="audit">
             <svg class="icon"><use href="#i-audit"></use></svg>
             <span>Audit log</span>
@@ -1952,6 +1960,327 @@
                 </div>
               </div>
               <div class="table-host" id="crm-complaints-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+          </section>
+
+          <section class="view" id="view-business" hidden>
+            <div class="section-head">
+              <div>
+                <p class="panel-kicker">2MD-01 &amp; 2MD-02 · Business performance &amp; profile</p>
+                <h2>Bisnis</h2>
+                <p class="section-text">Kelola periode kinerja, KPI, target, laporan performa, dan profil bisnis merchant.</p>
+              </div>
+              <span class="section-badge neutral" id="biz-summary-badge" hidden>0 profil aktif</span>
+            </div>
+
+            <div class="stats-grid">
+              <article class="stat-card" data-tone="green">
+                <div class="stat-top">
+                  <span class="stat-icon"><svg class="icon"><use href="#i-calendar"></use></svg></span>
+                  <span class="stat-trend">Periode</span>
+                </div>
+                <p class="stat-label">Periode kinerja</p>
+                <p class="stat-value" id="biz-stat-periods">-</p>
+                <p class="stat-sub">Periode pengukuran tercatat.</p>
+              </article>
+              <article class="stat-card" data-tone="blue">
+                <div class="stat-top">
+                  <span class="stat-icon"><svg class="icon"><use href="#i-audit"></use></svg></span>
+                  <span class="stat-trend">KPI</span>
+                </div>
+                <p class="stat-label">KPI aktif</p>
+                <p class="stat-value" id="biz-stat-kpis">-</p>
+                <p class="stat-sub">Indikator yang sedang dipakai.</p>
+              </article>
+              <article class="stat-card" data-tone="gold">
+                <div class="stat-top">
+                  <span class="stat-icon"><svg class="icon"><use href="#i-store"></use></svg></span>
+                  <span class="stat-trend">Profil</span>
+                </div>
+                <p class="stat-label">Profil bisnis</p>
+                <p class="stat-value" id="biz-stat-profiles">-</p>
+                <p class="stat-sub">Profil merchant terdaftar.</p>
+              </article>
+              <article class="stat-card" data-tone="rose">
+                <div class="stat-top">
+                  <span class="stat-icon"><svg class="icon"><use href="#i-receipt"></use></svg></span>
+                  <span class="stat-trend">Laporan</span>
+                </div>
+                <p class="stat-label">Laporan performa</p>
+                <p class="stat-value" id="biz-stat-reports">-</p>
+                <p class="stat-sub">Laporan tersimpan.</p>
+              </article>
+            </div>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Pengukuran</p>
+                  <h3>Periode kinerja</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="biz-period-count" hidden>0 periode</span>
+                  <button class="button button-primary button-sm" id="create-biz-period-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Periode
+                  </button>
+                </div>
+              </div>
+              <div class="toolbar">
+                <span class="toolbar-count">Periode menjadi dasar nilai KPI dan laporan.</span>
+                <button class="icon-button toolbar-refresh" id="refresh-biz-all" type="button" aria-label="Segarkan bisnis" title="Segarkan">
+                  <svg class="icon"><use href="#i-refresh"></use></svg>
+                </button>
+              </div>
+              <div class="table-host" id="biz-periods-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Indikator</p>
+                  <h3>KPI bisnis</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="biz-kpi-count" hidden>0 KPI</span>
+                  <button class="button button-primary button-sm" id="create-biz-kpi-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    KPI
+                  </button>
+                </div>
+              </div>
+              <div class="table-host" id="biz-kpis-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Capaian</p>
+                  <h3>Nilai KPI</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="biz-kpi-value-count" hidden>0 nilai</span>
+                  <button class="button button-primary button-sm" id="create-biz-kpi-value-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Nilai
+                  </button>
+                </div>
+              </div>
+              <div class="table-host" id="biz-kpi-values-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Sasaran</p>
+                  <h3>Target bisnis</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="biz-target-count" hidden>0 target</span>
+                  <button class="button button-primary button-sm" id="create-biz-target-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Target
+                  </button>
+                </div>
+              </div>
+              <div class="table-host" id="biz-targets-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Pelaporan</p>
+                  <h3>Laporan performa</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="biz-report-count" hidden>0 laporan</span>
+                  <button class="button button-primary button-sm" id="create-biz-report-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Laporan
+                  </button>
+                </div>
+              </div>
+              <div class="table-host" id="biz-reports-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Profil usaha</p>
+                  <h3>Profil bisnis merchant</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="biz-profile-count" hidden>0 profil</span>
+                  <button class="button button-primary button-sm" id="create-biz-profile-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Profil
+                  </button>
+                </div>
+              </div>
+              <div class="table-host" id="biz-profiles-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+          </section>
+
+          <section class="view" id="view-funding" hidden>
+            <div class="section-head">
+              <div>
+                <p class="panel-kicker">2MD-03, 2MD-04 &amp; 2MD-05 · Proposal, marketplace &amp; pembiayaan</p>
+                <h2>Pendanaan</h2>
+                <p class="section-text">Kelola proposal, peluang pendanaan, pengajuan, fasilitas pembiayaan, dan penilaian risiko.</p>
+              </div>
+              <span class="section-badge neutral" id="fund-summary-badge" hidden>0 proposal aktif</span>
+            </div>
+
+            <div class="stats-grid">
+              <article class="stat-card" data-tone="green">
+                <div class="stat-top">
+                  <span class="stat-icon"><svg class="icon"><use href="#i-receipt"></use></svg></span>
+                  <span class="stat-trend">Proposal</span>
+                </div>
+                <p class="stat-label">Proposal aktif</p>
+                <p class="stat-value" id="fund-stat-proposals">-</p>
+                <p class="stat-sub">Draft sampai terbit.</p>
+              </article>
+              <article class="stat-card" data-tone="blue">
+                <div class="stat-top">
+                  <span class="stat-icon"><svg class="icon"><use href="#i-market"></use></svg></span>
+                  <span class="stat-trend">Peluang</span>
+                </div>
+                <p class="stat-label">Peluang terbuka</p>
+                <p class="stat-value" id="fund-stat-opportunities">-</p>
+                <p class="stat-sub">Peluang pendanaan aktif.</p>
+              </article>
+              <article class="stat-card" data-tone="gold">
+                <div class="stat-top">
+                  <span class="stat-icon"><svg class="icon"><use href="#i-merchants"></use></svg></span>
+                  <span class="stat-trend">Pengajuan</span>
+                </div>
+                <p class="stat-label">Pengajuan berjalan</p>
+                <p class="stat-value" id="fund-stat-applications">-</p>
+                <p class="stat-sub">Belum final.</p>
+              </article>
+              <article class="stat-card" data-tone="rose">
+                <div class="stat-top">
+                  <span class="stat-icon"><svg class="icon"><use href="#i-wallet"></use></svg></span>
+                  <span class="stat-trend">Pembiayaan</span>
+                </div>
+                <p class="stat-label">Fasilitas aktif</p>
+                <p class="stat-value" id="fund-stat-financings">-</p>
+                <p class="stat-sub">Sedang berjalan.</p>
+              </article>
+            </div>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">2MD-03 · Proposal</p>
+                  <h3>Proposal pendanaan</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="fund-proposal-count" hidden>0 proposal</span>
+                  <button class="button button-primary button-sm" id="create-fund-proposal-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Proposal
+                  </button>
+                </div>
+              </div>
+              <div class="toolbar">
+                <span class="toolbar-count">Proposal menghubungkan profil bisnis dengan peluang investor.</span>
+                <button class="icon-button toolbar-refresh" id="refresh-fund-all" type="button" aria-label="Segarkan pendanaan" title="Segarkan">
+                  <svg class="icon"><use href="#i-refresh"></use></svg>
+                </button>
+              </div>
+              <div class="table-host" id="fund-proposals-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">2MD-04 · Marketplace</p>
+                  <h3>Peluang pendanaan</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="fund-opportunity-count" hidden>0 peluang</span>
+                  <button class="button button-primary button-sm" id="create-fund-opportunity-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Peluang
+                  </button>
+                </div>
+              </div>
+              <div class="table-host" id="fund-opportunities-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">2MD-04 · Pengajuan</p>
+                  <h3>Pengajuan pendanaan</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="fund-application-count" hidden>0 pengajuan</span>
+                  <button class="button button-primary button-sm" id="create-fund-application-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Pengajuan
+                  </button>
+                </div>
+              </div>
+              <div class="table-host" id="fund-applications-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">2MD-05 · Pembiayaan</p>
+                  <h3>Fasilitas pembiayaan</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="fund-financing-count" hidden>0 fasilitas</span>
+                  <button class="button button-primary button-sm" id="create-fund-financing-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Fasilitas
+                  </button>
+                </div>
+              </div>
+              <div class="table-host" id="fund-financings-table">
+                <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">2MD-05 · Risiko</p>
+                  <h3>Penilaian risiko</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="fund-risk-count" hidden>0 penilaian</span>
+                  <button class="button button-primary button-sm" id="create-fund-risk-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Penilaian
+                  </button>
+                </div>
+              </div>
+              <div class="table-host" id="fund-risks-table">
                 <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
               </div>
             </article>

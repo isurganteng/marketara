@@ -19,6 +19,11 @@ Fokus tahap ini adalah fondasi database dan API (Bagian 17 dokumen):
 12. **SCM-02** Warehouse Fulfillment Management
 13. **MKT-12** Digital Marketing & Promotion Management
 14. **MKT-13** Customer Relationship Management (CRM)
+15. **2MD-01** Business Performance & Growth Management
+16. **2MD-02** Merchant Business Profile Management
+17. **2MD-03** Funding Proposal & Document Management
+18. **2MD-04** Funding Marketplace Management
+19. **2MD-05** Financing & Risk Management
 
 Stack: **Bun + Hono + Drizzle ORM + PostgreSQL + Zod**.
 
@@ -113,7 +118,10 @@ pembatalan transaksi, pergerakan kas, dan sinkronisasi transaksi offline. Menu
 pergerakan stok, penyesuaian, opname, serta batch dan kedaluwarsa. Menu
 **Rantai Pasok** menampilkan supplier, permintaan pembelian, penawaran vendor,
 purchase order, penerimaan barang, warehouse receipt, put-away, alokasi,
-picking, packing, pengiriman, retur gudang, dan grup pembelian kolektif. UI
+picking, packing, pengiriman, retur gudang, dan grup pembelian kolektif. Menu
+**Bisnis** menampilkan periode kinerja, KPI, nilai KPI, target, laporan
+performa, dan profil bisnis merchant. Menu **Pendanaan** menampilkan proposal,
+peluang pendanaan, pengajuan, fasilitas pembiayaan, dan penilaian risiko. UI
 disajikan langsung oleh Bun/Hono tanpa build step tambahan.
 
 Katalog marketplace publik MKT-04 tersedia lewat API:
@@ -170,6 +178,8 @@ src/
     schema/pos.ts           # 7 tabel: terminal, register, shift, transaksi, kas, sync
     schema/inventory.ts     # 10 tabel: gudang, lokasi, item, saldo, movement, opname, batch
     schema/marketing.ts     # 18 tabel: kampanye, promosi, kupon, pelanggan, loyalty, CRM
+    schema/business.ts      # 13 tabel: profil bisnis, periode, KPI, target, laporan
+    schema/funding.ts       # 25 tabel: proposal, peluang, investor, pengajuan, pembiayaan, risiko
     migrate.ts              # Migration runner
     seed.ts                 # Seed role/permission/reference
   lib/
@@ -242,6 +252,17 @@ src/
       loyalty.ts            # Akun loyalty dan transaksi poin
       engagement.ts         # Interaksi pelanggan dan keluhan
       shared.ts             # Scoping, akses, numeric/date schema, getter
+    business/               # Business performance & profile (2MD-01/2MD-02)
+      index.ts              # Mount route bisnis + auth
+      performance.ts        # Periode, KPI, nilai, target, growth, laporan
+      profiles.ts           # Profil bisnis, child records, verifikasi, share
+      shared.ts             # Scoping, akses, numeric/date schema, getter
+    funding/                # Proposal, marketplace, pembiayaan (2MD-03/04/05)
+      index.ts              # Mount route pendanaan + auth
+      proposals.ts          # Proposal, versi, plan, proyeksi, dokumen, data room
+      marketplace.ts        # Peluang, investor, pengajuan, match, minat, referral
+      financing.ts          # Fasilitas, agreement, pencairan, angsuran, risiko
+      shared.ts             # Akses funding, ownership, getter, numeric
     reference.ts            # Master reference data
     audit.ts                # Audit log viewer
   services/auth.ts          # Session & profile service
@@ -259,6 +280,7 @@ docs/pos-database.md        # Detail desain database POS (MKT-07)
 docs/inventory-database.md  # Detail desain database inventori (MKT-08)
 docs/supply-chain-database.md # Detail desain database rantai pasok (SCM-01/02)
 docs/marketing-crm-database.md # Detail desain database pemasaran & CRM (MKT-12/13)
+docs/business-funding-database.md # Detail desain database bisnis & pendanaan (2MD)
 ```
 
 ---
@@ -681,6 +703,114 @@ Base URL: `/api/v1`
 > redemption mengembalikan total order serta kuota kupon. Mutasi loyalty selalu
 > memperbarui saldo dan tier akun secara transaksional.
 
+### Bisnis — `/api/v1/business` (2MD-01 / 2MD-02)
+
+| Method | Path | Permission | Keterangan |
+| --- | --- | --- | --- |
+| GET/POST | `/performance-periods` | `business:read` / `business:write` | Daftar / buat periode kinerja |
+| PATCH/DELETE | `/performance-periods/:id` | `business:write` / `business:manage` | Ubah / hapus periode |
+| GET/POST | `/kpis` | `business:read` / `business:write` | Daftar / buat KPI |
+| PATCH/DELETE | `/kpis/:id` | `business:write` / `business:manage` | Ubah / hapus KPI |
+| GET/POST | `/kpi-values` | `business:read` / `business:write` | Daftar / isi nilai KPI |
+| PATCH/DELETE | `/kpi-values/:id` | `business:write` / `business:manage` | Ubah / hapus nilai KPI |
+| GET/POST | `/targets` | `business:read` / `business:write` | Daftar / buat target |
+| PATCH/DELETE | `/targets/:id` | `business:write` / `business:manage` | Ubah / hapus target |
+| GET/POST | `/growth-snapshots` | `business:read` / `business:write` | Daftar / buat snapshot pertumbuhan |
+| PATCH/DELETE | `/growth-snapshots/:id` | `business:write` / `business:manage` | Ubah / hapus snapshot |
+| GET/POST | `/reports` | `business:read` / `business:write` | Daftar / buat laporan performa |
+| POST | `/reports/generate` | `business:write` | Hitung laporan dari data order merchant |
+| GET/PATCH/DELETE | `/reports/:id` | `business:read` / `business:write` / `business:manage` | Detail / ubah / hapus laporan |
+| POST | `/reports/:id/publish` | `business:write` | Terbitkan laporan |
+| GET/POST | `/profiles` | `business:read` / `business:write` | Daftar / buat profil bisnis |
+| GET/PATCH/DELETE | `/profiles/:id` | `business:read` / `business:write` / `business:manage` | Detail / ubah / hapus profil |
+| GET | `/profiles/:id/metrics` | `business:read` | Metrik profil dan kelengkapan |
+| POST | `/profiles/:id/verify` | `business:manage` | Verifikasi / tolak profil |
+| GET/POST | `/profiles/:id/history` | `business:read` / `business:write` | Riwayat usaha |
+| PATCH/DELETE | `/profiles/:pid/history/:id` | `business:write` / `business:manage` | Ubah / hapus riwayat |
+| GET/POST | `/profiles/:id/locations` | `business:read` / `business:write` | Lokasi usaha |
+| PATCH/DELETE | `/profiles/:pid/locations/:id` | `business:write` / `business:manage` | Ubah / hapus lokasi |
+| GET/POST | `/profiles/:id/documents` | `business:read` / `business:write` | Dokumen legalitas |
+| PATCH/DELETE | `/profiles/:pid/documents/:id` | `business:write` / `business:manage` | Ubah / hapus dokumen |
+| GET/POST | `/profiles/:id/activities` | `business:read` / `business:write` | Aktivitas usaha |
+| PATCH/DELETE | `/profiles/:pid/activities/:id` | `business:write` / `business:manage` | Ubah / hapus aktivitas |
+| GET | `/profiles/:id/verifications` | `business:read` | Riwayat verifikasi |
+| GET/POST | `/profiles/:id/shares` | `business:read` / `business:write` | Daftar / buat share profil |
+| POST | `/profiles/:pid/shares/:id/revoke` | `business:write` | Cabut share profil |
+
+### Pendanaan — `/api/v1/funding` (2MD-03 / 2MD-04 / 2MD-05)
+
+| Method | Path | Permission | Keterangan |
+| --- | --- | --- | --- |
+| GET/POST | `/proposals` | `funding:read` / `funding:write` | Daftar / buat proposal |
+| GET/PATCH/DELETE | `/proposals/:id` | `funding:read` / `funding:write` / `funding:manage` | Detail / ubah / arsip proposal |
+| POST | `/proposals/:id/submit` | `funding:write` | Ajukan proposal |
+| POST | `/proposals/:id/publish` | `funding:write` | Terbitkan proposal + aktifkan data room |
+| POST | `/proposals/:id/archive` | `funding:write` | Arsipkan proposal |
+| GET/POST | `/proposals/:id/versions` | `funding:read` / `funding:write` | Versi naskah proposal |
+| PATCH | `/proposal-versions/:id` | `funding:write` | Ubah versi proposal |
+| GET/POST | `/proposals/:id/plans` | `funding:read` / `funding:write` | Rencana bisnis |
+| PATCH/DELETE | `/business-plans/:id` | `funding:write` / `funding:manage` | Ubah / hapus rencana bisnis |
+| GET/POST | `/proposals/:id/projections` | `funding:read` / `funding:write` | Proyeksi keuangan |
+| PATCH/DELETE | `/financial-projections/:id` | `funding:write` / `funding:manage` | Ubah / hapus proyeksi |
+| GET/POST | `/proposals/:id/requirements` | `funding:read` / `funding:write` | Kebutuhan pendanaan |
+| PATCH/DELETE | `/funding-requirements/:id` | `funding:write` / `funding:manage` | Ubah / hapus kebutuhan |
+| GET/POST | `/proposals/:id/utilization-plans` | `funding:read` / `funding:write` | Rencana penggunaan dana |
+| PATCH/DELETE | `/fund-utilization-plans/:id` | `funding:write` / `funding:manage` | Ubah / hapus rencana |
+| GET | `/documents` | `funding:read` | Dokumen lintas proposal |
+| GET/POST | `/proposals/:id/documents` | `funding:read` / `funding:write` | Dokumen proposal |
+| PATCH/DELETE | `/business-documents/:id` | `funding:write` / `funding:manage` | Ubah / hapus dokumen |
+| GET/PATCH | `/proposals/:id/data-room` | `funding:read` / `funding:write` | Data room proposal |
+| GET | `/data-rooms/:id/access-logs` | `funding:read` | Log akses data room |
+| POST | `/data-rooms/:id/access` | `funding:write` | Beri akses data room |
+| POST | `/data-room-access/:id/revoke` | `funding:write` | Cabut akses data room |
+| GET/POST | `/opportunities` | `funding:read` / `funding:write` | Daftar / buat peluang pendanaan |
+| GET/PATCH/DELETE | `/opportunities/:id` | `funding:read` / `funding:write` / `funding:manage` | Detail / ubah / hapus peluang |
+| GET/POST | `/investors` | `funding:read` / `funding:write` | Daftar / buat profil investor |
+| GET/PATCH | `/investors/:id` | `funding:read` / `funding:write` | Detail / ubah investor |
+| POST | `/investors/:id/verify` | `funding:manage` | Verifikasi investor |
+| GET/POST | `/applications` | `funding:read` / `funding:write` | Daftar / buat pengajuan |
+| GET/PATCH | `/applications/:id` | `funding:read` / `funding:write` | Detail / ubah pengajuan |
+| POST | `/applications/:id/submit` | `funding:write` | Ajukan pengajuan |
+| POST | `/applications/:id/transition` | `funding:write` | Transisi status pengajuan |
+| GET | `/applications/:id/statuses` | `funding:read` | Riwayat status pengajuan |
+| GET/POST | `/matches` | `funding:read` / `funding:write` | Daftar / buat match |
+| PATCH | `/matches/:id` | `funding:write` | Ubah match |
+| POST | `/matches/suggest` | `funding:write` | Saran match otomatis |
+| GET/POST | `/interests` | `funding:read` / `funding:write` | Daftar / catat minat investor |
+| PATCH | `/interests/:id` | `funding:write` | Ubah minat |
+| POST | `/interests/:id/withdraw` | `funding:write` | Tarik minat |
+| GET/POST | `/referrals` | `funding:read` / `funding:write` | Daftar / buat referral mitra |
+| PATCH/DELETE | `/referrals/:id` | `funding:write` / `funding:manage` | Ubah / hapus referral |
+| GET/POST | `/financings` | `funding:read` / `funding:write` | Daftar / buat fasilitas pembiayaan |
+| GET/PATCH | `/financings/:id` | `funding:read` / `funding:write` | Detail / ubah fasilitas |
+| POST | `/financings/:id/activate` | `funding:write` | Aktifkan fasilitas |
+| POST | `/financings/:id/close` | `funding:manage` | Tutup fasilitas |
+| POST | `/financings/:id/default` | `funding:manage` | Tandai gagal bayar |
+| GET/POST | `/financings/:id/agreements` | `funding:read` / `funding:write` | Perjanjian pembiayaan |
+| PATCH/DELETE | `/financing-agreements/:id` | `funding:write` / `funding:manage` | Ubah / hapus perjanjian |
+| GET/POST | `/financings/:id/disbursements` | `funding:read` / `funding:write` | Pencairan dana |
+| PATCH | `/disbursements/:id` | `funding:write` | Ubah pencairan |
+| POST | `/disbursements/:id/confirm` | `funding:write` | Konfirmasi pencairan |
+| GET/POST | `/financings/:id/repayment-schedules` | `funding:read` / `funding:write` | Jadwal angsuran |
+| POST | `/financings/:id/generate-schedule` | `funding:write` | Generate jadwal angsuran |
+| PATCH | `/repayment-schedules/:id` | `funding:write` | Ubah jadwal angsuran |
+| POST | `/repayment-schedules/:id/pay` | `funding:write` | Catat pembayaran angsuran |
+| GET | `/repayment-transactions` | `funding:read` | Riwayat transaksi angsuran |
+| GET/POST | `/financings/:id/utilization-reports` | `funding:read` / `funding:write` | Laporan penggunaan dana |
+| PATCH | `/utilization-reports/:id` | `funding:write` | Ubah laporan penggunaan |
+| GET/POST | `/financings/:id/monitoring-reports` | `funding:read` / `funding:write` | Laporan monitoring |
+| PATCH | `/monitoring-reports/:id` | `funding:write` | Ubah laporan monitoring |
+| GET/POST | `/risk-indicators` | `funding:read` / `funding:write` | Daftar / buat indikator risiko |
+| PATCH/DELETE | `/risk-indicators/:id` | `funding:write` / `funding:manage` | Ubah / hapus indikator |
+| GET/POST | `/risk-assessments` | `funding:read` / `funding:write` | Daftar / buat penilaian risiko |
+| PATCH/DELETE | `/risk-assessments/:id` | `funding:write` / `funding:manage` | Ubah / hapus penilaian |
+| POST | `/risk-assessments/calculate` | `funding:write` | Hitung penilaian risiko otomatis |
+
+> Proposal hanya dapat diajukan dari profil merchant yang sama. Pengajuan hanya
+> dapat memakai proposal berstatus `submitted` atau `published`. Generate jadwal
+> angsuran membagi pokok dan bunga sesuai tenor, lalu pembayaran angsuran
+> memperbarui status jadwal dan transaksi.
+
 ### Marketplace publik — `/api/v1/commerce/marketplace`
 
 Tidak memerlukan login. Hanya menampilkan storefront `published` milik merchant
@@ -711,8 +841,8 @@ Tidak memerlukan login. Hanya menampilkan storefront `published` milik merchant
 | Role | Ringkasan akses |
 | --- | --- |
 | `platform_admin` | Wildcard `*` (semua akses) |
-| `market_admin` | Kelola pasar/okupansi, verifikasi merchant, master katalog, kanal commerce, lihat pembayaran, lihat POS, lihat inventori, lihat rantai pasok, lihat pemasaran & CRM, lihat audit |
-| `member` | Buat organisasi, kelola merchant/toko/produk/storefront miliknya, belanja, kelola pembayaran/refund merchant, kelola POS, inventori, rantai pasok, serta pemasaran & CRM merchant |
+| `market_admin` | Kelola pasar/okupansi, verifikasi merchant, master katalog, kanal commerce, lihat pembayaran, lihat POS, lihat inventori, lihat rantai pasok, lihat pemasaran & CRM, lihat bisnis & pendanaan, lihat audit |
+| `member` | Buat organisasi, kelola merchant/toko/produk/storefront miliknya, belanja, kelola pembayaran/refund merchant, kelola POS, inventori, rantai pasok, pemasaran & CRM, bisnis, serta pendanaan merchant |
 
 Permission yang tersedia: `user:read`, `user:write`, `role:manage`,
 `organization:read`, `organization:write`, `organization:member:manage`,
@@ -724,7 +854,8 @@ Permission yang tersedia: `user:read`, `user:write`, `role:manage`,
 `inventory:write`, `inventory:manage`, `supply_chain:read`,
 `supply_chain:write`, `supply_chain:manage`, `marketing:read`,
 `marketing:write`, `marketing:manage`, `crm:read`, `crm:write`,
-`crm:manage`, `audit:read`.
+`crm:manage`, `business:read`, `business:write`, `business:manage`,
+`funding:read`, `funding:write`, `funding:manage`, `audit:read`.
 
 ### Model otorisasi
 

@@ -124,6 +124,36 @@ const PERMISSIONS: PermissionSeed[] = [
     name: 'Manage customer lifecycle, loyalty status, and complaint closure',
     module: 'crm',
   },
+  {
+    code: 'business:read',
+    name: 'View business profiles, performance periods, KPIs, and reports',
+    module: 'business',
+  },
+  {
+    code: 'business:write',
+    name: 'Create and update business profiles, KPIs, targets, and reports',
+    module: 'business',
+  },
+  {
+    code: 'business:manage',
+    name: 'Verify, archive, and manage business performance data',
+    module: 'business',
+  },
+  {
+    code: 'funding:read',
+    name: 'View proposals, funding opportunities, applications, and financing',
+    module: 'funding',
+  },
+  {
+    code: 'funding:write',
+    name: 'Create proposals, applications, disbursements, and repayments',
+    module: 'funding',
+  },
+  {
+    code: 'funding:manage',
+    name: 'Review funding applications, close financing, and assess risk',
+    module: 'funding',
+  },
   { code: 'audit:read', name: 'View audit logs', module: 'governance' },
 ];
 
@@ -154,6 +184,12 @@ const MEMBER_PERMISSIONS = [
   'crm:read',
   'crm:write',
   'crm:manage',
+  'business:read',
+  'business:write',
+  'business:manage',
+  'funding:read',
+  'funding:write',
+  'funding:manage',
   'organization:read',
   'organization:write',
   'organization:member:manage',
@@ -187,6 +223,8 @@ const ROLE_SEEDS: Array<{ code: string; name: string; description: string; permi
       'supply_chain:read',
       'marketing:read',
       'crm:read',
+      'business:read',
+      'funding:read',
       'organization:read',
       'audit:read',
     ],

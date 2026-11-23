@@ -15,6 +15,8 @@ const VIEW_TITLES = {
   'supply-chain': 'Rantai Pasok',
   marketing: 'Pemasaran',
   crm: 'CRM',
+  business: 'Bisnis',
+  funding: 'Pendanaan',
   audit: 'Audit log',
 };
 
@@ -292,6 +294,8 @@ const state = {
   supplyChain: null,
   marketing: null,
   crm: null,
+  business: null,
+  funding: null,
   audit: null,
   pendingCount: 0,
   canWriteCommerce: false,
@@ -308,6 +312,10 @@ const state = {
   canManageMarketing: false,
   canWriteCrm: false,
   canManageCrm: false,
+  canWriteBusiness: false,
+  canManageBusiness: false,
+  canWriteFunding: false,
+  canManageFunding: false,
   sequences: {
     overview: 0,
     markets: 0,
@@ -321,6 +329,8 @@ const state = {
     supplyChain: 0,
     marketing: 0,
     crm: 0,
+    business: 0,
+    funding: 0,
     audit: 0,
   },
   filters: {
@@ -640,6 +650,8 @@ function applyProfile(profile) {
     permissions.includes('*') || permissions.includes('supply_chain:read');
   const canMarketing = permissions.includes('*') || permissions.includes('marketing:read');
   const canCrm = permissions.includes('*') || permissions.includes('crm:read');
+  const canBusiness = permissions.includes('*') || permissions.includes('business:read');
+  const canFunding = permissions.includes('*') || permissions.includes('funding:read');
   state.canWriteCommerce = permissions.includes('*') || permissions.includes('commerce:write');
   state.canManageCommerce = permissions.includes('*') || permissions.includes('commerce:manage');
   state.canWritePayments = permissions.includes('*') || permissions.includes('payment:write');
@@ -656,6 +668,10 @@ function applyProfile(profile) {
   state.canManageMarketing = permissions.includes('*') || permissions.includes('marketing:manage');
   state.canWriteCrm = permissions.includes('*') || permissions.includes('crm:write');
   state.canManageCrm = permissions.includes('*') || permissions.includes('crm:manage');
+  state.canWriteBusiness = permissions.includes('*') || permissions.includes('business:write');
+  state.canManageBusiness = permissions.includes('*') || permissions.includes('business:manage');
+  state.canWriteFunding = permissions.includes('*') || permissions.includes('funding:write');
+  state.canManageFunding = permissions.includes('*') || permissions.includes('funding:manage');
   const commerceNav = $('[data-view="commerce"]');
   if (commerceNav) commerceNav.hidden = !canCommerce;
   const ordersNav = $('[data-view="orders"]');
@@ -672,6 +688,10 @@ function applyProfile(profile) {
   if (marketingNav) marketingNav.hidden = !canMarketing;
   const crmNav = $('[data-view="crm"]');
   if (crmNav) crmNav.hidden = !canCrm;
+  const businessNav = $('[data-view="business"]');
+  if (businessNav) businessNav.hidden = !canBusiness;
+  const fundingNav = $('[data-view="funding"]');
+  if (fundingNav) fundingNav.hidden = !canFunding;
   for (const selector of [
     '#create-mkt-campaign-button',
     '#create-mkt-promotion-button',
@@ -691,6 +711,27 @@ function applyProfile(profile) {
   ]) {
     const button = $(selector);
     if (button) button.hidden = !state.canWriteCrm;
+  }
+  for (const selector of [
+    '#create-biz-period-button',
+    '#create-biz-kpi-button',
+    '#create-biz-kpi-value-button',
+    '#create-biz-target-button',
+    '#create-biz-report-button',
+    '#create-biz-profile-button',
+  ]) {
+    const button = $(selector);
+    if (button) button.hidden = !state.canWriteBusiness;
+  }
+  for (const selector of [
+    '#create-fund-proposal-button',
+    '#create-fund-opportunity-button',
+    '#create-fund-application-button',
+    '#create-fund-financing-button',
+    '#create-fund-risk-button',
+  ]) {
+    const button = $(selector);
+    if (button) button.hidden = !state.canWriteFunding;
   }
   for (const selector of [
     '#create-sc-supplier-button',
@@ -876,6 +917,8 @@ function loadView(view) {
   if (view === 'supply-chain') return loadSupplyChain(true);
   if (view === 'marketing') return loadMarketing(true);
   if (view === 'crm') return loadCrm(true);
+  if (view === 'business') return loadBusiness(true);
+  if (view === 'funding') return loadFunding(true);
   if (view === 'audit') return loadAudit();
   return undefined;
 }
@@ -10542,6 +10585,1174 @@ async function mktRunCrmAction(action, id) {
   }
 }
 
+/* --------------------------- Business & Funding ----------------------- */
+
+const BIZ_TABLES = [
+  '#biz-periods-table',
+  '#biz-kpis-table',
+  '#biz-kpi-values-table',
+  '#biz-targets-table',
+  '#biz-reports-table',
+  '#biz-profiles-table',
+];
+
+const FUND_TABLES = [
+  '#fund-proposals-table',
+  '#fund-opportunities-table',
+  '#fund-applications-table',
+  '#fund-financings-table',
+  '#fund-risks-table',
+];
+
+const BF_STATUS_LABELS = {
+  open: 'Terbuka',
+  closed: 'Ditutup',
+  daily: 'Harian',
+  weekly: 'Mingguan',
+  monthly: 'Bulanan',
+  quarterly: 'Triwulan',
+  yearly: 'Tahunan',
+  revenue: 'Pendapatan',
+  transaction: 'Transaksi',
+  customer: 'Pelanggan',
+  margin: 'Margin',
+  growth: 'Pertumbuhan',
+  operational: 'Operasional',
+  other: 'Lainnya',
+  currency: 'Mata uang',
+  number: 'Angka',
+  percentage: 'Persentase',
+  ratio: 'Rasio',
+  higher_better: 'Makin tinggi makin baik',
+  lower_better: 'Makin rendah makin baik',
+  active: 'Aktif',
+  achieved: 'Tercapai',
+  missed: 'Tidak tercapai',
+  cancelled: 'Dibatalkan',
+  draft: 'Draft',
+  verified: 'Terverifikasi',
+  suspended: 'Ditangguhkan',
+  archived: 'Diarsipkan',
+  informal: 'Informal',
+  micro: 'Mikro',
+  small: 'Kecil',
+  medium: 'Menengah',
+  cooperative: 'Koperasi',
+  limited_company: 'Perseroan terbatas',
+  pending: 'Menunggu',
+  in_review: 'Ditinjau',
+  rejected: 'Ditolak',
+  submitted: 'Diajukan',
+  published: 'Terbit',
+  funded: 'Didanai',
+  under_review: 'Dalam peninjauan',
+  shortlisted: 'Masuk shortlist',
+  approved: 'Disetujui',
+  withdrawn: 'Ditarik',
+  equity: 'Ekuitas',
+  debt: 'Utang',
+  grant: 'Hibah',
+  convertible_note: 'Convertible note',
+  revenue_sharing: 'Bagi hasil',
+  loan: 'Pinjaman',
+  lease: 'Sewa guna usaha',
+  individual: 'Perorangan',
+  angel: 'Angel investor',
+  venture_capital: 'Venture capital',
+  private_equity: 'Private equity',
+  bank: 'Bank',
+  government: 'Pemerintah',
+  final: 'Final',
+  defaulted: 'Gagal bayar',
+  disbursing: 'Pencairan',
+};
+
+function bfStatus(value) {
+  if (!value) return '—';
+  return `<span class="status status-${escapeHtml(value)}">${escapeHtml(
+    BF_STATUS_LABELS[value] ?? value,
+  )}</span>`;
+}
+
+const BF_RISK_LABELS = {
+  low: 'Rendah',
+  medium: 'Sedang',
+  high: 'Tinggi',
+  critical: 'Kritis',
+};
+
+function bfRiskLevel(value) {
+  if (!value) return '—';
+  return `<span class="status status-${escapeHtml(value)}">${escapeHtml(
+    BF_RISK_LABELS[value] ?? value,
+  )}</span>`;
+}
+
+function bfMoney(value, currency) {
+  return formatMoney(value, currency || 'IDR');
+}
+
+function bfMerchantOptions(merchants, selected = '') {
+  return (
+    '<option value="">Pilih merchant</option>' +
+    merchants
+      .map(
+        (row) =>
+          `<option value="${escapeHtml(row.id)}" ${
+            row.id === selected ? 'selected' : ''
+          }>${escapeHtml(row.businessName ?? row.name ?? row.id)}</option>`,
+      )
+      .join('')
+  );
+}
+
+function bfNamedOptions(rows, labelKey, selected = '', placeholder = 'Pilih') {
+  return (
+    `<option value="">${escapeHtml(placeholder)}</option>` +
+    rows
+      .map(
+        (row) =>
+          `<option value="${escapeHtml(row.id)}" ${
+            row.id === selected ? 'selected' : ''
+          }>${escapeHtml(row[labelKey] ?? row.id)}</option>`,
+      )
+      .join('')
+  );
+}
+
+function bfStatusOptions(values, selected = '') {
+  return values
+    .map(
+      (value) =>
+        `<option value="${escapeHtml(value)}" ${
+          value === selected ? 'selected' : ''
+        }>${escapeHtml(BF_STATUS_LABELS[value] ?? value)}</option>`,
+    )
+    .join('');
+}
+
+function bfFormModal({ title, kicker, subtitle, formId, fields, submitLabel, submit, success }) {
+  const modal = openModal({
+    title,
+    kicker,
+    subtitle,
+    body: `<form id="${formId}"><div class="form-grid">${fields}</div></form>`,
+    footer: `
+      <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+      <button class="button button-primary" id="${formId}-submit" type="submit" form="${formId}">
+        ${icon('plus')} ${escapeHtml(submitLabel)}
+      </button>
+    `,
+  });
+  const form = modal.querySelector(`#${formId}`);
+  const button = modal.querySelector(`#${formId}-submit`);
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!form.reportValidity()) return;
+    const data = new FormData(form);
+    const raw = {};
+    for (const [key, value] of data.entries()) {
+      if (typeof value === 'string') raw[key] = value.trim();
+    }
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner"></span> Menyimpan...';
+    try {
+      await submit(raw);
+      closeModal();
+      await success();
+    } catch (error) {
+      showToast('Aksi gagal', error.message, 'error');
+    } finally {
+      button.disabled = false;
+      button.innerHTML = `${icon('plus')} ${escapeHtml(submitLabel)}`;
+    }
+  });
+}
+
+function bfNumber(value) {
+  return value === undefined || value === '' ? undefined : Number(value);
+}
+
+function bfOptional(value) {
+  return value === undefined || value === '' ? undefined : value;
+}
+
+async function bfBusinessData() {
+  if (!state.business) await loadBusiness(true);
+  return state.business;
+}
+
+async function bfFundingData() {
+  if (!state.funding) await loadFunding(true);
+  return state.funding;
+}
+
+/* ------------------------------- Bisnis ------------------------------- */
+
+async function loadBusiness(force = false) {
+  const sequence = ++state.sequences.business;
+  if (!force && state.business) {
+    renderBusiness();
+    return;
+  }
+  for (const selector of BIZ_TABLES) {
+    const host = $(selector);
+    if (host) host.innerHTML = tableLoading(2);
+  }
+  try {
+    const results = await Promise.all([
+      api('/business/performance-periods?limit=100'),
+      api('/business/kpis?limit=100'),
+      api('/business/kpi-values?limit=100'),
+      api('/business/targets?limit=100'),
+      api('/business/reports?limit=100'),
+      api('/business/profiles?limit=100'),
+      api('/merchants?limit=100'),
+    ]);
+    if (sequence !== state.sequences.business) return;
+    state.business = {
+      periods: results[0].data ?? [],
+      kpis: results[1].data ?? [],
+      kpiValues: results[2].data ?? [],
+      targets: results[3].data ?? [],
+      reports: results[4].data ?? [],
+      profiles: results[5].data ?? [],
+      merchants: results[6].data ?? [],
+    };
+    renderBusiness();
+  } catch (error) {
+    if (sequence !== state.sequences.business) return;
+    for (const selector of BIZ_TABLES) {
+      const host = $(selector);
+      if (host) host.innerHTML = errorState(error.message, 'data-biz-retry');
+    }
+    showToast('Gagal memuat bisnis', error.message, 'error');
+  }
+}
+
+function renderBusiness() {
+  const data = state.business;
+  if (!data) return;
+  const activeKpis = data.kpis.filter((row) => row.isActive).length;
+  const activeProfiles = data.profiles.filter((row) =>
+    ['active', 'verified'].includes(row.status),
+  ).length;
+  scSetText('#biz-stat-periods', formatNumber(data.periods.length));
+  scSetText('#biz-stat-kpis', formatNumber(activeKpis));
+  scSetText('#biz-stat-profiles', formatNumber(data.profiles.length));
+  scSetText('#biz-stat-reports', formatNumber(data.reports.length));
+  scSetBadge('#biz-period-count', data.periods.length, 'periode');
+  scSetBadge('#biz-kpi-count', data.kpis.length, 'KPI');
+  scSetBadge('#biz-kpi-value-count', data.kpiValues.length, 'nilai');
+  scSetBadge('#biz-target-count', data.targets.length, 'target');
+  scSetBadge('#biz-report-count', data.reports.length, 'laporan');
+  scSetBadge('#biz-profile-count', data.profiles.length, 'profil');
+  const summary = $('#biz-summary-badge');
+  if (summary) {
+    summary.hidden = activeProfiles <= 0;
+    summary.textContent = `${formatNumber(activeProfiles)} profil aktif`;
+  }
+
+  scRenderTable(
+    '#biz-periods-table',
+    ['Periode', 'Merchant', 'Tipe', 'Rentang', 'Status'],
+    data.periods,
+    (row) => `
+      <tr>
+        <td><span class="cell-main">${escapeHtml(row.name)}</span><span class="cell-sub cell-code">${escapeHtml(row.code)}</span></td>
+        <td>${escapeHtml(row.merchantName)}</td>
+        <td>${bfStatus(row.type)}</td>
+        <td>${escapeHtml(row.startDate)} – ${escapeHtml(row.endDate)}</td>
+        <td>${bfStatus(row.status)}</td>
+      </tr>
+    `,
+    'Belum ada periode',
+    'Buat periode kinerja pertama untuk mulai mencatat KPI.',
+  );
+
+  scRenderTable(
+    '#biz-kpis-table',
+    ['KPI', 'Merchant', 'Kategori', 'Satuan', 'Status'],
+    data.kpis,
+    (row) => `
+      <tr>
+        <td><span class="cell-main">${escapeHtml(row.name)}</span><span class="cell-sub cell-code">${escapeHtml(row.code)}</span></td>
+        <td>${escapeHtml(row.merchantName)}</td>
+        <td>${bfStatus(row.category)}</td>
+        <td>${escapeHtml(row.unit ?? '—')}</td>
+        <td>${bfStatus(row.isActive ? 'active' : 'inactive')}</td>
+      </tr>
+    `,
+    'Belum ada KPI',
+    'Tambahkan indikator untuk mengukur kinerja merchant.',
+  );
+
+  scRenderTable(
+    '#biz-kpi-values-table',
+    ['KPI', 'Periode', 'Nilai', 'Target', 'Capaian'],
+    data.kpiValues,
+    (row) => `
+      <tr>
+        <td><span class="cell-main">${escapeHtml(row.kpiName)}</span><span class="cell-sub cell-code">${escapeHtml(row.kpiCode)}</span></td>
+        <td>${escapeHtml(row.periodName)}</td>
+        <td>${escapeHtml(formatNumber(row.value))} ${escapeHtml(row.unit ?? '')}</td>
+        <td>${escapeHtml(row.targetValue === null ? '—' : formatNumber(row.targetValue))}</td>
+        <td>${row.achievementPercent === null ? '—' : `${formatNumber(row.achievementPercent)}%`}</td>
+      </tr>
+    `,
+    'Belum ada nilai KPI',
+    'Isi nilai KPI untuk setiap periode pengukuran.',
+  );
+
+  scRenderTable(
+    '#biz-targets-table',
+    ['Target', 'Merchant', 'Periode', 'Target', 'Aktual', 'Status'],
+    data.targets,
+    (row) => `
+      <tr>
+        <td><span class="cell-main">${escapeHtml(row.name)}</span><span class="cell-sub">${escapeHtml(row.kpiName ?? 'Tanpa KPI')}</span></td>
+        <td>${escapeHtml(row.merchantName)}</td>
+        <td>${escapeHtml(row.periodName ?? '—')}</td>
+        <td>${escapeHtml(formatNumber(row.targetValue))} ${escapeHtml(row.unit ?? '')}</td>
+        <td>${escapeHtml(formatNumber(row.actualValue))} ${escapeHtml(row.unit ?? '')}</td>
+        <td>${bfStatus(row.status)}</td>
+      </tr>
+    `,
+    'Belum ada target',
+    'Tetapkan target agar capaian KPI dapat dinilai.',
+  );
+
+  scRenderTable(
+    '#biz-reports-table',
+    ['Laporan', 'Merchant', 'Periode', 'Pendapatan', 'Status'],
+    data.reports,
+    (row) => `
+      <tr>
+        <td><span class="cell-main">${escapeHtml(row.title)}</span><span class="cell-sub cell-code">${escapeHtml(row.reportNumber)}</span></td>
+        <td>${escapeHtml(row.merchantName)}</td>
+        <td>${escapeHtml(row.periodName)}</td>
+        <td>${bfMoney(row.revenue)}</td>
+        <td>${bfStatus(row.status)}</td>
+      </tr>
+    `,
+    'Belum ada laporan',
+    'Buat laporan performa dari periode yang sudah diisi.',
+  );
+
+  scRenderTable(
+    '#biz-profiles-table',
+    ['Profil', 'Merchant', 'Legalitas', 'Kota', 'Kelengkapan', 'Status', 'Aksi'],
+    data.profiles,
+    (row) => {
+      const actions = [];
+      if (state.canManageBusiness && row.verificationStatus !== 'verified') {
+        actions.push(
+          scButton('Verifikasi', `data-biz-action="profile-verify" data-biz-id="${escapeHtml(row.id)}"`),
+        );
+      }
+      return `
+        <tr>
+          <td><span class="cell-main">${escapeHtml(row.displayName ?? row.merchantName)}</span><span class="cell-sub cell-code">${escapeHtml(row.code)}</span></td>
+          <td>${escapeHtml(row.merchantName)}</td>
+          <td>${bfStatus(row.legalStatus)}</td>
+          <td>${escapeHtml(row.city ?? '—')}</td>
+          <td>${formatNumber(row.completeness)}%</td>
+          <td>${bfStatus(row.status)}</td>
+          <td>${scActions(actions)}</td>
+        </tr>
+      `;
+    },
+    'Belum ada profil bisnis',
+    'Lengkapi profil usaha merchant untuk kebutuhan pendanaan.',
+  );
+}
+
+function openBizPeriodModal(data) {
+  bfFormModal({
+    title: 'Tambah periode kinerja',
+    kicker: '2MD-01 · Business performance',
+    subtitle: 'Periode menjadi wadah nilai KPI dan laporan performa.',
+    formId: 'biz-period-form',
+    submitLabel: 'Simpan periode',
+    fields: `
+      <div class="form-field full">
+        <label for="biz-period-merchant">Merchant <span>*</span></label>
+        <select id="biz-period-merchant" name="merchantId" required>${bfMerchantOptions(data.merchants)}</select>
+      </div>
+      <div class="form-field full">
+        <label for="biz-period-name">Nama periode <span>*</span></label>
+        <input id="biz-period-name" name="name" type="text" placeholder="Contoh: Januari 2026" required minlength="2" />
+      </div>
+      <div class="form-field">
+        <label for="biz-period-type">Tipe</label>
+        <select id="biz-period-type" name="type">${bfStatusOptions(['daily', 'weekly', 'monthly', 'quarterly', 'yearly'], 'monthly')}</select>
+      </div>
+      <div class="form-field">
+        <label for="biz-period-status">Status</label>
+        <select id="biz-period-status" name="status">${bfStatusOptions(['open', 'closed'], 'open')}</select>
+      </div>
+      <div class="form-field">
+        <label for="biz-period-start">Tanggal mulai <span>*</span></label>
+        <input id="biz-period-start" name="startDate" type="date" required />
+      </div>
+      <div class="form-field">
+        <label for="biz-period-end">Tanggal akhir <span>*</span></label>
+        <input id="biz-period-end" name="endDate" type="date" required />
+      </div>
+    `,
+    submit: (raw) =>
+      api('/business/performance-periods', {
+        method: 'POST',
+        body: {
+          merchantId: raw.merchantId,
+          name: raw.name,
+          type: raw.type,
+          status: raw.status,
+          startDate: raw.startDate,
+          endDate: raw.endDate,
+        },
+      }),
+    success: async () => {
+      showToast('Periode dibuat', 'Periode kinerja siap dipakai.');
+      await loadBusiness(true);
+    },
+  });
+}
+
+function openBizKpiModal(data) {
+  bfFormModal({
+    title: 'Tambah KPI',
+    kicker: '2MD-01 · Business performance',
+    subtitle: 'Tentukan indikator dan arah penilaiannya.',
+    formId: 'biz-kpi-form',
+    submitLabel: 'Simpan KPI',
+    fields: `
+      <div class="form-field full">
+        <label for="biz-kpi-merchant">Merchant <span>*</span></label>
+        <select id="biz-kpi-merchant" name="merchantId" required>${bfMerchantOptions(data.merchants)}</select>
+      </div>
+      <div class="form-field full">
+        <label for="biz-kpi-name">Nama KPI <span>*</span></label>
+        <input id="biz-kpi-name" name="name" type="text" placeholder="Contoh: Pendapatan bulanan" required minlength="2" />
+      </div>
+      <div class="form-field">
+        <label for="biz-kpi-category">Kategori</label>
+        <select id="biz-kpi-category" name="category">${bfStatusOptions(['revenue', 'transaction', 'customer', 'product', 'margin', 'growth', 'operational', 'other'], 'revenue')}</select>
+      </div>
+      <div class="form-field">
+        <label for="biz-kpi-type">Tipe nilai</label>
+        <select id="biz-kpi-type" name="valueType">${bfStatusOptions(['currency', 'number', 'percentage', 'ratio'], 'currency')}</select>
+      </div>
+      <div class="form-field">
+        <label for="biz-kpi-unit">Satuan</label>
+        <input id="biz-kpi-unit" name="unit" type="text" placeholder="IDR / % / transaksi" />
+      </div>
+      <div class="form-field">
+        <label for="biz-kpi-direction">Arah</label>
+        <select id="biz-kpi-direction" name="direction">${bfStatusOptions(['higher_better', 'lower_better'], 'higher_better')}</select>
+      </div>
+    `,
+    submit: (raw) =>
+      api('/business/kpis', {
+        method: 'POST',
+        body: {
+          merchantId: raw.merchantId,
+          name: raw.name,
+          category: raw.category,
+          valueType: raw.valueType,
+          unit: bfOptional(raw.unit),
+          direction: raw.direction,
+          isActive: true,
+        },
+      }),
+    success: async () => {
+      showToast('KPI dibuat', 'Indikator siap diisi nilainya.');
+      await loadBusiness(true);
+    },
+  });
+}
+
+function openBizKpiValueModal(data) {
+  bfFormModal({
+    title: 'Tambah nilai KPI',
+    kicker: '2MD-01 · Business performance',
+    subtitle: 'Nilai KPI dihitung per periode pengukuran.',
+    formId: 'biz-kpi-value-form',
+    submitLabel: 'Simpan nilai',
+    fields: `
+      <div class="form-field full">
+        <label for="biz-kpi-value-kpi">KPI <span>*</span></label>
+        <select id="biz-kpi-value-kpi" name="kpiId" required>${bfNamedOptions(data.kpis, 'name')}</select>
+      </div>
+      <div class="form-field full">
+        <label for="biz-kpi-value-period">Periode <span>*</span></label>
+        <select id="biz-kpi-value-period" name="periodId" required>${bfNamedOptions(data.periods, 'name')}</select>
+      </div>
+      <div class="form-field">
+        <label for="biz-kpi-value-value">Nilai <span>*</span></label>
+        <input id="biz-kpi-value-value" name="value" type="number" step="any" value="0" required />
+      </div>
+      <div class="form-field">
+        <label for="biz-kpi-value-target">Target</label>
+        <input id="biz-kpi-value-target" name="targetValue" type="number" step="any" />
+      </div>
+    `,
+    submit: (raw) =>
+      api('/business/kpi-values', {
+        method: 'POST',
+        body: {
+          kpiId: raw.kpiId,
+          periodId: raw.periodId,
+          value: raw.value || '0',
+          targetValue: bfOptional(raw.targetValue),
+        },
+      }),
+    success: async () => {
+      showToast('Nilai KPI disimpan', 'Capaian KPI telah diperbarui.');
+      await loadBusiness(true);
+    },
+  });
+}
+
+function openBizTargetModal(data) {
+  bfFormModal({
+    title: 'Tambah target bisnis',
+    kicker: '2MD-01 · Business performance',
+    subtitle: 'Target membantu menilai capaian KPI.',
+    formId: 'biz-target-form',
+    submitLabel: 'Simpan target',
+    fields: `
+      <div class="form-field full">
+        <label for="biz-target-merchant">Merchant <span>*</span></label>
+        <select id="biz-target-merchant" name="merchantId" required>${bfMerchantOptions(data.merchants)}</select>
+      </div>
+      <div class="form-field">
+        <label for="biz-target-period">Periode</label>
+        <select id="biz-target-period" name="periodId">${bfNamedOptions(data.periods, 'name', '', 'Tanpa periode')}</select>
+      </div>
+      <div class="form-field">
+        <label for="biz-target-kpi">KPI</label>
+        <select id="biz-target-kpi" name="kpiId">${bfNamedOptions(data.kpis, 'name', '', 'Tanpa KPI')}</select>
+      </div>
+      <div class="form-field full">
+        <label for="biz-target-name">Nama target <span>*</span></label>
+        <input id="biz-target-name" name="name" type="text" required minlength="2" placeholder="Contoh: Naikkan omzet 20%" />
+      </div>
+      <div class="form-field">
+        <label for="biz-target-value">Nilai target <span>*</span></label>
+        <input id="biz-target-value" name="targetValue" type="number" step="any" required />
+      </div>
+      <div class="form-field">
+        <label for="biz-target-actual">Nilai aktual</label>
+        <input id="biz-target-actual" name="actualValue" type="number" step="any" value="0" />
+      </div>
+    `,
+    submit: (raw) =>
+      api('/business/targets', {
+        method: 'POST',
+        body: {
+          merchantId: raw.merchantId,
+          periodId: bfOptional(raw.periodId),
+          kpiId: bfOptional(raw.kpiId),
+          name: raw.name,
+          targetValue: raw.targetValue,
+          actualValue: raw.actualValue || '0',
+          status: 'active',
+        },
+      }),
+    success: async () => {
+      showToast('Target dibuat', 'Target bisnis telah ditambahkan.');
+      await loadBusiness(true);
+    },
+  });
+}
+
+function openBizReportModal(data) {
+  bfFormModal({
+    title: 'Buat laporan performa',
+    kicker: '2MD-01 · Business performance',
+    subtitle: 'Laporan dirangkum otomatis dari transaksi pada periode.',
+    formId: 'biz-report-form',
+    submitLabel: 'Buat laporan',
+    fields: `
+      <div class="form-field full">
+        <label for="biz-report-merchant">Merchant <span>*</span></label>
+        <select id="biz-report-merchant" name="merchantId" required>${bfMerchantOptions(data.merchants)}</select>
+      </div>
+      <div class="form-field full">
+        <label for="biz-report-period">Periode <span>*</span></label>
+        <select id="biz-report-period" name="periodId" required>${bfNamedOptions(data.periods, 'name')}</select>
+      </div>
+      <div class="form-field full">
+        <label for="biz-report-title">Judul laporan</label>
+        <input id="biz-report-title" name="title" type="text" placeholder="Contoh: Laporan performa Januari 2026" />
+      </div>
+    `,
+    submit: (raw) =>
+      api('/business/reports/generate', {
+        method: 'POST',
+        body: {
+          merchantId: raw.merchantId,
+          periodId: raw.periodId,
+          title: bfOptional(raw.title),
+        },
+      }),
+    success: async () => {
+      showToast('Laporan dibuat', 'Laporan performa berhasil dihasilkan.');
+      await loadBusiness(true);
+    },
+  });
+}
+
+function openBizProfileModal(data) {
+  bfFormModal({
+    title: 'Tambah profil bisnis',
+    kicker: '2MD-02 · Merchant business profile',
+    subtitle: 'Profil menjadi dasar proposal pendanaan.',
+    formId: 'biz-profile-form',
+    submitLabel: 'Simpan profil',
+    fields: `
+      <div class="form-field full">
+        <label for="biz-profile-merchant">Merchant <span>*</span></label>
+        <select id="biz-profile-merchant" name="merchantId" required>${bfMerchantOptions(data.merchants)}</select>
+      </div>
+      <div class="form-field full">
+        <label for="biz-profile-name">Nama tampilan <span>*</span></label>
+        <input id="biz-profile-name" name="displayName" type="text" required minlength="2" />
+      </div>
+      <div class="form-field">
+        <label for="biz-profile-legal">Legalitas</label>
+        <select id="biz-profile-legal" name="legalStatus">${bfStatusOptions(['informal', 'micro', 'small', 'medium', 'cooperative', 'limited_company', 'other'], 'micro')}</select>
+      </div>
+      <div class="form-field">
+        <label for="biz-profile-type">Jenis usaha</label>
+        <input id="biz-profile-type" name="businessType" type="text" placeholder="Kuliner, ritel, jasa" />
+      </div>
+      <div class="form-field">
+        <label for="biz-profile-city">Kota</label>
+        <input id="biz-profile-city" name="city" type="text" />
+      </div>
+      <div class="form-field">
+        <label for="biz-profile-province">Provinsi</label>
+        <input id="biz-profile-province" name="province" type="text" />
+      </div>
+      <div class="form-field">
+        <label for="biz-profile-status">Status</label>
+        <select id="biz-profile-status" name="status">${bfStatusOptions(['draft', 'active', 'verified', 'suspended', 'archived'], 'active')}</select>
+      </div>
+    `,
+    submit: (raw) =>
+      api('/business/profiles', {
+        method: 'POST',
+        body: {
+          merchantId: raw.merchantId,
+          displayName: raw.displayName,
+          legalStatus: raw.legalStatus,
+          businessType: bfOptional(raw.businessType),
+          city: bfOptional(raw.city),
+          province: bfOptional(raw.province),
+          status: raw.status,
+        },
+      }),
+    success: async () => {
+      showToast('Profil dibuat', 'Profil bisnis merchant tersimpan.');
+      await loadBusiness(true);
+    },
+  });
+}
+
+/* ------------------------------ Pendanaan ----------------------------- */
+
+async function loadFunding(force = false) {
+  const sequence = ++state.sequences.funding;
+  if (!force && state.funding) {
+    renderFunding();
+    return;
+  }
+  for (const selector of FUND_TABLES) {
+    const host = $(selector);
+    if (host) host.innerHTML = tableLoading(2);
+  }
+  try {
+    const results = await Promise.all([
+      api('/funding/proposals?limit=100'),
+      api('/funding/opportunities?limit=100'),
+      api('/funding/applications?limit=100'),
+      api('/funding/financings?limit=100'),
+      api('/funding/risk-assessments?limit=100'),
+      api('/merchants?limit=100'),
+    ]);
+    if (sequence !== state.sequences.funding) return;
+    state.funding = {
+      proposals: results[0].data ?? [],
+      opportunities: results[1].data ?? [],
+      applications: results[2].data ?? [],
+      financings: results[3].data ?? [],
+      risks: results[4].data ?? [],
+      merchants: results[5].data ?? [],
+    };
+    renderFunding();
+  } catch (error) {
+    if (sequence !== state.sequences.funding) return;
+    for (const selector of FUND_TABLES) {
+      const host = $(selector);
+      if (host) host.innerHTML = errorState(error.message, 'data-fund-retry');
+    }
+    showToast('Gagal memuat pendanaan', error.message, 'error');
+  }
+}
+
+function renderFunding() {
+  const data = state.funding;
+  if (!data) return;
+  const activeProposals = data.proposals.filter((row) =>
+    ['draft', 'in_review', 'submitted', 'published'].includes(row.status),
+  ).length;
+  const openOpportunities = data.opportunities.filter((row) => row.status === 'open').length;
+  const runningApplications = data.applications.filter(
+    (row) => !['approved', 'rejected', 'withdrawn', 'funded'].includes(row.status),
+  ).length;
+  const activeFinancings = data.financings.filter((row) =>
+    ['active', 'disbursing'].includes(row.status),
+  ).length;
+  scSetText('#fund-stat-proposals', formatNumber(activeProposals));
+  scSetText('#fund-stat-opportunities', formatNumber(openOpportunities));
+  scSetText('#fund-stat-applications', formatNumber(runningApplications));
+  scSetText('#fund-stat-financings', formatNumber(activeFinancings));
+  scSetBadge('#fund-proposal-count', data.proposals.length, 'proposal');
+  scSetBadge('#fund-opportunity-count', data.opportunities.length, 'peluang');
+  scSetBadge('#fund-application-count', data.applications.length, 'pengajuan');
+  scSetBadge('#fund-financing-count', data.financings.length, 'fasilitas');
+  scSetBadge('#fund-risk-count', data.risks.length, 'penilaian');
+  const summary = $('#fund-summary-badge');
+  if (summary) {
+    summary.hidden = activeProposals <= 0;
+    summary.textContent = `${formatNumber(activeProposals)} proposal aktif`;
+  }
+
+  scRenderTable(
+    '#fund-proposals-table',
+    ['Proposal', 'Merchant', 'Target', 'Tipe', 'Status', 'Aksi'],
+    data.proposals,
+    (row) => {
+      const actions = [];
+      if (state.canWriteFunding) {
+        if (['draft', 'in_review'].includes(row.status)) {
+          actions.push(scButton('Ajukan', `data-fund-action="proposal-submit" data-fund-id="${escapeHtml(row.id)}"`));
+        }
+        if (['submitted', 'in_review'].includes(row.status)) {
+          actions.push(scButton('Terbitkan', `data-fund-action="proposal-publish" data-fund-id="${escapeHtml(row.id)}"`));
+        }
+        if (!['archived', 'funded'].includes(row.status)) {
+          actions.push(scButton('Arsipkan', `data-fund-action="proposal-archive" data-fund-id="${escapeHtml(row.id)}"`));
+        }
+      }
+      return `
+        <tr>
+          <td><span class="cell-main">${escapeHtml(row.title)}</span><span class="cell-sub cell-code">${escapeHtml(row.code)}</span></td>
+          <td>${escapeHtml(row.merchantName)}</td>
+          <td>${bfMoney(row.targetAmount, row.currency)}</td>
+          <td>${bfStatus(row.fundingType)}</td>
+          <td>${bfStatus(row.status)}</td>
+          <td>${scActions(actions)}</td>
+        </tr>
+      `;
+    },
+    'Belum ada proposal',
+    'Buat proposal untuk membuka akses pendanaan.',
+  );
+
+  scRenderTable(
+    '#fund-opportunities-table',
+    ['Peluang', 'Penyedia', 'Instrumen', 'Rentang', 'Status'],
+    data.opportunities,
+    (row) => `
+      <tr>
+        <td><span class="cell-main">${escapeHtml(row.title)}</span><span class="cell-sub cell-code">${escapeHtml(row.code)}</span></td>
+        <td><span class="cell-main">${escapeHtml(row.providerName)}</span><span class="cell-sub">${bfStatus(row.providerType)}</span></td>
+        <td>${bfStatus(row.instrumentType)}</td>
+        <td>${bfMoney(row.minAmount, row.currency)} – ${bfMoney(row.maxAmount, row.currency)}</td>
+        <td>${bfStatus(row.status)}</td>
+      </tr>
+    `,
+    'Belum ada peluang',
+    'Peluang pendanaan dari investor akan tampil di sini.',
+  );
+
+  scRenderTable(
+    '#fund-applications-table',
+    ['Pengajuan', 'Merchant', 'Proposal', 'Diajukan', 'Status', 'Aksi'],
+    data.applications,
+    (row) => {
+      const actions = [];
+      if (state.canWriteFunding && row.status === 'draft') {
+        actions.push(scButton('Ajukan', `data-fund-action="application-submit" data-fund-id="${escapeHtml(row.id)}"`));
+      }
+      return `
+        <tr>
+          <td><span class="cell-main">${escapeHtml(row.applicationNumber)}</span><span class="cell-sub">${escapeHtml(row.investorProfileId ? 'Investor terhubung' : 'Tanpa investor')}</span></td>
+          <td>${escapeHtml(row.merchantName)}</td>
+          <td>${escapeHtml(row.proposalTitle)}</td>
+          <td>${bfMoney(row.requestedAmount, row.currency)}</td>
+          <td>${bfStatus(row.status)}</td>
+          <td>${scActions(actions)}</td>
+        </tr>
+      `;
+    },
+    'Belum ada pengajuan',
+    'Ajukan proposal ke peluang pendanaan yang tersedia.',
+  );
+
+  scRenderTable(
+    '#fund-financings-table',
+    ['Fasilitas', 'Merchant', 'Pokok', 'Tenor', 'Status', 'Aksi'],
+    data.financings,
+    (row) => {
+      const actions = [];
+      if (state.canWriteFunding && row.status === 'draft') {
+        actions.push(scButton('Aktifkan', `data-fund-action="financing-activate" data-fund-id="${escapeHtml(row.id)}"`));
+      }
+      if (state.canManageFunding && ['active', 'disbursing'].includes(row.status)) {
+        actions.push(scButton('Tutup', `data-fund-action="financing-close" data-fund-id="${escapeHtml(row.id)}"`));
+      }
+      return `
+        <tr>
+          <td><span class="cell-main">${escapeHtml(row.title)}</span><span class="cell-sub cell-code">${escapeHtml(row.facilityNumber)}</span></td>
+          <td>${escapeHtml(row.merchantName)}</td>
+          <td>${bfMoney(row.principalAmount, row.currency)}</td>
+          <td>${row.tenorMonths ? `${formatNumber(row.tenorMonths)} bulan` : '—'}</td>
+          <td>${bfStatus(row.status)}</td>
+          <td>${scActions(actions)}</td>
+        </tr>
+      `;
+    },
+    'Belum ada fasilitas',
+    'Fasilitas pembiayaan muncul setelah pengajuan disetujui.',
+  );
+
+  scRenderTable(
+    '#fund-risks-table',
+    ['Penilaian', 'Merchant', 'Skor', 'Level', 'Status'],
+    data.risks,
+    (row) => `
+      <tr>
+        <td><span class="cell-main">${escapeHtml(row.indicatorName ?? 'Penilaian umum')}</span><span class="cell-sub">${escapeHtml(row.assessmentDate)}</span></td>
+        <td>${escapeHtml(row.merchantName)}</td>
+        <td>${formatNumber(row.score)}</td>
+        <td>${bfRiskLevel(row.riskLevel)}</td>
+        <td>${bfStatus(row.status)}</td>
+      </tr>
+    `,
+    'Belum ada penilaian risiko',
+    'Catat penilaian risiko untuk memantau kesehatan pembiayaan.',
+  );
+}
+
+function openFundProposalModal(data) {
+  bfFormModal({
+    title: 'Tambah proposal pendanaan',
+    kicker: '2MD-03 · Proposal & document',
+    subtitle: 'Hubungkan profil bisnis dengan kebutuhan dana.',
+    formId: 'fund-proposal-form',
+    submitLabel: 'Simpan proposal',
+    fields: `
+      <div class="form-field full">
+        <label for="fund-proposal-merchant">Merchant <span>*</span></label>
+        <select id="fund-proposal-merchant" name="merchantId" required>${bfMerchantOptions(data.merchants)}</select>
+      </div>
+      <div class="form-field full">
+        <label for="fund-proposal-title">Judul proposal <span>*</span></label>
+        <input id="fund-proposal-title" name="title" type="text" required minlength="2" />
+      </div>
+      <div class="form-field">
+        <label for="fund-proposal-amount">Target dana <span>*</span></label>
+        <input id="fund-proposal-amount" name="targetAmount" type="number" step="any" required />
+      </div>
+      <div class="form-field">
+        <label for="fund-proposal-type">Instrumen</label>
+        <select id="fund-proposal-type" name="fundingType">${bfStatusOptions(['equity', 'debt', 'grant', 'convertible_note', 'revenue_sharing', 'other'], 'equity')}</select>
+      </div>
+      <div class="form-field full">
+        <label for="fund-proposal-summary">Ringkasan</label>
+        <textarea id="fund-proposal-summary" name="summary" placeholder="Ringkasan singkat rencana penggunaan dana..."></textarea>
+      </div>
+    `,
+    submit: (raw) =>
+      api('/funding/proposals', {
+        method: 'POST',
+        body: {
+          merchantId: raw.merchantId,
+          title: raw.title,
+          targetAmount: raw.targetAmount,
+          fundingType: raw.fundingType,
+          summary: bfOptional(raw.summary),
+        },
+      }),
+    success: async () => {
+      showToast('Proposal dibuat', 'Lengkapi dokumen lalu ajukan proposal.');
+      await loadFunding(true);
+    },
+  });
+}
+
+function openFundOpportunityModal() {
+  bfFormModal({
+    title: 'Tambah peluang pendanaan',
+    kicker: '2MD-04 · Funding marketplace',
+    subtitle: 'Peluang terbuka dapat dilihat merchant untuk pengajuan.',
+    formId: 'fund-opportunity-form',
+    submitLabel: 'Simpan peluang',
+    fields: `
+      <div class="form-field full">
+        <label for="fund-op-title">Judul peluang <span>*</span></label>
+        <input id="fund-op-title" name="title" type="text" required minlength="2" />
+      </div>
+      <div class="form-field">
+        <label for="fund-op-provider">Nama penyedia <span>*</span></label>
+        <input id="fund-op-provider" name="providerName" type="text" required minlength="2" />
+      </div>
+      <div class="form-field">
+        <label for="fund-op-provider-type">Tipe penyedia</label>
+        <select id="fund-op-provider-type" name="providerType">${bfStatusOptions(['individual', 'angel', 'venture_capital', 'private_equity', 'bank', 'cooperative', 'government', 'other'], 'angel')}</select>
+      </div>
+      <div class="form-field">
+        <label for="fund-op-instrument">Instrumen</label>
+        <select id="fund-op-instrument" name="instrumentType">${bfStatusOptions(['equity', 'debt', 'grant', 'convertible_note', 'revenue_sharing', 'other'], 'equity')}</select>
+      </div>
+      <div class="form-field">
+        <label for="fund-op-min">Minimum</label>
+        <input id="fund-op-min" name="minAmount" type="number" step="any" value="0" />
+      </div>
+      <div class="form-field">
+        <label for="fund-op-max">Maksimum</label>
+        <input id="fund-op-max" name="maxAmount" type="number" step="any" value="0" />
+      </div>
+      <div class="form-field">
+        <label for="fund-op-status">Status</label>
+        <select id="fund-op-status" name="status">${bfStatusOptions(['draft', 'open', 'closed', 'archived'], 'open')}</select>
+      </div>
+    `,
+    submit: (raw) =>
+      api('/funding/opportunities', {
+        method: 'POST',
+        body: {
+          title: raw.title,
+          providerName: raw.providerName,
+          providerType: raw.providerType,
+          instrumentType: raw.instrumentType,
+          minAmount: raw.minAmount || '0',
+          maxAmount: raw.maxAmount || '0',
+          status: raw.status,
+        },
+      }),
+    success: async () => {
+      showToast('Peluang dibuat', 'Peluang pendanaan tersedia di marketplace.');
+      await loadFunding(true);
+    },
+  });
+}
+
+function openFundApplicationModal(data) {
+  const eligible = data.proposals.filter((row) =>
+    ['submitted', 'published'].includes(row.status),
+  );
+  bfFormModal({
+    title: 'Tambah pengajuan pendanaan',
+    kicker: '2MD-04 · Funding marketplace',
+    subtitle: 'Hanya proposal yang diajukan atau terbit yang dapat dipakai.',
+    formId: 'fund-application-form',
+    submitLabel: 'Simpan pengajuan',
+    fields: `
+      <div class="form-field full">
+        <label for="fund-app-merchant">Merchant <span>*</span></label>
+        <select id="fund-app-merchant" name="merchantId" required>${bfMerchantOptions(data.merchants)}</select>
+      </div>
+      <div class="form-field full">
+        <label for="fund-app-proposal">Proposal <span>*</span></label>
+        <select id="fund-app-proposal" name="proposalId" required>${bfNamedOptions(eligible, 'title')}</select>
+      </div>
+      <div class="form-field full">
+        <label for="fund-app-opportunity">Peluang</label>
+        <select id="fund-app-opportunity" name="opportunityId">${bfNamedOptions(data.opportunities.filter((row) => row.status === 'open'), 'title', '', 'Tanpa peluang')}</select>
+      </div>
+      <div class="form-field">
+        <label for="fund-app-amount">Jumlah diminta <span>*</span></label>
+        <input id="fund-app-amount" name="requestedAmount" type="number" step="any" required />
+      </div>
+    `,
+    submit: (raw) =>
+      api('/funding/applications', {
+        method: 'POST',
+        body: {
+          merchantId: raw.merchantId,
+          proposalId: raw.proposalId,
+          opportunityId: bfOptional(raw.opportunityId),
+          requestedAmount: raw.requestedAmount,
+        },
+      }),
+    success: async () => {
+      showToast('Pengajuan dibuat', 'Ajukan pengajuan untuk masuk proses review.');
+      await loadFunding(true);
+    },
+  });
+}
+
+function openFundFinancingModal(data) {
+  bfFormModal({
+    title: 'Tambah fasilitas pembiayaan',
+    kicker: '2MD-05 · Financing & risk',
+    subtitle: 'Catat fasilitas yang disetujui investor atau lembaga.',
+    formId: 'fund-financing-form',
+    submitLabel: 'Simpan fasilitas',
+    fields: `
+      <div class="form-field full">
+        <label for="fund-fin-merchant">Merchant <span>*</span></label>
+        <select id="fund-fin-merchant" name="merchantId" required>${bfMerchantOptions(data.merchants)}</select>
+      </div>
+      <div class="form-field full">
+        <label for="fund-fin-title">Judul fasilitas <span>*</span></label>
+        <input id="fund-fin-title" name="title" type="text" required minlength="2" />
+      </div>
+      <div class="form-field">
+        <label for="fund-fin-type">Jenis</label>
+        <select id="fund-fin-type" name="financingType">${bfStatusOptions(['loan', 'equity', 'grant', 'revenue_sharing', 'lease', 'other'], 'loan')}</select>
+      </div>
+      <div class="form-field">
+        <label for="fund-fin-principal">Pokok <span>*</span></label>
+        <input id="fund-fin-principal" name="principalAmount" type="number" step="any" required />
+      </div>
+      <div class="form-field">
+        <label for="fund-fin-rate">Bunga (%)</label>
+        <input id="fund-fin-rate" name="interestRate" type="number" step="any" />
+      </div>
+      <div class="form-field">
+        <label for="fund-fin-tenor">Tenor (bulan)</label>
+        <input id="fund-fin-tenor" name="tenorMonths" type="number" min="0" step="1" />
+      </div>
+    `,
+    submit: (raw) =>
+      api('/funding/financings', {
+        method: 'POST',
+        body: {
+          merchantId: raw.merchantId,
+          title: raw.title,
+          financingType: raw.financingType,
+          principalAmount: raw.principalAmount,
+          interestRate: bfOptional(raw.interestRate),
+          tenorMonths: bfNumber(raw.tenorMonths),
+        },
+      }),
+    success: async () => {
+      showToast('Fasilitas dibuat', 'Aktifkan fasilitas saat siap dicairkan.');
+      await loadFunding(true);
+    },
+  });
+}
+
+function openFundRiskModal(data) {
+  bfFormModal({
+    title: 'Tambah penilaian risiko',
+    kicker: '2MD-05 · Financing & risk',
+    subtitle: 'Penilaian dipakai untuk memantau kesehatan pembiayaan.',
+    formId: 'fund-risk-form',
+    submitLabel: 'Simpan penilaian',
+    fields: `
+      <div class="form-field full">
+        <label for="fund-risk-merchant">Merchant <span>*</span></label>
+        <select id="fund-risk-merchant" name="merchantId" required>${bfMerchantOptions(data.merchants)}</select>
+      </div>
+      <div class="form-field full">
+        <label for="fund-risk-financing">Fasilitas</label>
+        <select id="fund-risk-financing" name="financingId">${bfNamedOptions(data.financings, 'title', '', 'Tanpa fasilitas')}</select>
+      </div>
+      <div class="form-field">
+        <label for="fund-risk-date">Tanggal penilaian <span>*</span></label>
+        <input id="fund-risk-date" name="assessmentDate" type="date" required />
+      </div>
+      <div class="form-field">
+        <label for="fund-risk-score">Skor (0–100) <span>*</span></label>
+        <input id="fund-risk-score" name="score" type="number" min="0" max="100" step="any" value="0" required />
+      </div>
+      <div class="form-field">
+        <label for="fund-risk-level">Level risiko</label>
+        <select id="fund-risk-level" name="riskLevel">
+          <option value="low">Rendah</option>
+          <option value="medium">Sedang</option>
+          <option value="high">Tinggi</option>
+          <option value="critical">Kritis</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="fund-risk-status">Status</label>
+        <select id="fund-risk-status" name="status">${bfStatusOptions(['draft', 'final'], 'draft')}</select>
+      </div>
+      <div class="form-field full">
+        <label for="fund-risk-findings">Temuan</label>
+        <textarea id="fund-risk-findings" name="findings" placeholder="Catatan temuan penilaian..."></textarea>
+      </div>
+    `,
+    submit: (raw) =>
+      api('/funding/risk-assessments', {
+        method: 'POST',
+        body: {
+          merchantId: raw.merchantId,
+          financingId: bfOptional(raw.financingId),
+          assessmentDate: raw.assessmentDate,
+          score: Number(raw.score || 0),
+          riskLevel: raw.riskLevel,
+          status: raw.status,
+          findings: bfOptional(raw.findings),
+        },
+      }),
+    success: async () => {
+      showToast('Penilaian disimpan', 'Penilaian risiko berhasil dicatat.');
+      await loadFunding(true);
+    },
+  });
+}
+
+async function bfRunBusinessAction(action, id) {
+  try {
+    if (action === 'profile-verify') {
+      await api(`/business/profiles/${id}/verify`, {
+        method: 'POST',
+        body: { status: 'verified' },
+      });
+      showToast('Profil diverifikasi', 'Status verifikasi profil diperbarui.');
+    }
+    await loadBusiness(true);
+  } catch (error) {
+    showToast('Aksi gagal', error.message, 'error');
+  }
+}
+
+async function bfRunFundingAction(action, id) {
+  try {
+    if (action === 'proposal-submit') {
+      await api(`/funding/proposals/${id}/submit`, { method: 'POST', body: {} });
+      showToast('Proposal diajukan', 'Proposal masuk tahap peninjauan.');
+    } else if (action === 'proposal-publish') {
+      await api(`/funding/proposals/${id}/publish`, { method: 'POST', body: {} });
+      showToast('Proposal terbit', 'Proposal tersedia untuk investor.');
+    } else if (action === 'proposal-archive') {
+      await api(`/funding/proposals/${id}/archive`, { method: 'POST', body: {} });
+      showToast('Proposal diarsipkan', 'Proposal tidak lagi aktif.');
+    } else if (action === 'application-submit') {
+      await api(`/funding/applications/${id}/submit`, { method: 'POST', body: {} });
+      showToast('Pengajuan diajukan', 'Pengajuan masuk proses review.');
+    } else if (action === 'financing-activate') {
+      await api(`/funding/financings/${id}/activate`, { method: 'POST', body: {} });
+      showToast('Fasilitas aktif', 'Fasilitas pembiayaan mulai berjalan.');
+    } else if (action === 'financing-close') {
+      await api(`/funding/financings/${id}/close`, { method: 'POST', body: {} });
+      showToast('Fasilitas ditutup', 'Fasilitas pembiayaan telah selesai.');
+    }
+    await loadFunding(true);
+  } catch (error) {
+    showToast('Aksi gagal', error.message, 'error');
+  }
+}
+
 /* -------------------------------- Events ------------------------------ */
 
 function bindEvents() {
@@ -10858,6 +12069,40 @@ function bindEvents() {
     }),
   );
 
+  $('#refresh-biz-all')?.addEventListener('click', () => loadBusiness(true));
+  for (const [selector, open] of [
+    ['#create-biz-period-button', openBizPeriodModal],
+    ['#create-biz-kpi-button', openBizKpiModal],
+    ['#create-biz-kpi-value-button', openBizKpiValueModal],
+    ['#create-biz-target-button', openBizTargetModal],
+    ['#create-biz-report-button', openBizReportModal],
+    ['#create-biz-profile-button', openBizProfileModal],
+  ]) {
+    $(selector)?.addEventListener('click', async () => {
+      try {
+        open(await bfBusinessData());
+      } catch (error) {
+        showToast('Gagal memuat data pendukung', error.message, 'error');
+      }
+    });
+  }
+  $('#refresh-fund-all')?.addEventListener('click', () => loadFunding(true));
+  for (const [selector, open] of [
+    ['#create-fund-proposal-button', openFundProposalModal],
+    ['#create-fund-opportunity-button', openFundOpportunityModal],
+    ['#create-fund-application-button', openFundApplicationModal],
+    ['#create-fund-financing-button', openFundFinancingModal],
+    ['#create-fund-risk-button', openFundRiskModal],
+  ]) {
+    $(selector)?.addEventListener('click', async () => {
+      try {
+        open(await bfFundingData());
+      } catch (error) {
+        showToast('Gagal memuat data pendukung', error.message, 'error');
+      }
+    });
+  }
+
   $('#audit-search').addEventListener(
     'input',
     debounce((event) => {
@@ -10875,6 +12120,18 @@ function bindEvents() {
     const goto = event.target.closest('[data-goto]');
     if (goto) {
       setView(goto.dataset.goto);
+      return;
+    }
+
+    const bizAction = event.target.closest('[data-biz-action]');
+    if (bizAction) {
+      void bfRunBusinessAction(bizAction.dataset.bizAction, bizAction.dataset.bizId);
+      return;
+    }
+
+    const fundAction = event.target.closest('[data-fund-action]');
+    if (fundAction) {
+      void bfRunFundingAction(fundAction.dataset.fundAction, fundAction.dataset.fundId);
       return;
     }
 
@@ -10927,6 +12184,18 @@ function bindEvents() {
       } else {
         void mktRunCrmAction(action, id);
       }
+      return;
+    }
+
+    const retryBusiness = event.target.closest('[data-biz-retry]');
+    if (retryBusiness) {
+      loadBusiness(true);
+      return;
+    }
+
+    const retryFunding = event.target.closest('[data-fund-retry]');
+    if (retryFunding) {
+      loadFunding(true);
       return;
     }
 

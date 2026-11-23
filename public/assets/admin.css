@@ -2300,3 +2300,91 @@ svg {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ------------------------------ Inventory ---------------------------- */
+.status-counting,
+.status-inbound,
+.status-return,
+.status-active,
+.status-ok,
+.status-safe {
+  color: #147052;
+  background: #e5f6ed;
+}
+
+.status-out,
+.status-damage,
+.status-loss,
+.status-depleted {
+  color: #a44848;
+  background: #fbeceb;
+}
+
+.status-low,
+.status-expiring,
+.status-quarantined,
+.status-blocked,
+.status-transfer,
+.status-adjustment,
+.status-stock_count,
+.status-increase {
+  color: #9b6a13;
+  background: #fcf3df;
+}
+
+.status-outbound,
+.status-decrease {
+  color: #1f5f9e;
+  background: #e8f1fb;
+}
+
+.status-correction,
+.status-other,
+.status-none {
+  color: #6e6a5c;
+  background: #f1f1e9;
+}
+
+.checkbox-field {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  align-items: center;
+  padding-top: 6px;
+}
+
+.checkbox-field label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-soft, #4b5850);
+}
+
+.checkbox-field input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--green, #218867);
+}
+
+.table-input {
+  width: 100%;
+  min-width: 82px;
+  padding: 7px 9px;
+  border: 1px solid var(--line, #dde4dc);
+  border-radius: 7px;
+  background: #fff;
+  font: inherit;
+  font-size: 12px;
+  color: inherit;
+}
+
+.table-input:focus {
+  outline: 2px solid rgba(33, 136, 103, 0.22);
+  border-color: var(--green, #218867);
+}
+
+.cell-danger {
+  color: #a44848;
+  font-weight: 700;
+}

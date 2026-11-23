@@ -11,6 +11,7 @@ const VIEW_TITLES = {
   orders: 'Pesanan',
   payments: 'Pembayaran',
   pos: 'POS',
+  inventory: 'Inventori',
   audit: 'Audit log',
 };
 
@@ -55,6 +56,33 @@ const STATUS_LABELS = {
   synced: 'Tersinkronisasi',
   conflict: 'Konflik',
   success: 'Berhasil',
+  counting: 'Sedang dihitung',
+  depleted: 'Habis',
+  quarantined: 'Karantina',
+  inbound: 'Barang masuk',
+  outbound: 'Barang keluar',
+  transfer: 'Transfer',
+  adjustment: 'Penyesuaian',
+  stock_count: 'Opname',
+  return: 'Retur',
+  increase: 'Penambahan',
+  decrease: 'Pengurangan',
+  correction: 'Koreksi',
+  damage: 'Rusak',
+  loss: 'Kehilangan',
+  out: 'Habis',
+  low: 'Menipis',
+  ok: 'Aman',
+  safe: 'Aman',
+  none: 'Tanpa kedaluwarsa',
+  storage: 'Penyimpanan',
+  receiving: 'Penerimaan',
+  picking: 'Pengambilan',
+  staging: 'Staging',
+  returns: 'Retur',
+  quarantine: 'Karantina',
+  discontinued: 'Dihentikan',
+  blocked: 'Diblokir',
 };
 
 const STATUS_COLORS = {
@@ -123,6 +151,21 @@ const ACTION_LABELS = {
   'pos_transaction.void': 'Transaksi POS dibatalkan',
   'pos_transaction.sync': 'Transaksi POS disinkronkan',
   'pos_sync.upload': 'Sinkronisasi offline diunggah',
+  'inventory.warehouse.create': 'Gudang dibuat',
+  'inventory.warehouse.update': 'Gudang diperbarui',
+  'inventory.warehouse.delete': 'Gudang dihapus',
+  'inventory.location.create': 'Lokasi gudang dibuat',
+  'inventory.location.update': 'Lokasi gudang diperbarui',
+  'inventory.location.delete': 'Lokasi gudang dihapus',
+  'inventory.item.create': 'Item persediaan dibuat',
+  'inventory.item.update': 'Item persediaan diperbarui',
+  'inventory.item.delete': 'Item persediaan dihapus',
+  'inventory.movement.create': 'Pergerakan stok dicatat',
+  'inventory.adjustment.create': 'Penyesuaian stok dibuat',
+  'inventory.stock_count.create': 'Opname stok dimulai',
+  'inventory.stock_count.complete': 'Opname stok diselesaikan',
+  'inventory.stock_count.cancel': 'Opname stok dibatalkan',
+  'inventory.batch.update': 'Batch persediaan diperbarui',
   'organization.create': 'Organisasi baru dibuat',
   'occupancy.create': 'Okupansi unit dibuat',
   'occupancy.end': 'Okupansi unit diakhiri',
@@ -157,6 +200,13 @@ const ENTITY_LABELS = {
   pos_shift: 'Shift kasir',
   pos_cash_movement: 'Pergerakan kas',
   pos_transaction: 'Transaksi POS',
+  warehouse: 'Gudang',
+  warehouse_location: 'Lokasi gudang',
+  inventory_item: 'Item persediaan',
+  stock_movement: 'Pergerakan stok',
+  stock_adjustment: 'Penyesuaian stok',
+  stock_count: 'Opname stok',
+  inventory_batch: 'Batch persediaan',
 };
 
 const state = {
@@ -171,6 +221,7 @@ const state = {
   orders: null,
   payments: null,
   pos: null,
+  inventory: null,
   audit: null,
   pendingCount: 0,
   canWriteCommerce: false,
@@ -179,6 +230,8 @@ const state = {
   canManagePayments: false,
   canWritePos: false,
   canManagePos: false,
+  canWriteInventory: false,
+  canManageInventory: false,
   sequences: {
     overview: 0,
     markets: 0,
@@ -188,6 +241,7 @@ const state = {
     orders: 0,
     payments: 0,
     pos: 0,
+    inventory: 0,
     audit: 0,
   },
   filters: {
@@ -208,6 +262,20 @@ const state = {
       transactionSync: '',
       syncSearch: '',
       syncStatus: '',
+    },
+    inventory: {
+      itemSearch: '',
+      itemStatus: '',
+      balanceSearch: '',
+      balanceLow: '',
+      movementSearch: '',
+      movementType: '',
+      adjustmentSearch: '',
+      adjustmentType: '',
+      countSearch: '',
+      countStatus: '',
+      batchSearch: '',
+      batchExpiry: '',
     },
     audit: { search: '', entityType: '' },
   },
@@ -486,12 +554,15 @@ function applyProfile(profile) {
   const canCommerce = permissions.includes('*') || permissions.includes('commerce:read');
   const canPayments = permissions.includes('*') || permissions.includes('payment:read');
   const canPos = permissions.includes('*') || permissions.includes('pos:read');
+  const canInventory = permissions.includes('*') || permissions.includes('inventory:read');
   state.canWriteCommerce = permissions.includes('*') || permissions.includes('commerce:write');
   state.canManageCommerce = permissions.includes('*') || permissions.includes('commerce:manage');
   state.canWritePayments = permissions.includes('*') || permissions.includes('payment:write');
   state.canManagePayments = permissions.includes('*') || permissions.includes('payment:manage');
   state.canWritePos = permissions.includes('*') || permissions.includes('pos:write');
   state.canManagePos = permissions.includes('*') || permissions.includes('pos:manage');
+  state.canWriteInventory = permissions.includes('*') || permissions.includes('inventory:write');
+  state.canManageInventory = permissions.includes('*') || permissions.includes('inventory:manage');
   const commerceNav = $('[data-view="commerce"]');
   if (commerceNav) commerceNav.hidden = !canCommerce;
   const ordersNav = $('[data-view="orders"]');
@@ -500,6 +571,8 @@ function applyProfile(profile) {
   if (paymentsNav) paymentsNav.hidden = !canPayments;
   const posNav = $('[data-view="pos"]');
   if (posNav) posNav.hidden = !canPos;
+  const inventoryNav = $('[data-view="inventory"]');
+  if (inventoryNav) inventoryNav.hidden = !canInventory;
   const createChannelButton = $('#create-channel-button');
   if (createChannelButton) createChannelButton.hidden = !state.canManageCommerce;
 
@@ -532,6 +605,23 @@ function applyProfile(profile) {
   }
   const syncOfflineButton = $('#sync-pos-offline-button');
   if (syncOfflineButton) syncOfflineButton.hidden = !state.canManagePos;
+
+  for (const selector of [
+    '#create-inventory-warehouse-button',
+    '#create-inventory-location-button',
+    '#create-inventory-item-button',
+  ]) {
+    const button = $(selector);
+    if (button) button.hidden = !state.canManageInventory;
+  }
+  for (const selector of [
+    '#create-inventory-movement-button',
+    '#create-inventory-adjustment-button',
+    '#create-inventory-count-button',
+  ]) {
+    const button = $(selector);
+    if (button) button.hidden = !state.canWriteInventory;
+  }
 
   const hour = new Date().getHours();
   const greeting =
@@ -650,6 +740,7 @@ function loadView(view) {
   if (view === 'orders') return loadOrders();
   if (view === 'payments') return loadPayments();
   if (view === 'pos') return loadPos();
+  if (view === 'inventory') return loadInventory();
   if (view === 'audit') return loadAudit();
   return undefined;
 }
@@ -4944,6 +5035,1789 @@ async function syncPosTransaction(transactionId, transactionNumber) {
 }
 
 
+/* ------------------------------ Inventory ----------------------------- */
+
+function inventoryMerchantOptions(merchants, selectedId = '') {
+  return (
+    '<option value="">Pilih pedagang</option>' +
+    merchants
+      .map(
+        (merchant) =>
+          `<option value="${escapeHtml(merchant.id)}" ${merchant.id === selectedId ? 'selected' : ''}>${escapeHtml(merchant.businessName)}</option>`,
+      )
+      .join('')
+  );
+}
+
+function inventoryWarehouseOptions(warehouseList, selectedId = '', merchantId = '') {
+  const filtered = merchantId
+    ? warehouseList.filter((row) => row.merchantId === merchantId)
+    : warehouseList;
+  return (
+    '<option value="">Pilih gudang</option>' +
+    filtered
+      .map(
+        (row) =>
+          `<option value="${escapeHtml(row.id)}" ${row.id === selectedId ? 'selected' : ''}>${escapeHtml(row.code)} - ${escapeHtml(row.name)}</option>`,
+      )
+      .join('')
+  );
+}
+
+async function inventoryLocationOptions(warehouseId, selectedId = '') {
+  if (!warehouseId) return '<option value="">Pilih lokasi</option>';
+  const result = await api(`/inventory/warehouses/${warehouseId}/locations`);
+  const rows = result.data ?? [];
+  return (
+    '<option value="">Pilih lokasi</option>' +
+    rows
+      .map(
+        (row) =>
+          `<option value="${escapeHtml(row.id)}" ${row.id === selectedId ? 'selected' : ''}>${escapeHtml(row.code)} - ${escapeHtml(row.name)}</option>`,
+      )
+      .join('')
+  );
+}
+
+function inventoryItemOptions(itemList, merchantId = '', selectedId = '') {
+  const filtered = merchantId
+    ? itemList.filter((row) => row.merchantId === merchantId)
+    : itemList;
+  return (
+    '<option value="">Pilih item</option>' +
+    filtered
+      .map(
+        (row) =>
+          `<option value="${escapeHtml(row.id)}" ${row.id === selectedId ? 'selected' : ''}>${escapeHtml(row.productName)} - ${escapeHtml(row.skuCode)}</option>`,
+      )
+      .join('')
+  );
+}
+
+function inventoryProductOptions(productList, merchantId = '', selectedId = '') {
+  const filtered = merchantId
+    ? productList.filter((row) => row.merchantId === merchantId)
+    : productList;
+  return (
+    '<option value="">Pilih produk</option>' +
+    filtered
+      .map(
+        (row) =>
+          `<option value="${escapeHtml(row.id)}" ${row.id === selectedId ? 'selected' : ''}>${escapeHtml(row.name)}</option>`,
+      )
+      .join('')
+  );
+}
+
+async function loadInventory(force = false) {
+  const sequence = ++state.sequences.inventory;
+  const filters = state.filters.inventory;
+
+  if (!state.inventory || force) {
+    for (const selector of [
+      '#inventory-warehouses-table',
+      '#inventory-locations-table',
+      '#inventory-items-table',
+      '#inventory-balances-table',
+      '#inventory-movements-table',
+      '#inventory-adjustments-table',
+      '#inventory-counts-table',
+      '#inventory-batches-table',
+    ]) {
+      const host = $(selector);
+      if (host) host.innerHTML = tableLoading(3);
+    }
+  }
+  for (const selector of [
+    '#inventory-warehouse-count',
+    '#inventory-location-count',
+    '#inventory-item-count',
+    '#inventory-balance-count',
+    '#inventory-movement-count',
+    '#inventory-adjustment-count',
+    '#inventory-count-count',
+    '#inventory-batch-count',
+  ]) {
+    const node = $(selector);
+    if (node) node.textContent = 'Memuat...';
+  }
+  setSpinner('#refresh-inventory-movements', true);
+
+  try {
+    const [
+      summary,
+      warehouses,
+      locations,
+      items,
+      balances,
+      movements,
+      adjustments,
+      counts,
+      batches,
+    ] = await Promise.all([
+      api('/inventory/summary'),
+      api('/inventory/warehouses?limit=100'),
+      api('/inventory/locations?limit=100'),
+      api(
+        `/inventory/items${buildQuery({
+          limit: 100,
+          search: filters.itemSearch,
+          status: filters.itemStatus,
+        })}`,
+      ),
+      api(
+        `/inventory/balances${buildQuery({
+          limit: 100,
+          search: filters.balanceSearch,
+          lowStock: filters.balanceLow,
+        })}`,
+      ),
+      api(
+        `/inventory/movements${buildQuery({
+          limit: 100,
+          search: filters.movementSearch,
+          type: filters.movementType,
+        })}`,
+      ),
+      api(
+        `/inventory/adjustments${buildQuery({
+          limit: 100,
+          search: filters.adjustmentSearch,
+          type: filters.adjustmentType,
+        })}`,
+      ),
+      api(
+        `/inventory/stock-counts${buildQuery({
+          limit: 100,
+          search: filters.countSearch,
+          status: filters.countStatus,
+        })}`,
+      ),
+      api(
+        `/inventory/batches${buildQuery({
+          limit: 100,
+          search: filters.batchSearch,
+          expiry: filters.batchExpiry,
+        })}`,
+      ),
+    ]);
+    if (sequence !== state.sequences.inventory) return;
+    state.inventory = {
+      summary,
+      warehouses,
+      locations,
+      items,
+      balances,
+      movements,
+      adjustments,
+      counts,
+      batches,
+    };
+    renderInventory();
+  } catch (error) {
+    if (sequence !== state.sequences.inventory) return;
+    for (const selector of [
+      '#inventory-warehouse-count',
+      '#inventory-location-count',
+      '#inventory-item-count',
+      '#inventory-balance-count',
+      '#inventory-movement-count',
+      '#inventory-adjustment-count',
+      '#inventory-count-count',
+      '#inventory-batch-count',
+    ]) {
+      const node = $(selector);
+      if (node) node.textContent = 'Gagal memuat';
+    }
+    for (const selector of [
+      '#inventory-warehouses-table',
+      '#inventory-locations-table',
+      '#inventory-items-table',
+      '#inventory-balances-table',
+      '#inventory-movements-table',
+      '#inventory-adjustments-table',
+      '#inventory-counts-table',
+      '#inventory-batches-table',
+    ]) {
+      const host = $(selector);
+      if (host) host.innerHTML = errorState(error.message, 'data-retry-inventory');
+    }
+  } finally {
+    if (sequence === state.sequences.inventory) {
+      setSpinner('#refresh-inventory-movements', false);
+    }
+  }
+}
+
+function renderInventory() {
+  const data = state.inventory;
+  if (!data) return;
+
+  const warehouses = data.warehouses.data ?? [];
+  const locations = data.locations.data ?? [];
+  const items = data.items.data ?? [];
+  const balances = data.balances.data ?? [];
+  const movements = data.movements.data ?? [];
+  const adjustments = data.adjustments.data ?? [];
+  const counts = data.counts.data ?? [];
+  const batches = data.batches.data ?? [];
+  const summary = data.summary.data ?? {};
+
+  const setText = (selector, value) => {
+    const node = $(selector);
+    if (node) node.textContent = value;
+  };
+  const setBadge = (selector, count, label) => {
+    const badge = $(selector);
+    if (!badge) return;
+    badge.hidden = Number(count) === 0;
+    badge.textContent = `${formatNumber(count)} ${label}`;
+  };
+
+  setText('#inventory-stat-warehouses', formatNumber(summary.warehouses ?? warehouses.length));
+  setText('#inventory-stat-items', formatNumber(summary.inventoryItems ?? items.length));
+  setText('#inventory-stat-lowstock', formatNumber(summary.lowStock ?? 0));
+  setText('#inventory-stat-expiring', formatNumber(summary.expiringBatches ?? 0));
+  setText('#inventory-stat-stock', `${formatNumber(Number(summary.totalStock ?? 0))} unit`);
+  setBadge('#inventory-summary-badge', summary.openCounts ?? 0, 'opname berjalan');
+
+  const totals = {
+    warehouses: Number(data.warehouses.meta?.total ?? warehouses.length),
+    locations: Number(data.locations.meta?.total ?? locations.length),
+    items: Number(data.items.meta?.total ?? items.length),
+    balances: Number(data.balances.meta?.total ?? balances.length),
+    movements: Number(data.movements.meta?.total ?? movements.length),
+    adjustments: Number(data.adjustments.meta?.total ?? adjustments.length),
+    counts: Number(data.counts.meta?.total ?? counts.length),
+    batches: Number(data.batches.meta?.total ?? batches.length),
+  };
+  const setCount = (id, text) => {
+    const badge = $(id);
+    if (badge) {
+      badge.hidden = false;
+      badge.textContent = text;
+    }
+    const label = $(`${id}-label`);
+    if (label) label.textContent = text;
+  };
+  setCount('#inventory-warehouse-count', `${formatNumber(totals.warehouses)} gudang`);
+  setCount('#inventory-location-count', `${formatNumber(totals.locations)} lokasi`);
+  setCount('#inventory-item-count', `${formatNumber(totals.items)} item`);
+  setCount('#inventory-balance-count', `${formatNumber(totals.balances)} saldo`);
+  setCount('#inventory-movement-count', `${formatNumber(totals.movements)} pergerakan`);
+  setCount('#inventory-adjustment-count', `${formatNumber(totals.adjustments)} penyesuaian`);
+  setCount('#inventory-count-count', `${formatNumber(totals.counts)} opname`);
+  setCount('#inventory-batch-count', `${formatNumber(totals.batches)} batch`);
+
+  if (!warehouses.length) {
+    $('#inventory-warehouses-table').innerHTML = emptyState(
+      'Belum ada gudang',
+      'Tambahkan gudang untuk mulai menata lokasi dan saldo persediaan.',
+    );
+  } else {
+    $('#inventory-warehouses-table').innerHTML = `
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Gudang</th><th>Pedagang</th><th>Alamat</th><th>Lokasi</th><th>Status</th><th>Aksi</th></tr></thead>
+          <tbody>
+            ${warehouses
+              .map(
+                (row) => `
+                  <tr>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.name)}</div>
+                      <div class="cell-muted">${escapeHtml(row.code)}${row.isDefault ? ' · Utama' : ''}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.merchantName)}</div>
+                      <div class="cell-muted">${escapeHtml(row.storeName ?? 'Tanpa toko')}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.city ?? '-')}</div>
+                      <div class="cell-muted">${escapeHtml(row.province ?? '-')}</div>
+                    </td>
+                    <td>${formatNumber(locations.filter((loc) => loc.warehouseId === row.id).length)}</td>
+                    <td>${statusBadge(row.status)}</td>
+                    <td>${state.canManageInventory ? `<button class="action-link" type="button" data-inventory-warehouse-edit="${escapeHtml(row.id)}">${icon('arrow-right')} Ubah</button>` : '—'}</td>
+                  </tr>
+                `,
+              )
+              .join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  if (!locations.length) {
+    $('#inventory-locations-table').innerHTML = emptyState(
+      'Belum ada lokasi',
+      'Lokasi menentukan posisi stok di dalam gudang, misalnya rak atau area penerimaan.',
+    );
+  } else {
+    $('#inventory-locations-table').innerHTML = `
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Lokasi</th><th>Gudang</th><th>Tipe</th><th>Status</th><th>Aksi</th></tr></thead>
+          <tbody>
+            ${locations
+              .map(
+                (row) => `
+                  <tr>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.name)}</div>
+                      <div class="cell-muted">${escapeHtml(row.code)}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.warehouseName)}</div>
+                      <div class="cell-muted">${escapeHtml(row.merchantName)}</div>
+                    </td>
+                    <td>${statusLabel(row.type)}</td>
+                    <td>${statusBadge(row.status)}</td>
+                    <td>${state.canManageInventory ? `<button class="action-link" type="button" data-inventory-location-edit="${escapeHtml(row.id)}">${icon('arrow-right')} Ubah</button>` : '—'}</td>
+                  </tr>
+                `,
+              )
+              .join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  if (!items.length) {
+    $('#inventory-items-table').innerHTML = emptyState(
+      'Belum ada item persediaan',
+      state.filters.inventory.itemSearch || state.filters.inventory.itemStatus
+        ? 'Coba ubah kata kunci atau filter status.'
+        : 'Daftarkan SKU produk sebagai item agar stok dapat dicatat.',
+    );
+  } else {
+    $('#inventory-items-table').innerHTML = `
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Produk / SKU</th><th>Pedagang</th><th>Batas stok</th><th>Total stok</th><th>Batch / expiry</th><th>Status</th><th>Aksi</th></tr></thead>
+          <tbody>
+            ${items
+              .map(
+                (row) => `
+                  <tr>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.productName)}</div>
+                      <div class="cell-muted">${escapeHtml(row.skuCode)}${row.barcode ? ` · ${escapeHtml(row.barcode)}` : ''}</div>
+                    </td>
+                    <td>${escapeHtml(row.merchantName)}</td>
+                    <td>
+                      <div class="cell-title">Min ${formatNumber(Number(row.minStock))}</div>
+                      <div class="cell-muted">Reorder ${row.reorderPoint === null ? '-' : formatNumber(Number(row.reorderPoint))}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${formatNumber(Number(row.totalStock))}</div>
+                      <div class="cell-muted">Biaya ${formatMoney(row.unitCost)}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${row.trackBatches ? 'Batch' : 'Tanpa batch'}${row.trackExpiry ? ' · expiry' : ''}</div>
+                      <div class="cell-muted">${row.trackBatches || row.trackExpiry ? 'Dilacak' : 'Tidak dilacak'}</div>
+                    </td>
+                    <td>${statusBadge(row.status)}</td>
+                    <td>${state.canManageInventory ? `<button class="action-link" type="button" data-inventory-item-edit="${escapeHtml(row.id)}">${icon('arrow-right')} Ubah</button>` : '—'}</td>
+                  </tr>
+                `,
+              )
+              .join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  if (!balances.length) {
+    $('#inventory-balances-table').innerHTML = emptyState(
+      'Belum ada saldo stok',
+      state.filters.inventory.balanceSearch || state.filters.inventory.balanceLow
+        ? 'Coba ubah kata kunci atau filter stok menipis.'
+        : 'Saldo muncul setelah barang masuk atau penyesuaian stok dicatat.',
+    );
+  } else {
+    $('#inventory-balances-table').innerHTML = `
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Produk</th><th>Lokasi</th><th>Jumlah</th><th>Min / max</th><th>Status</th><th>Aksi</th></tr></thead>
+          <tbody>
+            ${balances
+              .map(
+                (row) => `
+                  <tr>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.productName)}</div>
+                      <div class="cell-muted">${escapeHtml(row.skuCode)}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.warehouseName)}</div>
+                      <div class="cell-muted">${escapeHtml(row.locationName)}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${formatNumber(Number(row.quantity))}</div>
+                      <div class="cell-muted">Dipesan ${formatNumber(Number(row.reservedQuantity))}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${formatNumber(Number(row.minStock))}</div>
+                      <div class="cell-muted">${row.maxStock === null ? '-' : formatNumber(Number(row.maxStock))}</div>
+                    </td>
+                    <td>${statusBadge(row.stockStatus)}</td>
+                    <td>
+                      <div class="row-actions">
+                        ${state.canWriteInventory ? `<button class="action-link" type="button" data-inventory-adjust-item="${escapeHtml(row.inventoryItemId)}" data-inventory-adjust-warehouse="${escapeHtml(row.warehouseId)}" data-inventory-adjust-location="${escapeHtml(row.warehouseLocationId)}">Sesuaikan</button>` : ''}
+                        <span class="cell-muted">${formatDateTime(row.lastMovementAt)}</span>
+                      </div>
+                    </td>
+                  </tr>
+                `,
+              )
+              .join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  if (!movements.length) {
+    $('#inventory-movements-table').innerHTML = emptyState(
+      'Belum ada pergerakan stok',
+      state.filters.inventory.movementSearch || state.filters.inventory.movementType
+        ? 'Coba ubah kata kunci atau filter tipe.'
+        : 'Catat barang masuk, keluar, atau transfer untuk membentuk saldo.',
+    );
+  } else {
+    $('#inventory-movements-table').innerHTML = `
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Pergerakan</th><th>Tipe</th><th>Asal → tujuan</th><th>Jumlah</th><th>Status</th><th>Aksi</th></tr></thead>
+          <tbody>
+            ${movements
+              .map(
+                (row) => `
+                  <tr>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.movementNumber)}</div>
+                      <div class="cell-muted">${escapeHtml(formatDateTime(row.completedAt))}</div>
+                    </td>
+                    <td>${statusBadge(row.type)}</td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.sourceWarehouseName ?? '—')}</div>
+                      <div class="cell-muted">→ ${escapeHtml(row.destinationWarehouseName ?? '—')}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${formatNumber(Number(row.totalQuantity))} unit</div>
+                      <div class="cell-muted">${formatMoney(row.totalCost)}</div>
+                    </td>
+                    <td>${statusBadge(row.status)}</td>
+                    <td><button class="action-link" type="button" data-inventory-movement-detail="${escapeHtml(row.id)}">${icon('arrow-right')} Detail</button></td>
+                  </tr>
+                `,
+              )
+              .join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  if (!adjustments.length) {
+    $('#inventory-adjustments-table').innerHTML = emptyState(
+      'Belum ada penyesuaian',
+      state.filters.inventory.adjustmentSearch || state.filters.inventory.adjustmentType
+        ? 'Coba ubah kata kunci atau filter tipe.'
+        : 'Penyesuaian mencatat koreksi stok, kerusakan, atau kehilangan.',
+    );
+  } else {
+    $('#inventory-adjustments-table').innerHTML = `
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Penyesuaian</th><th>Produk</th><th>Lokasi</th><th>Tipe</th><th>Stok</th><th>Aksi</th></tr></thead>
+          <tbody>
+            ${adjustments
+              .map(
+                (row) => `
+                  <tr>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.adjustmentNumber)}</div>
+                      <div class="cell-muted">${escapeHtml(formatDateTime(row.createdAt))}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.productName)}</div>
+                      <div class="cell-muted">${escapeHtml(row.skuCode)}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.warehouseName)}</div>
+                      <div class="cell-muted">${escapeHtml(row.locationName)}</div>
+                    </td>
+                    <td>${statusBadge(row.type)}</td>
+                    <td>
+                      <div class="cell-title">${formatNumber(Number(row.beforeQuantity))} → ${formatNumber(Number(row.afterQuantity))}</div>
+                      <div class="cell-muted">${escapeHtml(row.reason)}</div>
+                    </td>
+                    <td>${row.movementId ? `<button class="action-link" type="button" data-inventory-movement-detail="${escapeHtml(row.movementId)}">${icon('arrow-right')} Pergerakan</button>` : '—'}</td>
+                  </tr>
+                `,
+              )
+              .join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  if (!counts.length) {
+    $('#inventory-counts-table').innerHTML = emptyState(
+      'Belum ada opname',
+      state.filters.inventory.countSearch || state.filters.inventory.countStatus
+        ? 'Coba ubah kata kunci atau filter status.'
+        : 'Mulai opname untuk mencocokkan stok sistem dengan hitungan fisik.',
+    );
+  } else {
+    $('#inventory-counts-table').innerHTML = `
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Opname</th><th>Lokasi</th><th>Progress</th><th>Status</th><th>Aksi</th></tr></thead>
+          <tbody>
+            ${counts
+              .map((row) => {
+                const total = Number(row.itemCount ?? 0);
+                const counted = Number(row.countedCount ?? 0);
+                const percent = total > 0 ? Math.round((counted / total) * 100) : 0;
+                return `
+                  <tr>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.countNumber)}</div>
+                      <div class="cell-muted">${escapeHtml(formatDateTime(row.startedAt))}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.warehouseName)}</div>
+                      <div class="cell-muted">${escapeHtml(row.locationName)}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${formatNumber(counted)} / ${formatNumber(total)} item</div>
+                      <div class="cell-muted">${percent}% dihitung</div>
+                    </td>
+                    <td>${statusBadge(row.status)}</td>
+                    <td><button class="action-link" type="button" data-inventory-count-detail="${escapeHtml(row.id)}">${icon('arrow-right')} Detail</button></td>
+                  </tr>
+                `;
+              })
+              .join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  if (!batches.length) {
+    $('#inventory-batches-table').innerHTML = emptyState(
+      'Belum ada batch',
+      state.filters.inventory.batchSearch || state.filters.inventory.batchExpiry
+        ? 'Coba ubah kata kunci atau filter kedaluwarsa.'
+        : 'Batch tercatat saat barang masuk menyertakan nomor batch.',
+    );
+  } else {
+    $('#inventory-batches-table').innerHTML = `
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Batch</th><th>Produk</th><th>Lokasi</th><th>Jumlah</th><th>Kedaluwarsa</th><th>Status</th><th>Aksi</th></tr></thead>
+          <tbody>
+            ${batches
+              .map(
+                (row) => `
+                  <tr>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.batchNumber)}</div>
+                      <div class="cell-muted">${escapeHtml(row.supplierReference ?? 'Tanpa referensi')}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.productName)}</div>
+                      <div class="cell-muted">${escapeHtml(row.skuCode)}</div>
+                    </td>
+                    <td>
+                      <div class="cell-title">${escapeHtml(row.warehouseName)}</div>
+                      <div class="cell-muted">${escapeHtml(row.locationName)}</div>
+                    </td>
+                    <td>${formatNumber(Number(row.quantity))}</td>
+                    <td>
+                      <div class="cell-title">${row.expiryDate ? escapeHtml(formatDate(row.expiryDate)) : '—'}</div>
+                      <div class="cell-muted">${row.daysToExpiry === null ? 'Tanpa expiry' : row.daysToExpiry < 0 ? `Lewat ${Math.abs(row.daysToExpiry)} hari` : `${row.daysToExpiry} hari lagi`}</div>
+                    </td>
+                    <td>${statusBadge(row.status)}</td>
+                    <td>${state.canManageInventory ? `<button class="action-link" type="button" data-inventory-batch-edit="${escapeHtml(row.id)}">${icon('arrow-right')} Ubah</button>` : '—'}</td>
+                  </tr>
+                `,
+              )
+              .join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+}
+
+async function openInventoryWarehouseModal(warehouseId) {
+  openModal({
+    title: warehouseId ? 'Ubah gudang' : 'Tambah gudang',
+    kicker: 'Persediaan',
+    subtitle: 'Memuat daftar pedagang...',
+    body: tableLoading(3),
+  });
+  try {
+    const merchants = await api('/merchants?limit=100');
+    const merchantList = merchants.data ?? [];
+    if (!merchantList.length) {
+      closeModal();
+      showToast('Pedagang belum tersedia', 'Tambahkan pedagang sebelum membuat gudang.', 'error');
+      return;
+    }
+    const record = warehouseId
+      ? (state.inventory?.warehouses?.data ?? []).find((row) => row.id === warehouseId)
+      : null;
+    const selectedMerchantId = record?.merchantId ?? merchantList[0].id;
+    const modal = openModal({
+      title: warehouseId ? 'Ubah gudang' : 'Tambah gudang',
+      kicker: 'Persediaan',
+      subtitle: warehouseId
+        ? 'Perbarui identitas dan status gudang.'
+        : 'Gudang menampung lokasi penyimpanan dan saldo stok.',
+      body: `
+        <form id="inventory-warehouse-form" class="form-grid">
+          <label class="field field-span">
+            <span>Pedagang *</span>
+            <select name="merchantId" required ${warehouseId ? 'disabled' : ''}>
+              ${inventoryMerchantOptions(merchantList, selectedMerchantId)}
+            </select>
+          </label>
+          <label class="field">
+            <span>Kode gudang</span>
+            <input name="code" maxlength="64" value="${escapeHtml(record?.code ?? '')}" placeholder="Otomatis jika kosong" />
+          </label>
+          <label class="field">
+            <span>Status</span>
+            <select name="status">
+              <option value="active" ${record?.status !== 'inactive' ? 'selected' : ''}>Aktif</option>
+              <option value="inactive" ${record?.status === 'inactive' ? 'selected' : ''}>Nonaktif</option>
+            </select>
+          </label>
+          <label class="field field-span">
+            <span>Nama gudang *</span>
+            <input name="name" required maxlength="255" value="${escapeHtml(record?.name ?? '')}" placeholder="Contoh: Gudang utama" />
+          </label>
+          <label class="field">
+            <span>Kota</span>
+            <input name="city" maxlength="120" value="${escapeHtml(record?.city ?? '')}" />
+          </label>
+          <label class="field">
+            <span>Provinsi</span>
+            <input name="province" maxlength="120" value="${escapeHtml(record?.province ?? '')}" />
+          </label>
+          <label class="field field-span">
+            <span>Alamat</span>
+            <textarea name="address" rows="2" maxlength="2000">${escapeHtml(record?.address ?? '')}</textarea>
+          </label>
+          <label class="field field-span checkbox-field">
+            <input name="isDefault" type="checkbox" ${record?.isDefault ? 'checked' : ''} />
+            <span>Jadikan gudang utama pedagang</span>
+          </label>
+        </form>
+      `,
+      footer: `
+        <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+        <button class="button button-primary" id="inventory-warehouse-submit" type="submit" form="inventory-warehouse-form">
+          ${icon('plus')} ${warehouseId ? 'Simpan perubahan' : 'Simpan gudang'}
+        </button>
+      `,
+    });
+    const form = modal.querySelector('#inventory-warehouse-form');
+    const submit = modal.querySelector('#inventory-warehouse-submit');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const payload = {
+        code: String(data.get('code') ?? '').trim() || undefined,
+        name: String(data.get('name') ?? '').trim(),
+        city: String(data.get('city') ?? '').trim() || undefined,
+        province: String(data.get('province') ?? '').trim() || undefined,
+        address: String(data.get('address') ?? '').trim() || undefined,
+        status: String(data.get('status') ?? 'active'),
+        isDefault: data.get('isDefault') === 'on',
+      };
+      if (!payload.name || payload.name.length < 2) {
+        showToast('Data belum lengkap', 'Isi nama gudang minimal 2 karakter.', 'error');
+        return;
+      }
+      if (!warehouseId) {
+        payload.merchantId = String(data.get('merchantId') ?? '');
+        if (!payload.merchantId) {
+          showToast('Data belum lengkap', 'Pilih pedagang pemilik gudang.', 'error');
+          return;
+        }
+      }
+      submit.disabled = true;
+      try {
+        await api(warehouseId ? `/inventory/warehouses/${warehouseId}` : '/inventory/warehouses', {
+          method: warehouseId ? 'PATCH' : 'POST',
+          body: payload,
+        });
+        closeModal();
+        showToast('Gudang tersimpan', `${payload.name} berhasil disimpan.`);
+        await loadInventory(true);
+      } catch (error) {
+        showToast('Gagal menyimpan gudang', error.message, 'error');
+      } finally {
+        submit.disabled = false;
+      }
+    });
+  } catch (error) {
+    closeModal();
+    showToast('Gagal memuat gudang', error.message, 'error');
+  }
+}
+
+async function openInventoryLocationModal(locationId) {
+  openModal({
+    title: locationId ? 'Ubah lokasi' : 'Tambah lokasi',
+    kicker: 'Persediaan',
+    subtitle: 'Memuat daftar gudang...',
+    body: tableLoading(3),
+  });
+  try {
+    const warehouses = await api('/inventory/warehouses?limit=100');
+    const warehouseList = warehouses.data ?? [];
+    if (!warehouseList.length) {
+      closeModal();
+      showToast('Gudang belum tersedia', 'Tambahkan gudang sebelum membuat lokasi.', 'error');
+      return;
+    }
+    const record = locationId
+      ? (state.inventory?.locations?.data ?? []).find((row) => row.id === locationId)
+      : null;
+    const selectedWarehouseId = record?.warehouseId ?? warehouseList[0].id;
+    const modal = openModal({
+      title: locationId ? 'Ubah lokasi gudang' : 'Tambah lokasi gudang',
+      kicker: 'Persediaan',
+      subtitle: 'Lokasi adalah posisi fisik stok, seperti rak, area terima, atau karantina.',
+      body: `
+        <form id="inventory-location-form" class="form-grid">
+          <label class="field field-span">
+            <span>Gudang *</span>
+            <select name="warehouseId" required ${locationId ? 'disabled' : ''}>
+              ${inventoryWarehouseOptions(warehouseList, selectedWarehouseId)}
+            </select>
+          </label>
+          <label class="field">
+            <span>Kode lokasi</span>
+            <input name="code" maxlength="64" value="${escapeHtml(record?.code ?? '')}" placeholder="Otomatis jika kosong" />
+          </label>
+          <label class="field">
+            <span>Tipe</span>
+            <select name="type">
+              ${['storage', 'receiving', 'picking', 'staging', 'returns', 'quarantine', 'other']
+                .map(
+                  (type) =>
+                    `<option value="${type}" ${record?.type === type ? 'selected' : ''}>${escapeHtml(statusLabel(type))}</option>`,
+                )
+                .join('')}
+            </select>
+          </label>
+          <label class="field field-span">
+            <span>Nama lokasi *</span>
+            <input name="name" required maxlength="255" value="${escapeHtml(record?.name ?? '')}" placeholder="Contoh: Rak A1" />
+          </label>
+          <label class="field">
+            <span>Status</span>
+            <select name="status">
+              ${['active', 'inactive', 'blocked']
+                .map(
+                  (status) =>
+                    `<option value="${status}" ${(record?.status ?? 'active') === status ? 'selected' : ''}>${escapeHtml(statusLabel(status))}</option>`,
+                )
+                .join('')}
+            </select>
+          </label>
+          <label class="field field-span">
+            <span>Catatan</span>
+            <textarea name="notes" rows="2" maxlength="2000">${escapeHtml(record?.notes ?? '')}</textarea>
+          </label>
+        </form>
+      `,
+      footer: `
+        <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+        <button class="button button-primary" id="inventory-location-submit" type="submit" form="inventory-location-form">
+          ${icon('plus')} ${locationId ? 'Simpan perubahan' : 'Simpan lokasi'}
+        </button>
+      `,
+    });
+    const form = modal.querySelector('#inventory-location-form');
+    const submit = modal.querySelector('#inventory-location-submit');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const payload = {
+        code: String(data.get('code') ?? '').trim() || undefined,
+        name: String(data.get('name') ?? '').trim(),
+        type: String(data.get('type') ?? 'storage'),
+        status: String(data.get('status') ?? 'active'),
+        notes: String(data.get('notes') ?? '').trim() || undefined,
+      };
+      if (!payload.name) {
+        showToast('Data belum lengkap', 'Isi nama lokasi.', 'error');
+        return;
+      }
+      submit.disabled = true;
+      try {
+        if (locationId) {
+          await api(`/inventory/locations/${locationId}`, { method: 'PATCH', body: payload });
+        } else {
+          const warehouseId = String(data.get('warehouseId') ?? '');
+          if (!warehouseId) throw new Error('Pilih gudang.');
+          await api(`/inventory/warehouses/${warehouseId}/locations`, {
+            method: 'POST',
+            body: payload,
+          });
+        }
+        closeModal();
+        showToast('Lokasi tersimpan', `${payload.name} berhasil disimpan.`);
+        await loadInventory(true);
+      } catch (error) {
+        showToast('Gagal menyimpan lokasi', error.message, 'error');
+      } finally {
+        submit.disabled = false;
+      }
+    });
+  } catch (error) {
+    closeModal();
+    showToast('Gagal memuat lokasi', error.message, 'error');
+  }
+}
+
+async function fillInventorySkuOptions(productId, select, selectedId = '') {
+  select.innerHTML = '<option value="">Pilih SKU</option>';
+  if (!productId) return;
+  const result = await api(`/catalog/products/${productId}`);
+  const skus = result.data?.skus ?? [];
+  select.innerHTML =
+    '<option value="">Pilih SKU</option>' +
+    skus
+      .map(
+        (sku) =>
+          `<option value="${escapeHtml(sku.id)}" ${sku.id === selectedId ? 'selected' : ''}>${escapeHtml(sku.skuCode)}</option>`,
+      )
+      .join('');
+}
+
+async function openInventoryItemModal(itemId) {
+  openModal({
+    title: itemId ? 'Ubah item persediaan' : 'Tambah item persediaan',
+    kicker: 'Persediaan',
+    subtitle: 'Memuat produk dan pedagang...',
+    body: tableLoading(3),
+  });
+  try {
+    const [merchants, products] = await Promise.all([
+      api('/merchants?limit=100'),
+      api('/catalog/products?limit=100'),
+    ]);
+    const merchantList = merchants.data ?? [];
+    const productList = products.data ?? [];
+    if (!merchantList.length) {
+      closeModal();
+      showToast('Pedagang belum tersedia', 'Tambahkan pedagang sebelum membuat item.', 'error');
+      return;
+    }
+    const record = itemId
+      ? (state.inventory?.items?.data ?? []).find((row) => row.id === itemId)
+      : null;
+    const selectedMerchantId = record?.merchantId ?? merchantList[0].id;
+    const modal = openModal({
+      title: itemId ? 'Ubah item persediaan' : 'Tambah item persediaan',
+      kicker: 'Persediaan',
+      subtitle: 'Item persediaan menghubungkan stok dengan SKU produk.',
+      body: `
+        <form id="inventory-item-form" class="form-grid">
+          <label class="field field-span">
+            <span>Pedagang *</span>
+            <select name="merchantId" id="inventory-item-merchant" required ${itemId ? 'disabled' : ''}>
+              ${inventoryMerchantOptions(merchantList, selectedMerchantId)}
+            </select>
+          </label>
+          <label class="field field-span">
+            <span>Produk *</span>
+            <select name="productId" id="inventory-item-product" required ${itemId ? 'disabled' : ''}>
+              ${inventoryProductOptions(productList, selectedMerchantId, record?.productId ?? '')}
+            </select>
+          </label>
+          <label class="field field-span">
+            <span>SKU *</span>
+            <select name="skuId" id="inventory-item-sku" required ${itemId ? 'disabled' : ''}></select>
+          </label>
+          <label class="field">
+            <span>Stok minimum</span>
+            <input name="minStock" type="number" min="0" step="0.001" value="${escapeHtml(record?.minStock ?? '0')}" />
+          </label>
+          <label class="field">
+            <span>Stok maksimum</span>
+            <input name="maxStock" type="number" min="0" step="0.001" value="${escapeHtml(record?.maxStock ?? '')}" />
+          </label>
+          <label class="field">
+            <span>Titik pesan ulang</span>
+            <input name="reorderPoint" type="number" min="0" step="0.001" value="${escapeHtml(record?.reorderPoint ?? '')}" />
+          </label>
+          <label class="field">
+            <span>Biaya satuan</span>
+            <input name="unitCost" type="number" min="0" step="0.01" value="${escapeHtml(record?.unitCost ?? '0')}" />
+          </label>
+          <label class="field">
+            <span>Status</span>
+            <select name="status">
+              ${['active', 'inactive', 'discontinued']
+                .map(
+                  (status) =>
+                    `<option value="${status}" ${(record?.status ?? 'active') === status ? 'selected' : ''}>${escapeHtml(statusLabel(status))}</option>`,
+                )
+                .join('')}
+            </select>
+          </label>
+          <div class="field checkbox-field">
+            <label><input name="trackBatches" type="checkbox" ${record?.trackBatches ? 'checked' : ''} /> Lacak batch</label>
+            <label><input name="trackExpiry" type="checkbox" ${record?.trackExpiry ? 'checked' : ''} /> Lacak kedaluwarsa</label>
+          </div>
+          <label class="field field-span">
+            <span>Catatan</span>
+            <textarea name="notes" rows="2" maxlength="2000">${escapeHtml(record?.notes ?? '')}</textarea>
+          </label>
+        </form>
+      `,
+      footer: `
+        <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+        <button class="button button-primary" id="inventory-item-submit" type="submit" form="inventory-item-form">
+          ${icon('plus')} ${itemId ? 'Simpan perubahan' : 'Simpan item'}
+        </button>
+      `,
+    });
+
+    const form = modal.querySelector('#inventory-item-form');
+    const merchantSelect = modal.querySelector('#inventory-item-merchant');
+    const productSelect = modal.querySelector('#inventory-item-product');
+    const skuSelect = modal.querySelector('#inventory-item-sku');
+    const submit = modal.querySelector('#inventory-item-submit');
+
+    await fillInventorySkuOptions(record?.productId ?? productSelect.value, skuSelect, record?.skuId ?? '');
+    merchantSelect.addEventListener('change', () => {
+      productSelect.innerHTML = inventoryProductOptions(productList, merchantSelect.value);
+      skuSelect.innerHTML = '<option value="">Pilih SKU</option>';
+    });
+    productSelect.addEventListener('change', async () => {
+      await fillInventorySkuOptions(productSelect.value, skuSelect);
+    });
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const payload = {
+        status: String(data.get('status') ?? 'active'),
+        minStock: String(data.get('minStock') ?? '0'),
+        maxStock: String(data.get('maxStock') ?? '').trim() || undefined,
+        reorderPoint: String(data.get('reorderPoint') ?? '').trim() || undefined,
+        unitCost: String(data.get('unitCost') ?? '0'),
+        trackBatches: data.get('trackBatches') === 'on',
+        trackExpiry: data.get('trackExpiry') === 'on',
+        notes: String(data.get('notes') ?? '').trim() || undefined,
+      };
+      if (!itemId) {
+        payload.merchantId = String(data.get('merchantId') ?? '');
+        payload.productId = String(data.get('productId') ?? '');
+        payload.skuId = String(data.get('skuId') ?? '');
+        if (!payload.merchantId || !payload.productId || !payload.skuId) {
+          showToast('Data belum lengkap', 'Pilih pedagang, produk, dan SKU.', 'error');
+          return;
+        }
+      }
+      submit.disabled = true;
+      try {
+        await api(itemId ? `/inventory/items/${itemId}` : '/inventory/items', {
+          method: itemId ? 'PATCH' : 'POST',
+          body: payload,
+        });
+        closeModal();
+        showToast('Item tersimpan', 'Item persediaan berhasil disimpan.');
+        await loadInventory(true);
+      } catch (error) {
+        showToast('Gagal menyimpan item', error.message, 'error');
+      } finally {
+        submit.disabled = false;
+      }
+    });
+  } catch (error) {
+    closeModal();
+    showToast('Gagal memuat item', error.message, 'error');
+  }
+}
+
+async function openInventoryMovementModal() {
+  openModal({
+    title: 'Catat pergerakan stok',
+    kicker: 'Persediaan',
+    subtitle: 'Memuat gudang dan item...',
+    body: tableLoading(4),
+  });
+  try {
+    const [warehouses, items] = await Promise.all([
+      api('/inventory/warehouses?limit=100'),
+      api('/inventory/items?limit=100'),
+    ]);
+    const warehouseList = warehouses.data ?? [];
+    const itemList = items.data ?? [];
+    if (!warehouseList.length || !itemList.length) {
+      closeModal();
+      showToast(
+        'Data belum tersedia',
+        'Tambahkan gudang, lokasi, dan item persediaan terlebih dahulu.',
+        'error',
+      );
+      return;
+    }
+    const merchantIds = [...new Set(warehouseList.map((row) => row.merchantId))];
+    const merchantNames = new Map();
+    for (const row of warehouseList) merchantNames.set(row.merchantId, row.merchantName);
+    const firstMerchant = merchantIds[0];
+    const modal = openModal({
+      title: 'Catat pergerakan stok',
+      kicker: 'Persediaan',
+      subtitle: 'Pergerakan langsung mengubah saldo stok pada lokasi terkait.',
+      wide: true,
+      body: `
+        <form id="inventory-movement-form" class="form-grid">
+          <label class="field">
+            <span>Pedagang *</span>
+            <select name="merchantId" id="inventory-movement-merchant" required>
+              ${merchantIds
+                .map(
+                  (id) =>
+                    `<option value="${escapeHtml(id)}" ${id === firstMerchant ? 'selected' : ''}>${escapeHtml(merchantNames.get(id))}</option>`,
+                )
+                .join('')}
+            </select>
+          </label>
+          <label class="field">
+            <span>Tipe *</span>
+            <select name="type" id="inventory-movement-type">
+              <option value="inbound">Barang masuk</option>
+              <option value="outbound">Barang keluar</option>
+              <option value="transfer">Transfer antar lokasi</option>
+              <option value="return">Retur masuk</option>
+            </select>
+          </label>
+          <div class="field field-span" id="inventory-source-block" hidden>
+            <div class="form-grid">
+              <label class="field">
+                <span>Gudang sumber</span>
+                <select name="sourceWarehouseId" id="inventory-source-warehouse"></select>
+              </label>
+              <label class="field">
+                <span>Lokasi sumber</span>
+                <select name="sourceLocationId" id="inventory-source-location"></select>
+              </label>
+            </div>
+          </div>
+          <div class="field field-span" id="inventory-destination-block">
+            <div class="form-grid">
+              <label class="field">
+                <span>Gudang tujuan</span>
+                <select name="destinationWarehouseId" id="inventory-destination-warehouse"></select>
+              </label>
+              <label class="field">
+                <span>Lokasi tujuan</span>
+                <select name="destinationLocationId" id="inventory-destination-location"></select>
+              </label>
+            </div>
+          </div>
+          <label class="field field-span">
+            <span>Item *</span>
+            <select name="inventoryItemId" id="inventory-movement-item" required></select>
+          </label>
+          <label class="field">
+            <span>Jumlah *</span>
+            <input name="quantity" type="number" min="0.001" step="0.001" required placeholder="0" />
+          </label>
+          <label class="field">
+            <span>Biaya satuan</span>
+            <input name="unitCost" type="number" min="0" step="0.01" placeholder="Mengikuti biaya item" />
+          </label>
+          <label class="field">
+            <span>Nomor batch</span>
+            <input name="batchNumber" maxlength="100" placeholder="Opsional" />
+          </label>
+          <label class="field">
+            <span>Kedaluwarsa batch</span>
+            <input name="expiryDate" type="date" />
+          </label>
+          <label class="field field-span">
+            <span>Catatan</span>
+            <input name="notes" maxlength="2000" placeholder="Referensi atau keterangan" />
+          </label>
+        </form>
+      `,
+      footer: `
+        <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+        <button class="button button-primary" id="inventory-movement-submit" type="submit" form="inventory-movement-form">
+          ${icon('plus')} Simpan pergerakan
+        </button>
+      `,
+    });
+
+    const form = modal.querySelector('#inventory-movement-form');
+    const merchantSelect = modal.querySelector('#inventory-movement-merchant');
+    const typeSelect = modal.querySelector('#inventory-movement-type');
+    const sourceBlock = modal.querySelector('#inventory-source-block');
+    const destinationBlock = modal.querySelector('#inventory-destination-block');
+    const sourceWarehouse = modal.querySelector('#inventory-source-warehouse');
+    const sourceLocation = modal.querySelector('#inventory-source-location');
+    const destinationWarehouse = modal.querySelector('#inventory-destination-warehouse');
+    const destinationLocation = modal.querySelector('#inventory-destination-location');
+    const itemSelect = modal.querySelector('#inventory-movement-item');
+    const submit = modal.querySelector('#inventory-movement-submit');
+
+    const refreshLocations = async (warehouseSelect, locationSelect, selectedId = '') => {
+      locationSelect.innerHTML = await inventoryLocationOptions(warehouseSelect.value, selectedId);
+    };
+    const refreshForm = async () => {
+      const merchantId = merchantSelect.value;
+      sourceWarehouse.innerHTML = inventoryWarehouseOptions(warehouseList, '', merchantId);
+      destinationWarehouse.innerHTML = inventoryWarehouseOptions(warehouseList, '', merchantId);
+      itemSelect.innerHTML = inventoryItemOptions(itemList, merchantId);
+      await refreshLocations(sourceWarehouse, sourceLocation);
+      await refreshLocations(destinationWarehouse, destinationLocation);
+      updateVisibility();
+    };
+    const updateVisibility = () => {
+      const type = typeSelect.value;
+      sourceBlock.hidden = type !== 'outbound' && type !== 'transfer';
+      destinationBlock.hidden = type === 'outbound';
+    };
+
+    merchantSelect.addEventListener('change', refreshForm);
+    typeSelect.addEventListener('change', updateVisibility);
+    sourceWarehouse.addEventListener('change', () => refreshLocations(sourceWarehouse, sourceLocation));
+    destinationWarehouse.addEventListener('change', () =>
+      refreshLocations(destinationWarehouse, destinationLocation),
+    );
+
+    await refreshForm();
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const type = String(data.get('type') ?? 'inbound');
+      const itemId = String(data.get('inventoryItemId') ?? '');
+      const quantity = String(data.get('quantity') ?? '');
+      if (!itemId || !quantity || Number(quantity) <= 0) {
+        showToast('Data belum lengkap', 'Pilih item dan isi jumlah lebih dari 0.', 'error');
+        return;
+      }
+      const payload = {
+        type,
+        inventoryItemId: itemId,
+        quantity,
+        unitCost: String(data.get('unitCost') ?? '').trim() || undefined,
+        batchNumber: String(data.get('batchNumber') ?? '').trim() || undefined,
+        expiryDate: String(data.get('expiryDate') ?? '').trim() || undefined,
+        notes: String(data.get('notes') ?? '').trim() || undefined,
+      };
+      if (type === 'outbound' || type === 'transfer') {
+        payload.sourceWarehouseId = String(data.get('sourceWarehouseId') ?? '');
+        payload.sourceLocationId = String(data.get('sourceLocationId') ?? '');
+      }
+      if (type !== 'outbound') {
+        payload.destinationWarehouseId = String(data.get('destinationWarehouseId') ?? '');
+        payload.destinationLocationId = String(data.get('destinationLocationId') ?? '');
+      }
+      if (
+        (payload.sourceWarehouseId && !payload.sourceLocationId) ||
+        (payload.destinationWarehouseId && !payload.destinationLocationId)
+      ) {
+        showToast('Lokasi belum lengkap', 'Pilih lokasi sumber dan tujuan dengan lengkap.', 'error');
+        return;
+      }
+      if (type === 'transfer' && payload.sourceLocationId === payload.destinationLocationId) {
+        showToast('Lokasi tidak valid', 'Lokasi sumber dan tujuan tidak boleh sama.', 'error');
+        return;
+      }
+      submit.disabled = true;
+      try {
+        await api('/inventory/movements', {
+          method: 'POST',
+          body: {
+            ...payload,
+            items: [
+              {
+                inventoryItemId: payload.inventoryItemId,
+                quantity: payload.quantity,
+                unitCost: payload.unitCost,
+                batchNumber: payload.batchNumber,
+                expiryDate: payload.expiryDate,
+                notes: payload.notes,
+              },
+            ],
+          },
+        });
+        closeModal();
+        showToast('Pergerakan tersimpan', 'Saldo stok berhasil diperbarui.');
+        await loadInventory(true);
+      } catch (error) {
+        showToast('Gagal menyimpan pergerakan', error.message, 'error');
+      } finally {
+        submit.disabled = false;
+      }
+    });
+  } catch (error) {
+    closeModal();
+    showToast('Gagal memuat pergerakan', error.message, 'error');
+  }
+}
+
+async function openInventoryAdjustmentModal(prefill = {}) {
+  openModal({
+    title: 'Penyesuaian stok',
+    kicker: 'Persediaan',
+    subtitle: 'Memuat gudang dan item...',
+    body: tableLoading(3),
+  });
+  try {
+    const [warehouses, items] = await Promise.all([
+      api('/inventory/warehouses?limit=100'),
+      api('/inventory/items?limit=100'),
+    ]);
+    const warehouseList = warehouses.data ?? [];
+    const itemList = items.data ?? [];
+    if (!warehouseList.length || !itemList.length) {
+      closeModal();
+      showToast('Data belum tersedia', 'Tambahkan gudang dan item terlebih dahulu.', 'error');
+      return;
+    }
+    const prefillWarehouse = prefill.warehouseId
+      ? warehouseList.find((row) => row.id === prefill.warehouseId)
+      : null;
+    const merchantId = prefillWarehouse?.merchantId ?? warehouseList[0].merchantId;
+    const merchantIds = [...new Set(warehouseList.map((row) => row.merchantId))];
+    const merchantNames = new Map();
+    for (const row of warehouseList) merchantNames.set(row.merchantId, row.merchantName);
+
+    const modal = openModal({
+      title: 'Penyesuaian stok',
+      kicker: 'Persediaan',
+      subtitle: 'Catat koreksi stok, kerusakan, kehilangan, atau hasil hitung fisik.',
+      body: `
+        <form id="inventory-adjustment-form" class="form-grid">
+          <label class="field field-span">
+            <span>Pedagang *</span>
+            <select name="merchantId" id="inventory-adjustment-merchant">
+              ${merchantIds
+                .map(
+                  (id) =>
+                    `<option value="${escapeHtml(id)}" ${id === merchantId ? 'selected' : ''}>${escapeHtml(merchantNames.get(id))}</option>`,
+                )
+                .join('')}
+            </select>
+          </label>
+          <label class="field">
+            <span>Gudang *</span>
+            <select name="warehouseId" id="inventory-adjustment-warehouse" required>
+              ${inventoryWarehouseOptions(warehouseList, prefill.warehouseId ?? '', merchantId)}
+            </select>
+          </label>
+          <label class="field">
+            <span>Lokasi *</span>
+            <select name="warehouseLocationId" id="inventory-adjustment-location" required></select>
+          </label>
+          <label class="field field-span">
+            <span>Item *</span>
+            <select name="inventoryItemId" id="inventory-adjustment-item" required>
+              ${inventoryItemOptions(itemList, merchantId, prefill.itemId ?? '')}
+            </select>
+          </label>
+          <label class="field">
+            <span>Tipe *</span>
+            <select name="type" id="inventory-adjustment-type">
+              <option value="correction">Koreksi ke stok hasil hitung</option>
+              <option value="increase">Penambahan stok</option>
+              <option value="decrease">Pengurangan stok</option>
+              <option value="damage">Barang rusak</option>
+              <option value="loss">Kehilangan</option>
+              <option value="other">Lainnya</option>
+            </select>
+          </label>
+          <label class="field">
+            <span id="inventory-adjustment-quantity-label">Stok hasil hitung *</span>
+            <input name="quantity" id="inventory-adjustment-quantity" type="number" min="0" step="0.001" required value="0" />
+          </label>
+          <label class="field field-span">
+            <span>Alasan *</span>
+            <input name="reason" required minlength="3" maxlength="2000" placeholder="Contoh: hasil opname rak A1" />
+          </label>
+          <label class="field field-span">
+            <span>Catatan</span>
+            <textarea name="notes" rows="2" maxlength="2000"></textarea>
+          </label>
+        </form>
+      `,
+      footer: `
+        <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+        <button class="button button-primary" id="inventory-adjustment-submit" type="submit" form="inventory-adjustment-form">
+          ${icon('check')} Simpan penyesuaian
+        </button>
+      `,
+    });
+
+    const form = modal.querySelector('#inventory-adjustment-form');
+    const merchantSelect = modal.querySelector('#inventory-adjustment-merchant');
+    const warehouseSelect = modal.querySelector('#inventory-adjustment-warehouse');
+    const locationSelect = modal.querySelector('#inventory-adjustment-location');
+    const itemSelect = modal.querySelector('#inventory-adjustment-item');
+    const typeSelect = modal.querySelector('#inventory-adjustment-type');
+    const quantityInput = modal.querySelector('#inventory-adjustment-quantity');
+    const quantityLabel = modal.querySelector('#inventory-adjustment-quantity-label');
+    const submit = modal.querySelector('#inventory-adjustment-submit');
+
+    const refreshLocations = async (selectedId = '') => {
+      locationSelect.innerHTML = await inventoryLocationOptions(warehouseSelect.value, selectedId);
+    };
+    const refreshWarehouses = async () => {
+      warehouseSelect.innerHTML = inventoryWarehouseOptions(
+        warehouseList,
+        '',
+        merchantSelect.value,
+      );
+      itemSelect.innerHTML = inventoryItemOptions(itemList, merchantSelect.value);
+      await refreshLocations();
+    };
+
+    merchantSelect.addEventListener('change', refreshWarehouses);
+    warehouseSelect.addEventListener('change', () => refreshLocations());
+    typeSelect.addEventListener('change', () => {
+      quantityLabel.textContent =
+        typeSelect.value === 'correction' ? 'Stok hasil hitung *' : 'Jumlah penyesuaian *';
+      quantityInput.min = typeSelect.value === 'correction' ? '0' : '0.001';
+    });
+
+    await refreshLocations(prefill.locationId ?? '');
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const payload = {
+        warehouseId: String(data.get('warehouseId') ?? ''),
+        warehouseLocationId: String(data.get('warehouseLocationId') ?? ''),
+        inventoryItemId: String(data.get('inventoryItemId') ?? ''),
+        type: String(data.get('type') ?? 'correction'),
+        quantity: String(data.get('quantity') ?? '0'),
+        reason: String(data.get('reason') ?? '').trim(),
+        notes: String(data.get('notes') ?? '').trim() || undefined,
+      };
+      if (!payload.warehouseId || !payload.warehouseLocationId || !payload.inventoryItemId) {
+        showToast('Data belum lengkap', 'Pilih gudang, lokasi, dan item.', 'error');
+        return;
+      }
+      if (payload.type !== 'correction' && Number(payload.quantity) <= 0) {
+        showToast('Jumlah tidak valid', 'Jumlah penyesuaian harus lebih dari 0.', 'error');
+        return;
+      }
+      if (payload.reason.length < 3) {
+        showToast('Alasan belum lengkap', 'Isi alasan minimal 3 karakter.', 'error');
+        return;
+      }
+      submit.disabled = true;
+      try {
+        await api('/inventory/adjustments', { method: 'POST', body: payload });
+        closeModal();
+        showToast('Penyesuaian tersimpan', 'Stok berhasil disesuaikan.');
+        await loadInventory(true);
+      } catch (error) {
+        showToast('Gagal menyimpan penyesuaian', error.message, 'error');
+      } finally {
+        submit.disabled = false;
+      }
+    });
+  } catch (error) {
+    closeModal();
+    showToast('Gagal memuat penyesuaian', error.message, 'error');
+  }
+}
+
+async function openInventoryCountModal() {
+  openModal({
+    title: 'Mulai opname stok',
+    kicker: 'Persediaan',
+    subtitle: 'Memuat gudang...',
+    body: tableLoading(3),
+  });
+  try {
+    const warehouses = await api('/inventory/warehouses?limit=100');
+    const warehouseList = warehouses.data ?? [];
+    if (!warehouseList.length) {
+      closeModal();
+      showToast('Gudang belum tersedia', 'Tambahkan gudang dan stok sebelum opname.', 'error');
+      return;
+    }
+    const merchantIds = [...new Set(warehouseList.map((row) => row.merchantId))];
+    const merchantNames = new Map();
+    for (const row of warehouseList) merchantNames.set(row.merchantId, row.merchantName);
+    const firstMerchant = merchantIds[0];
+    const modal = openModal({
+      title: 'Mulai opname stok',
+      kicker: 'Persediaan',
+      subtitle: 'Item opname otomatis diambil dari saldo stok pada lokasi yang dipilih.',
+      body: `
+        <form id="inventory-count-form" class="form-grid">
+          <label class="field field-span">
+            <span>Pedagang *</span>
+            <select name="merchantId" id="inventory-count-merchant">
+              ${merchantIds
+                .map(
+                  (id) =>
+                    `<option value="${escapeHtml(id)}" ${id === firstMerchant ? 'selected' : ''}>${escapeHtml(merchantNames.get(id))}</option>`,
+                )
+                .join('')}
+            </select>
+          </label>
+          <label class="field">
+            <span>Gudang *</span>
+            <select name="warehouseId" id="inventory-count-warehouse" required>
+              ${inventoryWarehouseOptions(warehouseList, '', firstMerchant)}
+            </select>
+          </label>
+          <label class="field">
+            <span>Lokasi *</span>
+            <select name="warehouseLocationId" id="inventory-count-location" required></select>
+          </label>
+          <label class="field field-span">
+            <span>Catatan</span>
+            <textarea name="notes" rows="2" maxlength="2000" placeholder="Contoh: opname akhir bulan"></textarea>
+          </label>
+        </form>
+      `,
+      footer: `
+        <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+        <button class="button button-primary" id="inventory-count-submit" type="submit" form="inventory-count-form">
+          ${icon('plus')} Mulai opname
+        </button>
+      `,
+    });
+
+    const form = modal.querySelector('#inventory-count-form');
+    const merchantSelect = modal.querySelector('#inventory-count-merchant');
+    const warehouseSelect = modal.querySelector('#inventory-count-warehouse');
+    const locationSelect = modal.querySelector('#inventory-count-location');
+    const submit = modal.querySelector('#inventory-count-submit');
+
+    const refreshLocations = async () => {
+      locationSelect.innerHTML = await inventoryLocationOptions(warehouseSelect.value);
+    };
+    merchantSelect.addEventListener('change', async () => {
+      warehouseSelect.innerHTML = inventoryWarehouseOptions(warehouseList, '', merchantSelect.value);
+      await refreshLocations();
+    });
+    warehouseSelect.addEventListener('change', refreshLocations);
+    await refreshLocations();
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      const payload = {
+        warehouseId: String(data.get('warehouseId') ?? ''),
+        warehouseLocationId: String(data.get('warehouseLocationId') ?? ''),
+        notes: String(data.get('notes') ?? '').trim() || undefined,
+      };
+      if (!payload.warehouseId || !payload.warehouseLocationId) {
+        showToast('Data belum lengkap', 'Pilih gudang dan lokasi opname.', 'error');
+        return;
+      }
+      submit.disabled = true;
+      try {
+        const result = await api('/inventory/stock-counts', { method: 'POST', body: payload });
+        closeModal();
+        showToast('Opname dimulai', result.data.countNumber);
+        await loadInventory(true);
+        await openInventoryCountDetail(result.data.id);
+      } catch (error) {
+        showToast('Gagal memulai opname', error.message, 'error');
+      } finally {
+        submit.disabled = false;
+      }
+    });
+  } catch (error) {
+    closeModal();
+    showToast('Gagal memuat opname', error.message, 'error');
+  }
+}
+
+async function openInventoryMovementDetail(movementId) {
+  openModal({
+    title: 'Detail pergerakan stok',
+    kicker: 'Persediaan',
+    subtitle: 'Memuat detail...',
+    wide: true,
+    body: tableLoading(3),
+  });
+  try {
+    const result = await api(`/inventory/movements/${movementId}`);
+    const row = result.data;
+    const items = row.items ?? [];
+    const modal = openModal({
+      title: row.movementNumber,
+      kicker: 'Detail pergerakan stok',
+      subtitle: `${statusLabel(row.type)} · ${formatDateTime(row.completedAt)}`,
+      wide: true,
+      body: `
+        <dl class="detail-list">
+          <div class="detail-row"><dt>Pedagang</dt><dd>${escapeHtml(row.merchantName)}</dd></div>
+          <div class="detail-row"><dt>Asal</dt><dd>${escapeHtml(row.sourceWarehouseName ?? '—')}${row.sourceLocationName ? ` · ${escapeHtml(row.sourceLocationName)}` : ''}</dd></div>
+          <div class="detail-row"><dt>Tujuan</dt><dd>${escapeHtml(row.destinationWarehouseName ?? '—')}${row.destinationLocationName ? ` · ${escapeHtml(row.destinationLocationName)}` : ''}</dd></div>
+          <div class="detail-row"><dt>Referensi</dt><dd>${escapeHtml(row.referenceNumber ?? row.referenceType ?? '—')}</dd></div>
+          <div class="detail-row"><dt>Catatan</dt><dd>${escapeHtml(row.notes ?? '—')}</dd></div>
+          <div class="detail-row"><dt>Total</dt><dd>${formatNumber(Number(row.totalQuantity))} unit · ${formatMoney(row.totalCost)}</dd></div>
+          <div class="detail-row"><dt>Oleh</dt><dd>${escapeHtml(row.createdByName ?? 'Sistem')}</dd></div>
+        </dl>
+        <div class="table-wrap" style="margin-top:16px">
+          <table class="table">
+            <thead><tr><th>Produk</th><th>SKU</th><th>Jumlah</th><th>Biaya satuan</th><th>Total</th></tr></thead>
+            <tbody>
+              ${items
+                .map(
+                  (item) => `
+                    <tr>
+                      <td>${escapeHtml(item.productName)}</td>
+                      <td>${escapeHtml(item.skuCode)}</td>
+                      <td>${formatNumber(Number(item.quantity))}</td>
+                      <td>${formatMoney(item.unitCost)}</td>
+                      <td>${formatMoney(item.totalCost)}</td>
+                    </tr>
+                  `,
+                )
+                .join('')}
+            </tbody>
+          </table>
+        </div>
+      `,
+      footer: '<button class="button button-ghost" type="button" data-modal-close>Tutup</button>',
+    });
+    return modal;
+  } catch (error) {
+    closeModal();
+    showToast('Gagal memuat detail', error.message, 'error');
+  }
+}
+
+async function openInventoryCountDetail(countId) {
+  openModal({
+    title: 'Detail opname stok',
+    kicker: 'Persediaan',
+    subtitle: 'Memuat item opname...',
+    wide: true,
+    body: tableLoading(4),
+  });
+  try {
+    const result = await api(`/inventory/stock-counts/${countId}`);
+    const row = result.data;
+    const items = row.items ?? [];
+    const editable = (row.status === 'counting' || row.status === 'draft') && state.canWriteInventory;
+    const modal = openModal({
+      title: row.countNumber,
+      kicker: 'Opname stok',
+      subtitle: `${row.warehouseName} · ${row.locationName} · ${statusLabel(row.status)}`,
+      wide: true,
+      body: `
+        <div class="toolbar" style="margin-bottom:14px">
+          <span class="toolbar-count">${formatNumber(items.filter((item) => item.countedQuantity !== null).length)} dari ${formatNumber(items.length)} item dihitung</span>
+          ${editable ? '<span class="cell-muted">Isi jumlah fisik pada kolom hitung, lalu simpan.</span>' : ''}
+        </div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Produk</th><th>SKU</th><th>Stok sistem</th><th>Jumlah fisik</th><th>Selisih</th><th>Catatan</th></tr></thead>
+            <tbody>
+              ${items
+                .map(
+                  (item) => `
+                    <tr data-count-row="${escapeHtml(item.id)}">
+                      <td>${escapeHtml(item.productName)}</td>
+                      <td>${escapeHtml(item.skuCode)}</td>
+                      <td>${formatNumber(Number(item.systemQuantity))}</td>
+                      <td>
+                        ${
+                          editable
+                            ? `<input class="table-input" type="number" min="0" step="0.001" data-count-input value="${item.countedQuantity === null ? '' : escapeHtml(item.countedQuantity)}" placeholder="0" />`
+                            : item.countedQuantity === null
+                              ? '—'
+                              : formatNumber(Number(item.countedQuantity))
+                        }
+                      </td>
+                      <td>${item.differenceQuantity === null ? '—' : `<span class="${Number(item.differenceQuantity) < 0 ? 'cell-danger' : ''}">${Number(item.differenceQuantity) > 0 ? '+' : ''}${formatNumber(Number(item.differenceQuantity))}</span>`}</td>
+                      <td><input class="table-input" type="text" maxlength="1000" data-count-note value="${escapeHtml(item.notes ?? '')}" ${editable ? '' : 'disabled'} placeholder="Opsional" /></td>
+                    </tr>
+                  `,
+                )
+                .join('')}
+            </tbody>
+          </table>
+        </div>
+      `,
+      footer: `
+        <button class="button button-ghost" type="button" data-modal-close>Tutup</button>
+        ${editable ? `<button class="button button-primary" id="inventory-count-save" type="button">${icon('check')} Simpan hitungan</button>` : ''}
+        ${editable ? `<button class="button button-primary" id="inventory-count-complete" type="button">${icon('check')} Selesaikan opname</button>` : ''}
+        ${row.status !== 'completed' && row.status !== 'cancelled' && state.canWriteInventory ? '<button class="button button-ghost" id="inventory-count-cancel" type="button">Batalkan opname</button>' : ''}
+      `,
+    });
+
+    const readRows = () =>
+      [...modal.querySelectorAll('[data-count-row]')].map((tr) => {
+        const input = tr.querySelector('[data-count-input]');
+        const note = tr.querySelector('[data-count-note]');
+        return {
+          itemId: tr.dataset.countRow,
+          countedQuantity: input?.value.trim() ?? '',
+          notes: note?.value.trim() ?? '',
+        };
+      });
+
+    modal.querySelector('#inventory-count-save')?.addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      const rows = readRows().filter((item) => item.countedQuantity !== '');
+      if (!rows.length) {
+        showToast('Belum ada hitungan', 'Isi minimal satu jumlah fisik.', 'error');
+        return;
+      }
+      button.disabled = true;
+      try {
+        for (const item of rows) {
+          await api(`/inventory/stock-counts/${countId}/items/${item.itemId}`, {
+            method: 'PATCH',
+            body: {
+              countedQuantity: item.countedQuantity,
+              notes: item.notes || undefined,
+            },
+          });
+        }
+        showToast('Hitungan tersimpan', `${rows.length} item diperbarui.`);
+        await loadInventory(true);
+        await openInventoryCountDetail(countId);
+      } catch (error) {
+        showToast('Gagal menyimpan hitungan', error.message, 'error');
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    modal.querySelector('#inventory-count-complete')?.addEventListener('click', async (event) => {
+      if (!window.confirm('Selesaikan opname? Selisih stok akan dibuat sebagai penyesuaian.')) {
+        return;
+      }
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        await api(`/inventory/stock-counts/${countId}/complete`, { method: 'POST' });
+        closeModal();
+        showToast('Opname selesai', 'Penyesuaian stok telah dibuat.');
+        await loadInventory(true);
+      } catch (error) {
+        showToast('Gagal menyelesaikan opname', error.message, 'error');
+        button.disabled = false;
+      }
+    });
+
+    modal.querySelector('#inventory-count-cancel')?.addEventListener('click', async (event) => {
+      if (!window.confirm('Batalkan opname ini?')) return;
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        await api(`/inventory/stock-counts/${countId}/cancel`, { method: 'POST' });
+        closeModal();
+        showToast('Opname dibatalkan');
+        await loadInventory(true);
+      } catch (error) {
+        showToast('Gagal membatalkan opname', error.message, 'error');
+        button.disabled = false;
+      }
+    });
+  } catch (error) {
+    closeModal();
+    showToast('Gagal memuat opname', error.message, 'error');
+  }
+}
+
+function openInventoryBatchModal(batchId) {
+  const record = (state.inventory?.batches?.data ?? []).find((row) => row.id === batchId);
+  if (!record) return;
+  const modal = openModal({
+    title: 'Ubah batch',
+    kicker: 'Persediaan',
+    subtitle: `${record.productName} · ${record.batchNumber}`,
+    body: `
+      <form id="inventory-batch-form" class="form-grid">
+        <label class="field">
+          <span>Status</span>
+          <select name="status">
+            ${['active', 'depleted', 'expired', 'quarantined']
+              .map(
+                (status) =>
+                  `<option value="${status}" ${record.status === status ? 'selected' : ''}>${escapeHtml(statusLabel(status))}</option>`,
+              )
+              .join('')}
+          </select>
+        </label>
+        <label class="field">
+          <span>Kedaluwarsa</span>
+          <input name="expiryDate" type="date" value="${escapeHtml(record.expiryDate ?? '')}" />
+        </label>
+        <label class="field field-span">
+          <span>Referensi pemasok</span>
+          <input name="supplierReference" maxlength="255" value="${escapeHtml(record.supplierReference ?? '')}" />
+        </label>
+        <label class="field field-span">
+          <span>Catatan</span>
+          <textarea name="notes" rows="2" maxlength="2000">${escapeHtml(record.notes ?? '')}</textarea>
+        </label>
+      </form>
+    `,
+    footer: `
+      <button class="button button-ghost" type="button" data-modal-close>Batal</button>
+      <button class="button button-primary" id="inventory-batch-submit" type="submit" form="inventory-batch-form">
+        ${icon('check')} Simpan perubahan
+      </button>
+    `,
+  });
+  const form = modal.querySelector('#inventory-batch-form');
+  const submit = modal.querySelector('#inventory-batch-submit');
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    submit.disabled = true;
+    try {
+      await api(`/inventory/batches/${batchId}`, {
+        method: 'PATCH',
+        body: {
+          status: String(data.get('status') ?? 'active'),
+          expiryDate: String(data.get('expiryDate') ?? '').trim() || null,
+          supplierReference: String(data.get('supplierReference') ?? '').trim() || null,
+          notes: String(data.get('notes') ?? '').trim() || null,
+        },
+      });
+      closeModal();
+      showToast('Batch tersimpan', 'Perubahan batch berhasil disimpan.');
+      await loadInventory(true);
+    } catch (error) {
+      showToast('Gagal menyimpan batch', error.message, 'error');
+    } finally {
+      submit.disabled = false;
+    }
+  });
+}
+
+
 /* --------------------------------- Audit ------------------------------ */
 
 async function loadAudit(force = false) {
@@ -5282,6 +7156,91 @@ function bindEvents() {
   $('#create-pos-transaction-button').addEventListener('click', openPosTransactionModal);
   $('#sync-pos-offline-button').addEventListener('click', openPosSyncModal);
 
+  $('#inventory-item-search').addEventListener(
+    'input',
+    debounce((event) => {
+      state.filters.inventory.itemSearch = event.target.value.trim();
+      loadInventory(true);
+    }),
+  );
+  $('#inventory-item-status-filter').addEventListener('change', (event) => {
+    state.filters.inventory.itemStatus = event.target.value;
+    loadInventory(true);
+  });
+  $('#inventory-balance-search').addEventListener(
+    'input',
+    debounce((event) => {
+      state.filters.inventory.balanceSearch = event.target.value.trim();
+      loadInventory(true);
+    }),
+  );
+  $('#inventory-balance-low-filter').addEventListener('change', (event) => {
+    state.filters.inventory.balanceLow = event.target.value;
+    loadInventory(true);
+  });
+  $('#inventory-movement-search').addEventListener(
+    'input',
+    debounce((event) => {
+      state.filters.inventory.movementSearch = event.target.value.trim();
+      loadInventory(true);
+    }),
+  );
+  $('#inventory-movement-type-filter').addEventListener('change', (event) => {
+    state.filters.inventory.movementType = event.target.value;
+    loadInventory(true);
+  });
+  $('#inventory-adjustment-search').addEventListener(
+    'input',
+    debounce((event) => {
+      state.filters.inventory.adjustmentSearch = event.target.value.trim();
+      loadInventory(true);
+    }),
+  );
+  $('#inventory-adjustment-type-filter').addEventListener('change', (event) => {
+    state.filters.inventory.adjustmentType = event.target.value;
+    loadInventory(true);
+  });
+  $('#inventory-count-search').addEventListener(
+    'input',
+    debounce((event) => {
+      state.filters.inventory.countSearch = event.target.value.trim();
+      loadInventory(true);
+    }),
+  );
+  $('#inventory-count-status-filter').addEventListener('change', (event) => {
+    state.filters.inventory.countStatus = event.target.value;
+    loadInventory(true);
+  });
+  $('#inventory-batch-search').addEventListener(
+    'input',
+    debounce((event) => {
+      state.filters.inventory.batchSearch = event.target.value.trim();
+      loadInventory(true);
+    }),
+  );
+  $('#inventory-batch-expiry-filter').addEventListener('change', (event) => {
+    state.filters.inventory.batchExpiry = event.target.value;
+    loadInventory(true);
+  });
+  for (const selector of [
+    '#refresh-inventory-warehouses',
+    '#refresh-inventory-locations',
+    '#refresh-inventory-items',
+    '#refresh-inventory-balances',
+    '#refresh-inventory-movements',
+    '#refresh-inventory-adjustments',
+    '#refresh-inventory-counts',
+    '#refresh-inventory-batches',
+  ]) {
+    $(selector)?.addEventListener('click', () => loadInventory(true));
+  }
+  $('#create-inventory-warehouse-button').addEventListener('click', () => openInventoryWarehouseModal());
+  $('#create-inventory-location-button').addEventListener('click', () => openInventoryLocationModal());
+  $('#create-inventory-item-button').addEventListener('click', () => openInventoryItemModal());
+  $('#create-inventory-movement-button').addEventListener('click', openInventoryMovementModal);
+  $('#create-inventory-adjustment-button').addEventListener('click', () => openInventoryAdjustmentModal());
+  $('#create-inventory-count-button').addEventListener('click', openInventoryCountModal);
+
   $('#audit-search').addEventListener(
     'input',
     debounce((event) => {
@@ -5462,6 +7421,58 @@ function bindEvents() {
         paymentMethodToggle.dataset.nextStatus,
         paymentMethodToggle.dataset.methodName,
       );
+      return;
+    }
+
+    const retryInventory = event.target.closest('[data-retry-inventory]');
+    if (retryInventory) {
+      loadInventory(true);
+      return;
+    }
+
+    const inventoryWarehouseEdit = event.target.closest('[data-inventory-warehouse-edit]');
+    if (inventoryWarehouseEdit) {
+      openInventoryWarehouseModal(inventoryWarehouseEdit.dataset.inventoryWarehouseEdit);
+      return;
+    }
+
+    const inventoryLocationEdit = event.target.closest('[data-inventory-location-edit]');
+    if (inventoryLocationEdit) {
+      openInventoryLocationModal(inventoryLocationEdit.dataset.inventoryLocationEdit);
+      return;
+    }
+
+    const inventoryItemEdit = event.target.closest('[data-inventory-item-edit]');
+    if (inventoryItemEdit) {
+      openInventoryItemModal(inventoryItemEdit.dataset.inventoryItemEdit);
+      return;
+    }
+
+    const inventoryAdjust = event.target.closest('[data-inventory-adjust-item]');
+    if (inventoryAdjust) {
+      openInventoryAdjustmentModal({
+        itemId: inventoryAdjust.dataset.inventoryAdjustItem,
+        warehouseId: inventoryAdjust.dataset.inventoryAdjustWarehouse,
+        locationId: inventoryAdjust.dataset.inventoryAdjustLocation,
+      });
+      return;
+    }
+
+    const inventoryMovementDetail = event.target.closest('[data-inventory-movement-detail]');
+    if (inventoryMovementDetail) {
+      openInventoryMovementDetail(inventoryMovementDetail.dataset.inventoryMovementDetail);
+      return;
+    }
+
+    const inventoryCountDetail = event.target.closest('[data-inventory-count-detail]');
+    if (inventoryCountDetail) {
+      openInventoryCountDetail(inventoryCountDetail.dataset.inventoryCountDetail);
+      return;
+    }
+
+    const inventoryBatchEdit = event.target.closest('[data-inventory-batch-edit]');
+    if (inventoryBatchEdit) {
+      openInventoryBatchModal(inventoryBatchEdit.dataset.inventoryBatchEdit);
       return;
     }
 

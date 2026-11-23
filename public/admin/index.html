@@ -107,6 +107,10 @@
         <rect x="4" y="3.5" width="16" height="10" rx="2" stroke="currentColor" stroke-width="1.8" />
         <path d="M8 7h8M8 10h4M5 16h14l-1.2 4.5H6.2L5 16Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
       </symbol>
+      <symbol id="i-inventory" viewBox="0 0 24 24">
+        <path d="M4 8.5 12 4l8 4.5v10L12 23l-8-4.5v-10Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+        <path d="M4 8.5 12 13l8-4.5M12 13v10M8 6.2l8 4.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+      </symbol>
       <symbol id="i-user" viewBox="0 0 24 24">
         <circle cx="12" cy="8" r="3.5" stroke="currentColor" stroke-width="1.8" />
         <path d="M5.5 20c.5-3.7 2.9-6 6.5-6s6 2.3 6.5 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
@@ -173,6 +177,10 @@
           <button class="nav-item" type="button" data-view="pos">
             <svg class="icon"><use href="#i-pos"></use></svg>
             <span>POS</span>
+          </button>
+          <button class="nav-item" type="button" data-view="inventory">
+            <svg class="icon"><use href="#i-inventory"></use></svg>
+            <span>Inventori</span>
           </button>
           <button class="nav-item" type="button" data-view="audit">
             <svg class="icon"><use href="#i-audit"></use></svg>
@@ -983,6 +991,357 @@
               </div>
             </article>
           </section>
+
+          <section class="view" id="view-inventory" hidden>
+            <div class="section-head">
+              <div>
+                <p class="panel-kicker">Inventory & warehouse</p>
+                <h2>Inventori</h2>
+                <p class="section-text">Kelola gudang, lokasi, saldo stok, pergerakan, opname, serta batch dan kedaluwarsa.</p>
+              </div>
+              <span class="section-badge neutral" id="inventory-summary-badge" hidden>0 opname berjalan</span>
+            </div>
+
+            <div class="stats-grid">
+              <article class="stat-card" data-tone="green">
+                <div class="stat-top">
+                  <span class="stat-icon"><svg class="icon"><use href="#i-store"></use></svg></span>
+                  <span class="stat-trend">Gudang</span>
+                </div>
+                <p class="stat-label">Gudang aktif</p>
+                <p class="stat-value" id="inventory-stat-warehouses">-</p>
+                <p class="stat-sub">Tempat penyimpanan persediaan.</p>
+              </article>
+              <article class="stat-card" data-tone="blue">
+                <div class="stat-top">
+                  <span class="stat-icon"><svg class="icon"><use href="#i-product"></use></svg></span>
+                  <span class="stat-trend">SKU</span>
+                </div>
+                <p class="stat-label">Item persediaan</p>
+                <p class="stat-value" id="inventory-stat-items">-</p>
+                <p class="stat-sub" id="inventory-stat-stock">0 unit</p>
+              </article>
+              <article class="stat-card" data-tone="gold">
+                <div class="stat-top">
+                  <span class="stat-icon"><svg class="icon"><use href="#i-alert"></use></svg></span>
+                  <span class="stat-trend">Perhatian</span>
+                </div>
+                <p class="stat-label">Stok menipis</p>
+                <p class="stat-value" id="inventory-stat-lowstock">-</p>
+                <p class="stat-sub">Saldo di bawah batas minimum.</p>
+              </article>
+              <article class="stat-card" data-tone="rose">
+                <div class="stat-top">
+                  <span class="stat-icon"><svg class="icon"><use href="#i-receipt"></use></svg></span>
+                  <span class="stat-trend">Expiry</span>
+                </div>
+                <p class="stat-label">Batch mendekati kedaluwarsa</p>
+                <p class="stat-value" id="inventory-stat-expiring">-</p>
+                <p class="stat-sub">Dalam 30 hari ke depan.</p>
+              </article>
+            </div>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Jaringan penyimpanan</p>
+                  <h3>Gudang</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="inventory-warehouse-count" hidden>0 gudang</span>
+                  <button class="button button-primary button-sm" id="create-inventory-warehouse-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Gudang
+                  </button>
+                </div>
+              </div>
+              <div class="toolbar">
+                <span class="toolbar-count">Gudang dikelompokkan per pedagang.</span>
+                <button class="icon-button toolbar-refresh" id="refresh-inventory-warehouses" type="button" aria-label="Segarkan gudang" title="Segarkan">
+                  <svg class="icon"><use href="#i-refresh"></use></svg>
+                </button>
+              </div>
+              <div class="table-host" id="inventory-warehouses-table">
+                <div class="table-loading">
+                  <span class="skeleton skeleton-row"></span>
+                  <span class="skeleton skeleton-row"></span>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Posisi stok</p>
+                  <h3>Lokasi gudang</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="inventory-location-count" hidden>0 lokasi</span>
+                  <button class="button button-primary button-sm" id="create-inventory-location-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Lokasi
+                  </button>
+                </div>
+              </div>
+              <div class="toolbar">
+                <span class="toolbar-count">Rak, area terima, karantina, dan lokasi penyimpanan lain.</span>
+                <button class="icon-button toolbar-refresh" id="refresh-inventory-locations" type="button" aria-label="Segarkan lokasi" title="Segarkan">
+                  <svg class="icon"><use href="#i-refresh"></use></svg>
+                </button>
+              </div>
+              <div class="table-host" id="inventory-locations-table">
+                <div class="table-loading">
+                  <span class="skeleton skeleton-row"></span>
+                  <span class="skeleton skeleton-row"></span>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Master persediaan</p>
+                  <h3>Item persediaan</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="inventory-item-count" hidden>0 item</span>
+                  <button class="button button-primary button-sm" id="create-inventory-item-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Item
+                  </button>
+                </div>
+              </div>
+              <div class="toolbar">
+                <label class="search-box">
+                  <svg class="icon"><use href="#i-search"></use></svg>
+                  <input id="inventory-item-search" type="search" placeholder="Cari produk, SKU, atau pedagang..." autocomplete="off" />
+                </label>
+                <label class="select-box">
+                  <span class="sr-only">Filter status item</span>
+                  <select id="inventory-item-status-filter">
+                    <option value="">Semua status</option>
+                    <option value="active">Aktif</option>
+                    <option value="inactive">Nonaktif</option>
+                    <option value="discontinued">Dihentikan</option>
+                  </select>
+                  <svg class="icon"><use href="#i-chevron-down"></use></svg>
+                </label>
+                <span class="toolbar-count" id="inventory-item-count-label">Memuat...</span>
+                <button class="icon-button toolbar-refresh" id="refresh-inventory-items" type="button" aria-label="Segarkan item" title="Segarkan">
+                  <svg class="icon"><use href="#i-refresh"></use></svg>
+                </button>
+              </div>
+              <div class="table-host" id="inventory-items-table">
+                <div class="table-loading">
+                  <span class="skeleton skeleton-row"></span>
+                  <span class="skeleton skeleton-row"></span>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Saldo per lokasi</p>
+                  <h3>Stok tersedia</h3>
+                </div>
+                <span class="section-badge neutral" id="inventory-balance-count" hidden>0 saldo</span>
+              </div>
+              <div class="toolbar">
+                <label class="search-box">
+                  <svg class="icon"><use href="#i-search"></use></svg>
+                  <input id="inventory-balance-search" type="search" placeholder="Cari produk, SKU, gudang, atau lokasi..." autocomplete="off" />
+                </label>
+                <label class="select-box">
+                  <span class="sr-only">Filter stok menipis</span>
+                  <select id="inventory-balance-low-filter">
+                    <option value="">Semua saldo</option>
+                    <option value="true">Hanya stok menipis</option>
+                  </select>
+                  <svg class="icon"><use href="#i-chevron-down"></use></svg>
+                </label>
+                <span class="toolbar-count" id="inventory-balance-count-label">Memuat...</span>
+                <button class="icon-button toolbar-refresh" id="refresh-inventory-balances" type="button" aria-label="Segarkan saldo" title="Segarkan">
+                  <svg class="icon"><use href="#i-refresh"></use></svg>
+                </button>
+              </div>
+              <div class="table-host" id="inventory-balances-table">
+                <div class="table-loading">
+                  <span class="skeleton skeleton-row"></span>
+                  <span class="skeleton skeleton-row"></span>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Arus barang</p>
+                  <h3>Pergerakan stok</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="inventory-movement-count" hidden>0 pergerakan</span>
+                  <button class="button button-primary button-sm" id="create-inventory-movement-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Pergerakan
+                  </button>
+                </div>
+              </div>
+              <div class="toolbar">
+                <label class="search-box">
+                  <svg class="icon"><use href="#i-search"></use></svg>
+                  <input id="inventory-movement-search" type="search" placeholder="Cari nomor, referensi, atau catatan..." autocomplete="off" />
+                </label>
+                <label class="select-box">
+                  <span class="sr-only">Filter tipe pergerakan</span>
+                  <select id="inventory-movement-type-filter">
+                    <option value="">Semua tipe</option>
+                    <option value="inbound">Barang masuk</option>
+                    <option value="outbound">Barang keluar</option>
+                    <option value="transfer">Transfer</option>
+                    <option value="adjustment">Penyesuaian</option>
+                    <option value="stock_count">Opname</option>
+                    <option value="return">Retur</option>
+                  </select>
+                  <svg class="icon"><use href="#i-chevron-down"></use></svg>
+                </label>
+                <span class="toolbar-count" id="inventory-movement-count-label">Memuat...</span>
+                <button class="icon-button toolbar-refresh" id="refresh-inventory-movements" type="button" aria-label="Segarkan pergerakan" title="Segarkan">
+                  <svg class="icon"><use href="#i-refresh"></use></svg>
+                </button>
+              </div>
+              <div class="table-host" id="inventory-movements-table">
+                <div class="table-loading">
+                  <span class="skeleton skeleton-row"></span>
+                  <span class="skeleton skeleton-row"></span>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Koreksi stok</p>
+                  <h3>Penyesuaian stok</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="inventory-adjustment-count" hidden>0 penyesuaian</span>
+                  <button class="button button-primary button-sm" id="create-inventory-adjustment-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Penyesuaian
+                  </button>
+                </div>
+              </div>
+              <div class="toolbar">
+                <label class="search-box">
+                  <svg class="icon"><use href="#i-search"></use></svg>
+                  <input id="inventory-adjustment-search" type="search" placeholder="Cari nomor, produk, atau alasan..." autocomplete="off" />
+                </label>
+                <label class="select-box">
+                  <span class="sr-only">Filter tipe penyesuaian</span>
+                  <select id="inventory-adjustment-type-filter">
+                    <option value="">Semua tipe</option>
+                    <option value="increase">Penambahan</option>
+                    <option value="decrease">Pengurangan</option>
+                    <option value="correction">Koreksi</option>
+                    <option value="damage">Rusak</option>
+                    <option value="loss">Kehilangan</option>
+                    <option value="other">Lainnya</option>
+                  </select>
+                  <svg class="icon"><use href="#i-chevron-down"></use></svg>
+                </label>
+                <span class="toolbar-count" id="inventory-adjustment-count-label">Memuat...</span>
+                <button class="icon-button toolbar-refresh" id="refresh-inventory-adjustments" type="button" aria-label="Segarkan penyesuaian" title="Segarkan">
+                  <svg class="icon"><use href="#i-refresh"></use></svg>
+                </button>
+              </div>
+              <div class="table-host" id="inventory-adjustments-table">
+                <div class="table-loading">
+                  <span class="skeleton skeleton-row"></span>
+                  <span class="skeleton skeleton-row"></span>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Hitungan fisik</p>
+                  <h3>Opname stok</h3>
+                </div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="inventory-count-count" hidden>0 opname</span>
+                  <button class="button button-primary button-sm" id="create-inventory-count-button" type="button" hidden>
+                    <svg class="icon"><use href="#i-plus"></use></svg>
+                    Mulai opname
+                  </button>
+                </div>
+              </div>
+              <div class="toolbar">
+                <label class="search-box">
+                  <svg class="icon"><use href="#i-search"></use></svg>
+                  <input id="inventory-count-search" type="search" placeholder="Cari nomor opname, gudang, atau lokasi..." autocomplete="off" />
+                </label>
+                <label class="select-box">
+                  <span class="sr-only">Filter status opname</span>
+                  <select id="inventory-count-status-filter">
+                    <option value="">Semua status</option>
+                    <option value="counting">Sedang dihitung</option>
+                    <option value="completed">Selesai</option>
+                    <option value="cancelled">Dibatalkan</option>
+                  </select>
+                  <svg class="icon"><use href="#i-chevron-down"></use></svg>
+                </label>
+                <span class="toolbar-count" id="inventory-count-count-label">Memuat...</span>
+                <button class="icon-button toolbar-refresh" id="refresh-inventory-counts" type="button" aria-label="Segarkan opname" title="Segarkan">
+                  <svg class="icon"><use href="#i-refresh"></use></svg>
+                </button>
+              </div>
+              <div class="table-host" id="inventory-counts-table">
+                <div class="table-loading">
+                  <span class="skeleton skeleton-row"></span>
+                  <span class="skeleton skeleton-row"></span>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="panel-kicker">Lot & kedaluwarsa</p>
+                  <h3>Batch persediaan</h3>
+                </div>
+                <span class="section-badge neutral" id="inventory-batch-count" hidden>0 batch</span>
+              </div>
+              <div class="toolbar">
+                <label class="search-box">
+                  <svg class="icon"><use href="#i-search"></use></svg>
+                  <input id="inventory-batch-search" type="search" placeholder="Cari nomor batch, produk, SKU, atau gudang..." autocomplete="off" />
+                </label>
+                <label class="select-box">
+                  <span class="sr-only">Filter kedaluwarsa batch</span>
+                  <select id="inventory-batch-expiry-filter">
+                    <option value="">Semua batch</option>
+                    <option value="expired">Sudah kedaluwarsa</option>
+                    <option value="expiring">Segera kedaluwarsa</option>
+                    <option value="safe">Masih aman</option>
+                  </select>
+                  <svg class="icon"><use href="#i-chevron-down"></use></svg>
+                </label>
+                <span class="toolbar-count" id="inventory-batch-count-label">Memuat...</span>
+                <button class="icon-button toolbar-refresh" id="refresh-inventory-batches" type="button" aria-label="Segarkan batch" title="Segarkan">
+                  <svg class="icon"><use href="#i-refresh"></use></svg>
+                </button>
+              </div>
+              <div class="table-host" id="inventory-batches-table">
+                <div class="table-loading">
+                  <span class="skeleton skeleton-row"></span>
+                  <span class="skeleton skeleton-row"></span>
+                </div>
+              </div>
+            </article>
+          </section>
+
 
           <section class="view" id="view-audit" hidden>
             <div class="section-head">

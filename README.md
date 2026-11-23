@@ -14,6 +14,7 @@ Fokus tahap ini adalah fondasi database dan API (Bagian 17 dokumen):
 7. **MKT-05** Order & Transaction Management
 8. **MKT-06** Integrated Payment Management
 9. **MKT-07** POS & Offline Transaction Management
+10. **MKT-08** Inventory & Warehouse Management
 
 Stack: **Bun + Hono + Drizzle ORM + PostgreSQL + Zod**.
 
@@ -103,8 +104,10 @@ publikasi, detail produk storefront, dan pengelolaan kanal penjualan. Menu
 penjualan. Menu **Pembayaran** menampilkan pembayaran, refund, settlement,
 rekonsiliasi, serta pengelolaan provider dan metode pembayaran. Menu **POS**
 menampilkan terminal, cash register, shift kasir, transaksi toko fisik,
-pembatalan transaksi, pergerakan kas, dan sinkronisasi transaksi offline. UI
-disajikan langsung oleh Bun/Hono tanpa build step tambahan.
+pembatalan transaksi, pergerakan kas, dan sinkronisasi transaksi offline. Menu
+**Inventori** menampilkan gudang, lokasi, item persediaan, saldo stok,
+pergerakan stok, penyesuaian, opname, serta batch dan kedaluwarsa. UI disajikan
+langsung oleh Bun/Hono tanpa build step tambahan.
 
 Katalog marketplace publik MKT-04 tersedia lewat API:
 
@@ -158,6 +161,7 @@ src/
     schema/commerce.ts      # 17 tabel: kanal, storefront, cart, checkout, order, retur
     schema/payment.ts       # 10 tabel: provider, metode, payment, refund, settlement
     schema/pos.ts           # 7 tabel: terminal, register, shift, transaksi, kas, sync
+    schema/inventory.ts     # 10 tabel: gudang, lokasi, item, saldo, movement, opname, batch
     migrate.ts              # Migration runner
     seed.ts                 # Seed role/permission/reference
   lib/
@@ -206,6 +210,12 @@ src/
       shifts.ts             # Shift kasir, tutup shift, pergerakan kas
       transactions.ts       # Transaksi POS, void, batch sync, log sync
       shared.ts             # Scoping, saldo kas, total shift, detail
+    inventory/              # Inventory & warehouse (MKT-08)
+      index.ts              # Mount route inventori + auth
+      resources.ts          # Gudang, lokasi, item, saldo, batch, ringkasan
+      movements.ts          # Pergerakan stok dan penyesuaian
+      counts.ts             # Opname stok, hitung fisik, selesai/batal
+      shared.ts             # Scoping, saldo, movement, batch, detail
     reference.ts            # Master reference data
     audit.ts                # Audit log viewer
   services/auth.ts          # Session & profile service
@@ -220,6 +230,7 @@ docs/commerce-database.md   # Detail desain database commerce (MKT-04)
 docs/order-database.md      # Detail desain database order & transaksi (MKT-05)
 docs/payment-database.md    # Detail desain database pembayaran (MKT-06)
 docs/pos-database.md        # Detail desain database POS (MKT-07)
+docs/inventory-database.md  # Detail desain database inventori (MKT-08)
 ```
 
 ---
@@ -458,6 +469,36 @@ Base URL: `/api/v1`
 > `(terminalId, clientTransactionId)`. Nilai uang transaksi dan kas
 > dikembalikan sebagai string desimal.
 
+### Inventori — `/api/v1/inventory`
+
+| Method | Path | Permission | Keterangan |
+| --- | --- | --- | --- |
+| GET | `/summary` | `inventory:read` | Ringkasan gudang, item, stok, low stock, batch, opname |
+| GET/POST | `/warehouses` | `inventory:read` / `inventory:manage` | Daftar / buat gudang |
+| GET/PATCH/DELETE | `/warehouses/:warehouseId` | `inventory:read` / `inventory:manage` | Detail / update / hapus gudang |
+| GET | `/locations` | `inventory:read` | Daftar lokasi sesuai akses |
+| GET/POST | `/warehouses/:warehouseId/locations` | `inventory:read` / `inventory:manage` | Daftar / buat lokasi gudang |
+| PATCH/DELETE | `/locations/:locationId` | `inventory:manage` | Update / hapus lokasi |
+| GET/POST | `/items` | `inventory:read` / `inventory:manage` | Daftar / daftarkan item persediaan |
+| GET/PATCH/DELETE | `/items/:itemId` | `inventory:read` / `inventory:manage` | Detail / update / hapus item |
+| GET | `/balances` | `inventory:read` | Saldo stok per lokasi |
+| GET | `/batches` | `inventory:read` | Daftar batch + status kedaluwarsa |
+| PATCH | `/batches/:batchId` | `inventory:manage` | Update status/expiry/catatan batch |
+| GET/POST | `/movements` | `inventory:read` / `inventory:write` | Daftar / catat pergerakan stok |
+| GET | `/movements/:movementId` | `inventory:read` | Detail movement + item |
+| GET/POST | `/adjustments` | `inventory:read` / `inventory:write` | Daftar / catat penyesuaian stok |
+| GET | `/adjustments/:adjustmentId` | `inventory:read` | Detail penyesuaian |
+| GET/POST | `/stock-counts` | `inventory:read` / `inventory:write` | Daftar / mulai opname |
+| GET | `/stock-counts/:countId` | `inventory:read` | Detail opname + item |
+| PATCH | `/stock-counts/:countId/items/:itemId` | `inventory:write` | Isi hitungan fisik |
+| POST | `/stock-counts/:countId/complete` | `inventory:write` | Selesaikan opname + penyesuaian |
+| POST | `/stock-counts/:countId/cancel` | `inventory:write` | Batalkan opname |
+
+> Stok disimpan per SKU dan lokasi. Pergerakan `inbound`, `outbound`,
+> `transfer`, dan `return` langsung mengubah saldo; penyesuaian dan opname
+> membuat movement turunan. Batch/expiry bersifat opsional per item. Nilai
+> kuantitas dan uang dikembalikan sebagai string desimal.
+
 ### Marketplace publik — `/api/v1/commerce/marketplace`
 
 Tidak memerlukan login. Hanya menampilkan storefront `published` milik merchant
@@ -488,8 +529,8 @@ Tidak memerlukan login. Hanya menampilkan storefront `published` milik merchant
 | Role | Ringkasan akses |
 | --- | --- |
 | `platform_admin` | Wildcard `*` (semua akses) |
-| `market_admin` | Kelola pasar/okupansi, verifikasi merchant, master katalog, kanal commerce, lihat pembayaran, lihat POS, lihat audit |
-| `member` | Buat organisasi, kelola merchant/toko/produk/storefront miliknya, belanja, kelola pembayaran/refund merchant, kelola POS merchant |
+| `market_admin` | Kelola pasar/okupansi, verifikasi merchant, master katalog, kanal commerce, lihat pembayaran, lihat POS, lihat inventori, lihat audit |
+| `member` | Buat organisasi, kelola merchant/toko/produk/storefront miliknya, belanja, kelola pembayaran/refund merchant, kelola POS dan inventori merchant |
 
 Permission yang tersedia: `user:read`, `user:write`, `role:manage`,
 `organization:read`, `organization:write`, `organization:member:manage`,
@@ -497,7 +538,8 @@ Permission yang tersedia: `user:read`, `user:write`, `role:manage`,
 `merchant:write`, `merchant:verify`, `store:read`, `store:write`,
 `catalog:read`, `catalog:write`, `catalog:manage`, `commerce:read`,
 `commerce:write`, `commerce:manage`, `payment:read`, `payment:write`,
-`payment:manage`, `pos:read`, `pos:write`, `pos:manage`, `audit:read`.
+`payment:manage`, `pos:read`, `pos:write`, `pos:manage`, `inventory:read`,
+`inventory:write`, `inventory:manage`, `audit:read`.
 
 ### Model otorisasi
 
@@ -559,6 +601,8 @@ Satu database PostgreSQL dengan schema logis:
 - `payment` — provider, metode, akun pencairan merchant, payment intent,
   attempt, event, refund, settlement, item settlement, dan rekonsiliasi
   (10 tabel).
+- `inventory` — gudang, lokasi, item persediaan, saldo stok, movement, item
+  movement, penyesuaian, opname, item opname, dan batch (10 tabel).
 - `governance` — `audit_logs` (1 tabel).
 
 Detail tabel, relasi, enum, dan keputusan desain ada di
@@ -566,12 +610,14 @@ Detail tabel, relasi, enum, dan keputusan desain ada di
 [`docs/catalog-database.md`](docs/catalog-database.md),
 [`docs/commerce-database.md`](docs/commerce-database.md),
 [`docs/order-database.md`](docs/order-database.md),
-[`docs/payment-database.md`](docs/payment-database.md), dan
-[`docs/pos-database.md`](docs/pos-database.md).
+[`docs/payment-database.md`](docs/payment-database.md),
+[`docs/pos-database.md`](docs/pos-database.md), dan
+[`docs/inventory-database.md`](docs/inventory-database.md).
 
 Migration SQL: `drizzle/0000_*.sql` (core), `drizzle/0001_*.sql` (catalog),
 `drizzle/0002_*.sql` (commerce), `drizzle/0003_*.sql` (order),
-`drizzle/0004_*.sql` (payment), dan `drizzle/0005_*.sql` (POS).
+`drizzle/0004_*.sql` (payment), `drizzle/0005_*.sql` (POS), dan
+`drizzle/0006_*.sql` (inventori).
 
 ---
 
@@ -590,7 +636,8 @@ Migration SQL: `drizzle/0000_*.sql` (core), `drizzle/0001_*.sql` (catalog),
 - Audit trail mencatat aksi penting (register, create/update market, merchant,
   occupancy, store, organisasi, checkout, order, pembatalan, retur, payment,
   refund, settlement, rekonsiliasi, terminal POS, register, shift kasir,
-  transaksi POS, pembatalan POS, dan sinkronisasi offline).
+  transaksi POS, pembatalan POS, sinkronisasi offline, gudang, lokasi, item
+  persediaan, pergerakan stok, penyesuaian, opname, dan batch).
 - Belum termasuk: email verification, MFA, refresh token, rate limiting.
   Semua ini masuk roadmap SYS-01/SYS-06.
 
@@ -599,22 +646,24 @@ Migration SQL: `drizzle/0000_*.sql` (core), `drizzle/0001_*.sql` (catalog),
 ## 9. Roadmap Modul Berikutnya
 
 **MKT-04 Marketplace & Omnichannel Commerce**, **MKT-05 Order & Transaction
-Management**, **MKT-06 Integrated Payment Management**, dan **MKT-07 POS &
-Offline Transaction Management** sudah diimplementasikan. MKT-04 mencakup
-storefront, katalog publik, cart, checkout, dan channel listing. MKT-05
-mencakup konversi checkout menjadi order per merchant, status order,
-pembatalan, retur, dan ledger transaksi penjualan. MKT-06 mencakup
-provider/metode pembayaran, payment intent, attempt, refund, settlement
-merchant, dan rekonsiliasi provider. MKT-07 mencakup terminal POS, cash
-register, shift kasir, transaksi toko fisik, pergerakan kas, pembatalan
-transaksi, dan sinkronisasi offline. Dashboard admin memiliki menu **Commerce**,
-**Pesanan**, **Pembayaran**, dan **POS**. Urutan berikutnya:
+Management**, **MKT-06 Integrated Payment Management**, **MKT-07 POS &
+Offline Transaction Management**, dan **MKT-08 Inventory & Warehouse
+Management** sudah diimplementasikan. MKT-04 mencakup storefront, katalog
+publik, cart, checkout, dan channel listing. MKT-05 mencakup konversi checkout
+menjadi order per merchant, status order, pembatalan, retur, dan ledger
+transaksi penjualan. MKT-06 mencakup provider/metode pembayaran, payment
+intent, attempt, refund, settlement merchant, dan rekonsiliasi provider.
+MKT-07 mencakup terminal POS, cash register, shift kasir, transaksi toko
+fisik, pergerakan kas, pembatalan transaksi, dan sinkronisasi offline. MKT-08
+mencakup gudang, lokasi, item persediaan, saldo stok, pergerakan stok,
+penyesuaian, opname, serta batch/expiry. Dashboard admin memiliki menu
+**Commerce**, **Pesanan**, **Pembayaran**, **POS**, dan **Inventori**. Urutan
+berikutnya:
 
-1. **MKT-08 Inventory** - stok per lokasi, movement, opname, batch/expiry.
-2. **SCM-01/SCM-02 Supply Chain** - supplier, PR/PO, receiving, fulfillment.
-3. **MKT-12/MKT-13 Marketing & CRM** - campaign, voucher, loyalty, complaint.
-4. **2MD** - business performance/profile, proposal, funding, financing.
-5. **SYS-03/04/05/07/08** - integration, notification, config, AI, warehouse.
+1. **SCM-01/SCM-02 Supply Chain** - supplier, PR/PO, receiving, fulfillment.
+2. **MKT-12/MKT-13 Marketing & CRM** - campaign, voucher, loyalty, complaint.
+3. **2MD** - business performance/profile, proposal, funding, financing.
+4. **SYS-03/04/05/07/08** - integration, notification, config, AI, warehouse.
 
 Schema PostgreSQL sudah disiapkan untuk ditambah per domain (`catalog`,
 `commerce`, `payment`, `inventory`, `supply_chain`, `marketing`, `business`,

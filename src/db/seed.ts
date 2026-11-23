@@ -64,6 +64,21 @@ const PERMISSIONS: PermissionSeed[] = [
     name: 'Manage POS terminals, registers, and synchronization',
     module: 'pos',
   },
+  {
+    code: 'inventory:read',
+    name: 'View warehouses, stock balances, movements, and batches',
+    module: 'inventory',
+  },
+  {
+    code: 'inventory:write',
+    name: 'Record stock movements, adjustments, and stock counts',
+    module: 'inventory',
+  },
+  {
+    code: 'inventory:manage',
+    name: 'Manage warehouses, locations, inventory items, and batches',
+    module: 'inventory',
+  },
   { code: 'audit:read', name: 'View audit logs', module: 'governance' },
 ];
 
@@ -82,6 +97,9 @@ const MEMBER_PERMISSIONS = [
   'pos:read',
   'pos:write',
   'pos:manage',
+  'inventory:read',
+  'inventory:write',
+  'inventory:manage',
   'organization:read',
   'organization:write',
   'organization:member:manage',
@@ -111,6 +129,7 @@ const ROLE_SEEDS: Array<{ code: string; name: string; description: string; permi
       'commerce:manage',
       'payment:read',
       'pos:read',
+      'inventory:read',
       'organization:read',
       'audit:read',
     ],

@@ -982,10 +982,12 @@ Migration SQL: `drizzle/0000_*.sql` (core), `drizzle/0001_*.sql` (catalog),
 **MKT-04 Marketplace & Omnichannel Commerce**, **MKT-05 Order & Transaction
 Management**, **MKT-06 Integrated Payment Management**, **MKT-07 POS &
 Offline Transaction Management**, **MKT-08 Inventory & Warehouse
-Management**, **SCM-01/SCM-02 Supply Chain & Fulfillment**, serta
-**MKT-12/MKT-13 Digital Marketing & CRM** sudah diimplementasikan. MKT-04 mencakup storefront, katalog publik, cart, checkout,
-dan channel listing. MKT-05 mencakup konversi checkout menjadi order per
-merchant, status order, pembatalan, retur, dan ledger transaksi penjualan.
+Management**, **SCM-01/SCM-02 Supply Chain & Fulfillment**,
+**MKT-12/MKT-13 Digital Marketing & CRM**, dan **2MD-01 sampai 2MD-05
+Business, Funding & Financing** sudah diimplementasikan. MKT-04 mencakup
+storefront, katalog publik, cart, checkout, dan channel listing. MKT-05
+mencakup konversi checkout menjadi order per merchant, status order,
+pembatalan, retur, dan ledger transaksi penjualan.
 MKT-06 mencakup provider/metode pembayaran, payment intent, attempt, refund,
 settlement merchant, dan rekonsiliasi provider. MKT-07 mencakup terminal POS,
 cash register, shift kasir, transaksi toko fisik, pergerakan kas, pembatalan
@@ -999,12 +1001,19 @@ kampanye multichannel, channel, performa kampanye, promosi, aturan diskon,
 kupon, redemption kupon yang terhubung ke order commerce, serta iklan. MKT-13
 mencakup pelanggan, profil, grup, segmen manual/dinamis, akun loyalty, mutasi
 poin dengan pembaruan saldo/tier, interaksi, dan keluhan dengan alur
-penyelesaian. Dashboard admin memiliki menu **Commerce**, **Pesanan**,
-**Pembayaran**, **POS**, **Inventori**, **Rantai Pasok**, **Pemasaran**, dan
-**CRM**. Urutan berikutnya:
+penyelesaian. 2MD-01/2MD-02 mencakup periode kinerja, KPI, nilai KPI, target,
+growth snapshot, laporan performa, profil bisnis, lokasi, dokumen legalitas,
+aktivitas, verifikasi, dan share profil. 2MD-03 mencakup proposal, versi,
+rencana bisnis, proyeksi keuangan, kebutuhan dana, rencana penggunaan dana,
+dokumen, dan data room. 2MD-04 mencakup peluang pendanaan, profil investor,
+pengajuan, match, minat investor, referral, dan riwayat status pengajuan.
+2MD-05 mencakup fasilitas pembiayaan, perjanjian, pencairan, jadwal angsuran,
+pembayaran angsuran, laporan penggunaan dana, laporan monitoring, indikator
+risiko, dan penilaian risiko. Dashboard admin memiliki menu **Commerce**,
+**Pesanan**, **Pembayaran**, **POS**, **Inventori**, **Rantai Pasok**,
+**Pemasaran**, **CRM**, **Bisnis**, dan **Pendanaan**. Urutan berikutnya:
 
-1. **2MD** - business performance/profile, proposal, funding, financing.
-2. **SYS-03/04/05/07/08** - integration, notification, config, AI, warehouse.
+1. **SYS-03/04/05/07/08** - integration, notification, config, AI, warehouse.
 
 Schema PostgreSQL sudah disiapkan untuk ditambah per domain (`catalog`,
 `commerce`, `payment`, `inventory`, `supply_chain`, `marketing`, `business`,

@@ -13,3 +13,4 @@ export * from './notification';
 export * from './config';
 export * from './ai';
 export * from './analytics';
+export * from './governance';

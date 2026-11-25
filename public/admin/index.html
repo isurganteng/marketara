@@ -224,6 +224,10 @@
             <span>Analitik</span>
           </button>
           <p class="nav-section">Governance</p>
+          <button class="nav-item" type="button" data-view="governance">
+            <svg class="icon"><use href="#i-shield"></use></svg>
+            <span>Tata Kelola</span>
+          </button>
           <button class="nav-item" type="button" data-view="audit">
             <svg class="icon"><use href="#i-audit"></use></svg>
             <span>Audit log</span>
@@ -2816,6 +2820,125 @@
                 </div>
               </div>
               <div class="table-host" id="ana-snapshots-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+          </section>
+
+          <section class="view" id="view-governance" hidden>
+            <div class="section-head">
+              <div>
+                <p class="panel-kicker">SYS-06 · Tata kelola &amp; keamanan data</p>
+                <h2>Tata Kelola</h2>
+                <p class="section-text">Kelola klasifikasi data, consent, kebijakan akses, retensi, insiden keamanan, dan permintaan privasi.</p>
+              </div>
+              <div class="section-actions">
+                <button class="icon-button" id="refresh-gov-all" type="button" aria-label="Segarkan tata kelola" title="Segarkan">
+                  <svg class="icon"><use href="#i-refresh"></use></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="stats-grid">
+              <article class="stat-card" data-tone="green">
+                <div class="stat-top"><span class="stat-icon"><svg class="icon"><use href="#i-grid"></use></svg></span><span class="stat-trend">Klasifikasi</span></div>
+                <p class="stat-label">Klasifikasi data</p>
+                <p class="stat-value" id="gov-stat-classifications">-</p>
+                <p class="stat-sub">Kategori data.</p>
+              </article>
+              <article class="stat-card" data-tone="blue">
+                <div class="stat-top"><span class="stat-icon"><svg class="icon"><use href="#i-shield"></use></svg></span><span class="stat-trend">Consent</span></div>
+                <p class="stat-label">Consent aktif</p>
+                <p class="stat-value" id="gov-stat-consents">-</p>
+                <p class="stat-sub">Persetujuan berlaku.</p>
+              </article>
+              <article class="stat-card" data-tone="gold">
+                <div class="stat-top"><span class="stat-icon"><svg class="icon"><use href="#i-shield"></use></svg></span><span class="stat-trend">Kebijakan</span></div>
+                <p class="stat-label">Kebijakan akses</p>
+                <p class="stat-value" id="gov-stat-policies">-</p>
+                <p class="stat-sub">Aturan aktif.</p>
+              </article>
+              <article class="stat-card" data-tone="rose">
+                <div class="stat-top"><span class="stat-icon"><svg class="icon"><use href="#i-alert"></use></svg></span><span class="stat-trend">Insiden</span></div>
+                <p class="stat-label">Insiden terbuka</p>
+                <p class="stat-value" id="gov-stat-incidents">-</p>
+                <p class="stat-sub">Perlu tindakan.</p>
+              </article>
+            </div>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Klasifikasi</p><h3>Klasifikasi data</h3></div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="gov-classification-count" hidden>0 data</span>
+                  <button class="button button-primary button-sm" id="create-gov-classification-button" type="button" hidden><svg class="icon"><use href="#i-plus"></use></svg> Klasifikasi</button>
+                </div>
+              </div>
+              <div class="table-host" id="gov-classifications-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Consent</p><h3>Persetujuan pengguna</h3></div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="gov-consent-count" hidden>0 consent</span>
+                  <button class="button button-primary button-sm" id="create-gov-consent-button" type="button" hidden><svg class="icon"><use href="#i-plus"></use></svg> Consent</button>
+                </div>
+              </div>
+              <div class="table-host" id="gov-consents-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Kebijakan</p><h3>Kebijakan akses data</h3></div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="gov-policy-count" hidden>0 kebijakan</span>
+                  <button class="button button-primary button-sm" id="create-gov-policy-button" type="button" hidden><svg class="icon"><use href="#i-plus"></use></svg> Kebijakan</button>
+                </div>
+              </div>
+              <div class="table-host" id="gov-policies-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Akses</p><h3>Log akses data</h3></div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="gov-access-log-count" hidden>0 log</span>
+                  <button class="button button-primary button-sm" id="create-gov-access-log-button" type="button" hidden><svg class="icon"><use href="#i-plus"></use></svg> Catat akses</button>
+                </div>
+              </div>
+              <div class="table-host" id="gov-access-logs-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Retensi</p><h3>Kebijakan retensi data</h3></div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="gov-retention-count" hidden>0 kebijakan</span>
+                  <button class="button button-primary button-sm" id="create-gov-retention-button" type="button" hidden><svg class="icon"><use href="#i-plus"></use></svg> Retensi</button>
+                </div>
+              </div>
+              <div class="table-host" id="gov-retentions-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Insiden</p><h3>Insiden keamanan</h3></div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="gov-incident-count" hidden>0 insiden</span>
+                  <button class="button button-primary button-sm" id="create-gov-incident-button" type="button" hidden><svg class="icon"><use href="#i-plus"></use></svg> Insiden</button>
+                </div>
+              </div>
+              <div class="table-host" id="gov-incidents-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Privasi</p><h3>Permintaan privasi</h3></div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="gov-privacy-count" hidden>0 permintaan</span>
+                  <button class="button button-primary button-sm" id="create-gov-privacy-button" type="button" hidden><svg class="icon"><use href="#i-plus"></use></svg> Permintaan</button>
+                </div>
+              </div>
+              <div class="table-host" id="gov-privacy-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
             </article>
           </section>
 

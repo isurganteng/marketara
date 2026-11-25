@@ -21,6 +21,7 @@ import { notificationRoutes } from './routes/notifications';
 import { configRoutes } from './routes/config';
 import { aiRoutes } from './routes/ai';
 import { analyticsRoutes } from './routes/analytics';
+import { governanceRoutes } from './routes/governance';
 import { marketRoutes } from './routes/markets';
 import { merchantRoutes } from './routes/merchants';
 import { organizationRoutes } from './routes/organizations';
@@ -89,6 +90,7 @@ app.route('/api/v1/notifications', notificationRoutes);
 app.route('/api/v1/config', configRoutes);
 app.route('/api/v1/ai', aiRoutes);
 app.route('/api/v1/analytics', analyticsRoutes);
+app.route('/api/v1/governance', governanceRoutes);
 app.route('/api/v1/reference', referenceRoutes);
 app.route('/api/v1/audit-logs', auditRoutes);
 

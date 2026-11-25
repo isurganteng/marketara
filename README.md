@@ -27,8 +27,9 @@ Fokus tahap ini adalah fondasi database dan API (Bagian 17 dokumen):
 20. **SYS-03** API Gateway & Integration Management
 21. **SYS-04** Notification & Communication Management
 22. **SYS-05** Configuration & Feature Management
-23. **SYS-07** Artificial Intelligence Management
-24. **SYS-08** Reporting & Data Warehouse Management
+23. **SYS-06** Data Governance & Security Management
+24. **SYS-07** Artificial Intelligence Management
+25. **SYS-08** Reporting & Data Warehouse Management
 
 Stack: **Bun + Hono + Drizzle ORM + PostgreSQL + Zod**.
 
@@ -190,6 +191,7 @@ src/
     schema/config.ts        # 7 tabel platform: grup, setelan, referensi, feature flag
     schema/ai.ts            # 8 tabel platform: model, sesi, pesan, request, rekomendasi, forecast
     schema/analytics.ts     # 7 tabel analytics: sumber data, ETL, data mart, laporan, snapshot
+    schema/governance.ts    # 7 tabel governance: klasifikasi, consent, kebijakan, retensi, insiden
     migrate.ts              # Migration runner
     seed.ts                 # Seed role/permission/reference
   lib/
@@ -283,6 +285,8 @@ src/
       index.ts              # Model, sesi, pesan, request, rekomendasi, forecast, usage
     analytics/              # Pelaporan & data warehouse (SYS-08)
       index.ts              # Sumber data, ETL, data mart, laporan, eksekusi, snapshot
+    governance/             # Tata kelola & keamanan data (SYS-06)
+      index.ts              # Klasifikasi, consent, kebijakan akses, log, retensi, insiden, privasi
     reference.ts            # Master reference data
     audit.ts                # Audit log viewer
   services/auth.ts          # Session & profile service
@@ -302,6 +306,7 @@ docs/supply-chain-database.md # Detail desain database rantai pasok (SCM-01/02)
 docs/marketing-crm-database.md # Detail desain database pemasaran & CRM (MKT-12/13)
 docs/business-funding-database.md # Detail desain database bisnis & pendanaan (2MD)
 docs/platform-analytics-database.md # Detail desain database platform & analitik (SYS-03/04/05/07/08)
+docs/governance-database.md # Detail desain database tata kelola & keamanan (SYS-06)
 ```
 
 ---
@@ -941,6 +946,28 @@ Tidak memerlukan login. Hanya menampilkan storefront `published` milik merchant
 | GET | `/report-runs` | `analytics:read` | Riwayat eksekusi laporan |
 | GET/POST | `/snapshots` | `analytics:read` / `analytics:write` | Daftar / buat snapshot historis |
 
+### Tata kelola — `/api/v1/governance` (SYS-06)
+
+| Method | Path | Permission | Keterangan |
+| --- | --- | --- | --- |
+| GET/POST | `/classifications` | `governance:read` / `governance:write` | Daftar / buat klasifikasi data |
+| PATCH/DELETE | `/classifications/:id` | `governance:write` / `governance:manage` | Ubah / hapus klasifikasi |
+| GET/POST | `/consents` | `governance:read` / `governance:write` | Daftar / catat consent pengguna |
+| PATCH/DELETE | `/consents/:id` | `governance:write` / `governance:manage` | Ubah / hapus consent |
+| POST | `/consents/:id/withdraw` | `governance:write` | Cabut consent |
+| GET/POST | `/access-policies` | `governance:read` / `governance:write` | Daftar / buat kebijakan akses |
+| PATCH/DELETE | `/access-policies/:id` | `governance:write` / `governance:manage` | Ubah / hapus kebijakan |
+| GET/POST | `/access-logs` | `governance:read` / `governance:write` | Daftar / catat log akses data |
+| GET/POST | `/retention-policies` | `governance:read` / `governance:write` | Daftar / buat kebijakan retensi |
+| PATCH/DELETE | `/retention-policies/:id` | `governance:write` / `governance:manage` | Ubah / hapus retensi |
+| POST | `/retention-policies/:id/review` | `governance:write` | Tandai retensi telah ditinjau |
+| GET/POST | `/incidents` | `governance:read` / `governance:write` | Daftar / catat insiden keamanan |
+| PATCH/DELETE | `/incidents/:id` | `governance:write` / `governance:manage` | Ubah / hapus insiden |
+| POST | `/incidents/:id/resolve` | `governance:write` | Selesaikan insiden |
+| GET/POST | `/privacy-requests` | `governance:read` / `governance:write` | Daftar / catat permintaan privasi |
+| PATCH/DELETE | `/privacy-requests/:id` | `governance:write` / `governance:manage` | Ubah / hapus permintaan |
+| POST | `/privacy-requests/:id/complete` | `governance:write` | Selesaikan permintaan privasi |
+
 ### Reference & Audit
 
 | Method | Path | Permission |
@@ -958,7 +985,7 @@ Tidak memerlukan login. Hanya menampilkan storefront `published` milik merchant
 | Role | Ringkasan akses |
 | --- | --- |
 | `platform_admin` | Wildcard `*` (semua akses) |
-| `market_admin` | Kelola pasar/okupansi, verifikasi merchant, master katalog, kanal commerce, lihat pembayaran, lihat POS, lihat inventori, lihat rantai pasok, lihat pemasaran & CRM, lihat bisnis & pendanaan, lihat integrasi/notifikasi/konfigurasi/AI/analitik, lihat audit |
+| `market_admin` | Kelola pasar/okupansi, verifikasi merchant, master katalog, kanal commerce, lihat pembayaran, lihat POS, lihat inventori, lihat rantai pasok, lihat pemasaran & CRM, lihat bisnis & pendanaan, lihat integrasi/notifikasi/konfigurasi/AI/analitik, lihat tata kelola, lihat audit |
 | `member` | Buat organisasi, kelola merchant/toko/produk/storefront miliknya, belanja, kelola pembayaran/refund merchant, kelola POS, inventori, rantai pasok, pemasaran & CRM, bisnis, serta pendanaan merchant |
 
 Permission yang tersedia: `user:read`, `user:write`, `role:manage`,
@@ -976,7 +1003,8 @@ Permission yang tersedia: `user:read`, `user:write`, `role:manage`,
 `integration:write`, `integration:manage`, `notification:read`,
 `notification:write`, `notification:manage`, `config:read`, `config:write`,
 `config:manage`, `ai:read`, `ai:write`, `ai:manage`, `analytics:read`,
-`analytics:write`, `analytics:manage`, `audit:read`.
+`analytics:write`, `analytics:manage`, `governance:read`, `governance:write`,
+`governance:manage`, `audit:read`.
 
 ### Model otorisasi
 
@@ -1063,7 +1091,9 @@ Satu database PostgreSQL dengan schema logis:
   rekomendasi, forecast, usage) (30 tabel).
 - `analytics` — sumber data, job ETL, log pemuatan, data mart, definisi
   laporan, eksekusi laporan, dan snapshot historis (7 tabel).
-- `governance` — `audit_logs` (1 tabel).
+- `governance` — klasifikasi data, consent, kebijakan akses, log akses,
+  kebijakan retensi, insiden keamanan, permintaan privasi, dan `audit_logs`
+  (8 tabel).
 
 Detail tabel, relasi, enum, dan keputusan desain ada di
 [`docs/core-database.md`](docs/core-database.md),
@@ -1075,15 +1105,17 @@ Detail tabel, relasi, enum, dan keputusan desain ada di
 [`docs/inventory-database.md`](docs/inventory-database.md),
 [`docs/supply-chain-database.md`](docs/supply-chain-database.md),
 [`docs/marketing-crm-database.md`](docs/marketing-crm-database.md),
-[`docs/business-funding-database.md`](docs/business-funding-database.md), dan
-[`docs/platform-analytics-database.md`](docs/platform-analytics-database.md).
+[`docs/business-funding-database.md`](docs/business-funding-database.md),
+[`docs/platform-analytics-database.md`](docs/platform-analytics-database.md), dan
+[`docs/governance-database.md`](docs/governance-database.md).
 
 Migration SQL: `drizzle/0000_*.sql` (core), `drizzle/0001_*.sql` (catalog),
 `drizzle/0002_*.sql` (commerce), `drizzle/0003_*.sql` (order),
 `drizzle/0004_*.sql` (payment), `drizzle/0005_*.sql` (POS),
 `drizzle/0006_*.sql` (inventori), `drizzle/0007_*.sql` (rantai pasok),
 `drizzle/0008_*.sql` (pemasaran & CRM), `drizzle/0009_*.sql` (bisnis &
-pendanaan), dan `drizzle/0010_*.sql` (platform & analitik).
+pendanaan), `drizzle/0010_*.sql` (platform & analitik), dan
+`drizzle/0011_*.sql` (tata kelola & keamanan).
 
 ---
 
@@ -1111,10 +1143,11 @@ pendanaan), dan `drizzle/0010_*.sql` (platform & analitik).
   pelanggan, segmen pelanggan, akun loyalty, transaksi loyalty, interaksi
   pelanggan, keluhan, provider/koneksi/klien API/endpoint/webhook integrasi,
   template/pesan/kanal notifikasi, grup/setelan/referensi/feature flag/parameter
-  konfigurasi, model/sesi/rekomendasi/forecast AI, serta sumber data/ETL/data
-  mart/laporan/snapshot analitik).
+  konfigurasi, model/sesi/rekomendasi/forecast AI, sumber data/ETL/data
+  mart/laporan/snapshot analitik, serta klasifikasi/consent/kebijakan
+  akses/retensi/insiden/permintaan privasi tata kelola).
 - Belum termasuk: email verification, MFA, refresh token, rate limiting.
-  Semua ini masuk roadmap SYS-01/SYS-06.
+  Semua ini masuk roadmap SYS-01 dan pengembangan SYS-06 lanjutan.
 
 ---
 
@@ -1124,8 +1157,9 @@ pendanaan), dan `drizzle/0010_*.sql` (platform & analitik).
 Management**, **MKT-06 Integrated Payment Management**, **MKT-07 POS &
 Offline Transaction Management**, **MKT-08 Inventory & Warehouse
 Management**, **SCM-01/SCM-02 Supply Chain & Fulfillment**,
-**MKT-12/MKT-13 Digital Marketing & CRM**, dan **2MD-01 sampai 2MD-05
-Business, Funding & Financing** sudah diimplementasikan. MKT-04 mencakup
+**MKT-12/MKT-13 Digital Marketing & CRM**, **2MD-01 sampai 2MD-05
+Business, Funding & Financing**, dan **SYS-03/04/05/06/07/08 Platform,
+Governance & Analytics** sudah diimplementasikan. MKT-04 mencakup
 storefront, katalog publik, cart, checkout, dan channel listing. MKT-05
 mencakup konversi checkout menjadi order per merchant, status order,
 pembatalan, retur, dan ledger transaksi penjualan.
@@ -1158,13 +1192,19 @@ pengaturan sistem, kode referensi, feature flag, parameter layanan, dan
 lokalisasi. SYS-07 mencakup model, sesi, pesan, request, respons, rekomendasi,
 forecast, dan log penggunaan AI. SYS-08 mencakup sumber data, job ETL, log
 pemuatan, data mart, definisi laporan, eksekusi laporan, dan snapshot historis.
-Dashboard admin memiliki menu **Commerce**, **Pesanan**, **Pembayaran**,
+SYS-06 mencakup klasifikasi data, consent, kebijakan akses, log akses, retensi,
+insiden keamanan, dan permintaan privasi. Dashboard admin memiliki menu
+**Commerce**, **Pesanan**, **Pembayaran**,
 **POS**, **Inventori**, **Rantai Pasok**, **Pemasaran**, **CRM**, **Bisnis**,
 **Pendanaan**, **Integrasi**, **Notifikasi**, **Konfigurasi**, **AI**,
-**Analitik**, dan **Audit Log**. Urutan berikutnya:
+**Analitik**, **Tata Kelola**, dan **Audit Log**. Urutan berikutnya:
 
-1. **SYS-06** Security, Compliance & Risk Management.
-2. **SYS-09/10/11** community, government, dan modul lanjutan.
+1. **MKT-09** Logistics, Delivery & Driver Management.
+2. **MKT-10** Supplier & Wholesale Management.
+3. **MKT-11** Business Services Marketplace.
+4. **MKT-14/15** Market Management Dashboard & Data Intelligence.
+5. **MKT-16** Cross-Merchant Commerce & Affiliate Ecosystem.
+6. **SYS-09/10** Community & Business Engagement serta Government Integration.
 
 Schema PostgreSQL sudah disiapkan untuk ditambah per domain (`catalog`,
 `commerce`, `payment`, `inventory`, `supply_chain`, `marketing`, `business`,

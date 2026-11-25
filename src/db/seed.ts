@@ -229,6 +229,21 @@ const PERMISSIONS: PermissionSeed[] = [
     name: 'Manage data warehouse assets and delete analytics records',
     module: 'analytics',
   },
+  {
+    code: 'governance:read',
+    name: 'View data classifications, consents, access policies, retention, and incidents',
+    module: 'governance',
+  },
+  {
+    code: 'governance:write',
+    name: 'Create and update governance policies, consents, incidents, and privacy requests',
+    module: 'governance',
+  },
+  {
+    code: 'governance:manage',
+    name: 'Delete governance records and manage data protection settings',
+    module: 'governance',
+  },
   { code: 'audit:read', name: 'View audit logs', module: 'governance' },
 ];
 
@@ -309,6 +324,7 @@ const ROLE_SEEDS: Array<{ code: string; name: string; description: string; permi
       'config:read',
       'ai:read',
       'analytics:read',
+      'governance:read',
       'organization:read',
       'audit:read',
     ],

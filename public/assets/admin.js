@@ -22,6 +22,7 @@ const VIEW_TITLES = {
   config: 'Konfigurasi',
   ai: 'AI',
   analytics: 'Analitik',
+  governance: 'Tata Kelola',
   audit: 'Audit log',
 };
 
@@ -306,6 +307,7 @@ const state = {
   config: null,
   ai: null,
   analytics: null,
+  governance: null,
   audit: null,
   pendingCount: 0,
   canWriteCommerce: false,
@@ -336,6 +338,8 @@ const state = {
   canManageAi: false,
   canWriteAnalytics: false,
   canManageAnalytics: false,
+  canWriteGovernance: false,
+  canManageGovernance: false,
   sequences: {
     overview: 0,
     markets: 0,
@@ -356,6 +360,7 @@ const state = {
     config: 0,
     ai: 0,
     analytics: 0,
+    governance: 0,
     audit: 0,
   },
   filters: {
@@ -684,6 +689,7 @@ function applyProfile(profile) {
   const canConfig = permissions.includes('*') || permissions.includes('config:read');
   const canAi = permissions.includes('*') || permissions.includes('ai:read');
   const canAnalytics = permissions.includes('*') || permissions.includes('analytics:read');
+  const canGovernance = permissions.includes('*') || permissions.includes('governance:read');
   state.canWriteCommerce = permissions.includes('*') || permissions.includes('commerce:write');
   state.canManageCommerce = permissions.includes('*') || permissions.includes('commerce:manage');
   state.canWritePayments = permissions.includes('*') || permissions.includes('payment:write');
@@ -720,6 +726,10 @@ function applyProfile(profile) {
     permissions.includes('*') || permissions.includes('analytics:write');
   state.canManageAnalytics =
     permissions.includes('*') || permissions.includes('analytics:manage');
+  state.canWriteGovernance =
+    permissions.includes('*') || permissions.includes('governance:write');
+  state.canManageGovernance =
+    permissions.includes('*') || permissions.includes('governance:manage');
   const commerceNav = $('[data-view="commerce"]');
   if (commerceNav) commerceNav.hidden = !canCommerce;
   const ordersNav = $('[data-view="orders"]');
@@ -750,6 +760,8 @@ function applyProfile(profile) {
   if (aiNav) aiNav.hidden = !canAi;
   const analyticsNav = $('[data-view="analytics"]');
   if (analyticsNav) analyticsNav.hidden = !canAnalytics;
+  const governanceNav = $('[data-view="governance"]');
+  if (governanceNav) governanceNav.hidden = !canGovernance;
   for (const selector of [
     '#create-mkt-campaign-button',
     '#create-mkt-promotion-button',
@@ -838,6 +850,18 @@ function applyProfile(profile) {
   ]) {
     const button = $(selector);
     if (button) button.hidden = !state.canWriteAnalytics;
+  }
+  for (const selector of [
+    '#create-gov-classification-button',
+    '#create-gov-consent-button',
+    '#create-gov-policy-button',
+    '#create-gov-access-log-button',
+    '#create-gov-retention-button',
+    '#create-gov-incident-button',
+    '#create-gov-privacy-button',
+  ]) {
+    const button = $(selector);
+    if (button) button.hidden = !state.canWriteGovernance;
   }
   for (const selector of [
     '#create-sc-supplier-button',
@@ -1030,6 +1054,7 @@ function loadView(view) {
   if (view === 'config') return loadConfig(true);
   if (view === 'ai') return loadAi(true);
   if (view === 'analytics') return loadAnalytics(true);
+  if (view === 'governance') return loadGovernance(true);
   if (view === 'audit') return loadAudit();
   return undefined;
 }
@@ -10852,6 +10877,39 @@ const BF_STATUS_LABELS = {
   draft: 'Draft',
   active: 'Aktif',
   other: 'Lainnya',
+  archive: 'Arsip',
+  anonymize: 'Anonimisasi',
+  review: 'Tinjau',
+  allow: 'Izinkan',
+  deny: 'Tolak',
+  granted: 'Diberikan',
+  public: 'Publik',
+  confidential: 'Rahasia',
+  restricted: 'Terbatas',
+  contained: 'Terkendali',
+  investigating: 'Investigasi',
+  delete: 'Hapus',
+  update: 'Ubah',
+  export: 'Ekspor',
+  share: 'Bagikan',
+  access: 'Akses',
+  deletion: 'Penghapusan',
+  portability: 'Portabilitas',
+  objection: 'Keberatan',
+  restriction: 'Pembatasan',
+  data_sharing: 'Berbagi data',
+  profiling: 'Profil',
+  terms: 'Ketentuan',
+  privacy_policy: 'Kebijakan privasi',
+  role_based: 'Berbasis peran',
+  attribute_based: 'Berbasis atribut',
+  purpose_based: 'Berbasis tujuan',
+  unauthorized_access: 'Akses tidak sah',
+  data_breach: 'Kebocoran data',
+  misconfiguration: 'Salah konfigurasi',
+  denial_of_service: 'Denial of service',
+  malware: 'Malware',
+  phishing: 'Phishing',
 };
 
 function bfStatus(value) {
@@ -10997,6 +11055,11 @@ async function bfAiData() {
 async function bfAnalyticsData() {
   if (!state.analytics) await loadAnalytics(true);
   return state.analytics;
+}
+
+async function bfGovernanceData() {
+  if (!state.governance) await loadGovernance(true);
+  return state.governance;
 }
 
 /* ------------------------------- Bisnis ------------------------------- */
@@ -13908,6 +13971,651 @@ async function anaRunAction(action, id) {
   }
 }
 
+/* ------------------------------ Tata kelola --------------------------- */
+
+const GOV_TABLES = [
+  '#gov-classifications-table',
+  '#gov-consents-table',
+  '#gov-policies-table',
+  '#gov-access-logs-table',
+  '#gov-retentions-table',
+  '#gov-incidents-table',
+  '#gov-privacy-table',
+];
+
+async function loadGovernance(force = false) {
+  const sequence = ++state.sequences.governance;
+  if (!force && state.governance) {
+    renderGovernance();
+    return;
+  }
+  for (const selector of GOV_TABLES) {
+    const host = $(selector);
+    if (host) host.innerHTML = tableLoading(2);
+  }
+  try {
+    const results = await Promise.all([
+      api('/governance/classifications?limit=100'),
+      api('/governance/consents?limit=100'),
+      api('/governance/access-policies?limit=100'),
+      api('/governance/access-logs?limit=50'),
+      api('/governance/retention-policies?limit=100'),
+      api('/governance/incidents?limit=100'),
+      api('/governance/privacy-requests?limit=100'),
+    ]);
+    if (sequence !== state.sequences.governance) return;
+    state.governance = {
+      classifications: results[0].data ?? [],
+      consents: results[1].data ?? [],
+      policies: results[2].data ?? [],
+      accessLogs: results[3].data ?? [],
+      retentions: results[4].data ?? [],
+      incidents: results[5].data ?? [],
+      privacyRequests: results[6].data ?? [],
+    };
+    renderGovernance();
+  } catch (error) {
+    if (sequence !== state.sequences.governance) return;
+    for (const selector of GOV_TABLES) {
+      const host = $(selector);
+      if (host) host.innerHTML = errorState(error.message, 'data-gov-retry');
+    }
+    showToast('Gagal memuat tata kelola', error.message, 'error');
+  }
+}
+
+function renderGovernance() {
+  const data = state.governance;
+  if (!data) return;
+  const activeConsents = data.consents.filter((row) => row.status === 'granted').length;
+  const activePolicies = data.policies.filter((row) => row.status === 'active').length;
+  const openIncidents = data.incidents.filter(
+    (row) => row.status !== 'resolved' && row.status !== 'closed',
+  ).length;
+  scSetText('#gov-stat-classifications', formatNumber(data.classifications.length));
+  scSetText('#gov-stat-consents', formatNumber(activeConsents));
+  scSetText('#gov-stat-policies', formatNumber(activePolicies));
+  scSetText('#gov-stat-incidents', formatNumber(openIncidents));
+  scSetBadge('#gov-classification-count', data.classifications.length, 'data');
+  scSetBadge('#gov-consent-count', data.consents.length, 'consent');
+  scSetBadge('#gov-policy-count', data.policies.length, 'kebijakan');
+  scSetBadge('#gov-access-log-count', data.accessLogs.length, 'log');
+  scSetBadge('#gov-retention-count', data.retentions.length, 'kebijakan');
+  scSetBadge('#gov-incident-count', data.incidents.length, 'insiden');
+  scSetBadge('#gov-privacy-count', data.privacyRequests.length, 'permintaan');
+
+  scRenderTable(
+    '#gov-classifications-table',
+    ['Klasifikasi', 'Kategori', 'Sensitivitas', 'Retensi', 'Status'],
+    data.classifications,
+    (row) => `
+      <tr>
+        <td><span class="cell-main">${escapeHtml(row.name)}</span><span class="cell-sub cell-code">${escapeHtml(row.code)}</span></td>
+        <td>${escapeHtml(row.category ?? '—')}</td>
+        <td>${bfStatus(row.sensitivityLevel)}</td>
+        <td>${row.retentionDays ? `${formatNumber(row.retentionDays)} hari` : '—'}</td>
+        <td>${bfStatus(row.isActive ? 'active' : 'inactive')}</td>
+      </tr>
+    `,
+    'Belum ada klasifikasi data',
+    'Tambahkan klasifikasi untuk menentukan tingkat perlindungan data.',
+  );
+
+  scRenderTable(
+    '#gov-consents-table',
+    ['Pengguna', 'Tipe', 'Status', 'Versi', 'Sumber', 'Aksi'],
+    data.consents,
+    (row) => {
+      const actions = [];
+      if (state.canWriteGovernance && (row.status === 'granted' || row.status === 'pending')) {
+        actions.push(
+          scButton('Cabut', `data-gov-action="withdraw-consent" data-gov-id="${escapeHtml(row.id)}"`),
+        );
+      }
+      return `
+        <tr>
+          <td><span class="cell-main">${escapeHtml(row.userName ?? '—')}</span><span class="cell-sub cell-muted">${escapeHtml(row.userEmail ?? '')}</span></td>
+          <td>${bfStatus(row.consentType)}</td>
+          <td>${bfStatus(row.status)}</td>
+          <td>v${escapeHtml(row.version)}</td>
+          <td class="cell-muted">${escapeHtml(row.source ?? '—')}</td>
+          <td>${scActions(actions)}</td>
+        </tr>
+      `;
+    },
+    'Belum ada consent',
+    'Consent mencatat persetujuan penggunaan data pengguna.',
+  );
+
+  scRenderTable(
+    '#gov-policies-table',
+    ['Kebijakan', 'Klasifikasi', 'Tipe', 'Efek', 'Prioritas', 'Status'],
+    data.policies,
+    (row) => `
+      <tr>
+        <td><span class="cell-main">${escapeHtml(row.name)}</span><span class="cell-sub cell-code">${escapeHtml(row.code)}</span></td>
+        <td>${escapeHtml(row.classificationName ?? '—')}</td>
+        <td>${bfStatus(row.policyType)}</td>
+        <td>${bfStatus(row.effect)}</td>
+        <td>${formatNumber(row.priority)}</td>
+        <td>${bfStatus(row.status)}</td>
+      </tr>
+    `,
+    'Belum ada kebijakan akses',
+    'Kebijakan mengatur siapa yang boleh mengakses data tertentu.',
+  );
+
+  scRenderTable(
+    '#gov-access-logs-table',
+    ['Waktu', 'Pengguna', 'Sumber daya', 'Aksi', 'Status', 'IP'],
+    data.accessLogs,
+    (row) => `
+      <tr>
+        <td class="cell-muted">${escapeHtml(formatDateTime(row.createdAt))}</td>
+        <td><span class="cell-main">${escapeHtml(row.userName ?? '—')}</span><span class="cell-sub cell-muted">${escapeHtml(row.userEmail ?? '')}</span></td>
+        <td><span class="cell-main">${escapeHtml(row.resourceType)}</span><span class="cell-sub cell-code">${escapeHtml(row.resourceId ?? '—')}</span></td>
+        <td>${bfStatus(row.action)}</td>
+        <td>${bfStatus(row.status)}</td>
+        <td class="cell-code">${escapeHtml(row.ipAddress ?? '—')}</td>
+      </tr>
+    `,
+    'Belum ada log akses',
+    'Log akses tercatat saat data sensitif dibuka atau dibagikan.',
+  );
+
+  scRenderTable(
+    '#gov-retentions-table',
+    ['Kebijakan', 'Entitas', 'Retensi', 'Aksi', 'Tinjauan', 'Status', 'Aksi'],
+    data.retentions,
+    (row) => {
+      const actions = [];
+      if (state.canWriteGovernance) {
+        actions.push(
+          scButton('Tinjau', `data-gov-action="review-retention" data-gov-id="${escapeHtml(row.id)}"`),
+        );
+      }
+      return `
+        <tr>
+          <td><span class="cell-main">${escapeHtml(row.name)}</span><span class="cell-sub cell-code">${escapeHtml(row.code)}</span></td>
+          <td class="cell-code">${escapeHtml(row.entityType)}</td>
+          <td>${formatNumber(row.retentionDays)} hari</td>
+          <td>${bfStatus(row.action)}</td>
+          <td class="cell-muted">${escapeHtml(row.lastReviewedAt ? formatDateTime(row.lastReviewedAt) : 'Belum pernah')}</td>
+          <td>${bfStatus(row.status)}</td>
+          <td>${scActions(actions)}</td>
+        </tr>
+      `;
+    },
+    'Belum ada kebijakan retensi',
+    'Kebijakan retensi menentukan umur simpan dan tindakan akhir data.',
+  );
+
+  scRenderTable(
+    '#gov-incidents-table',
+    ['Insiden', 'Kategori', 'Keparahan', 'Status', 'Terdeteksi', 'Aksi'],
+    data.incidents,
+    (row) => {
+      const actions = [];
+      if (
+        state.canWriteGovernance &&
+        row.status !== 'resolved' &&
+        row.status !== 'closed'
+      ) {
+        actions.push(
+          scButton('Selesaikan', `data-gov-action="resolve-incident" data-gov-id="${escapeHtml(row.id)}"`),
+        );
+      }
+      return `
+        <tr>
+          <td><span class="cell-main">${escapeHtml(row.title)}</span><span class="cell-sub cell-code">${escapeHtml(row.incidentNumber)}</span></td>
+          <td>${bfStatus(row.category)}</td>
+          <td>${bfStatus(row.severity)}</td>
+          <td>${bfStatus(row.status)}</td>
+          <td class="cell-muted">${escapeHtml(formatDateTime(row.detectedAt))}</td>
+          <td>${scActions(actions)}</td>
+        </tr>
+      `;
+    },
+    'Belum ada insiden keamanan',
+    'Catat insiden agar penanganan dan audit dapat ditelusuri.',
+  );
+
+  scRenderTable(
+    '#gov-privacy-table',
+    ['Permintaan', 'Pemohon', 'Tipe', 'Status', 'Jatuh tempo', 'Aksi'],
+    data.privacyRequests,
+    (row) => {
+      const actions = [];
+      if (state.canWriteGovernance && row.status !== 'completed' && row.status !== 'cancelled') {
+        actions.push(
+          scButton('Selesaikan', `data-gov-action="complete-privacy" data-gov-id="${escapeHtml(row.id)}"`),
+        );
+      }
+      return `
+        <tr>
+          <td><span class="cell-main">${escapeHtml(row.requestNumber)}</span><span class="cell-sub cell-muted">${escapeHtml(formatDateTime(row.receivedAt))}</span></td>
+          <td><span class="cell-main">${escapeHtml(row.requesterName)}</span><span class="cell-sub cell-muted">${escapeHtml(row.requesterEmail)}</span></td>
+          <td>${bfStatus(row.requestType)}</td>
+          <td>${bfStatus(row.status)}</td>
+          <td class="cell-muted">${escapeHtml(row.dueAt ? formatDate(row.dueAt) : '—')}</td>
+          <td>${scActions(actions)}</td>
+        </tr>
+      `;
+    },
+    'Belum ada permintaan privasi',
+    'Permintaan akses, koreksi, atau penghapusan data pengguna.',
+  );
+}
+
+function openGovClassificationModal() {
+  bfFormModal({
+    title: 'Tambah klasifikasi data',
+    kicker: 'SYS-06 · Klasifikasi',
+    subtitle: 'Tentukan tingkat sensitivitas dan aturan penanganan data.',
+    formId: 'gov-classification-form',
+    submitLabel: 'Simpan klasifikasi',
+    fields: `
+      <div class="form-field full">
+        <label for="gov-classification-name">Nama klasifikasi <span>*</span></label>
+        <input id="gov-classification-name" name="name" type="text" required minlength="2" placeholder="Contoh: Data Pelanggan" />
+      </div>
+      <div class="form-field">
+        <label for="gov-classification-category">Kategori</label>
+        <input id="gov-classification-category" name="category" type="text" placeholder="personal" />
+      </div>
+      <div class="form-field">
+        <label for="gov-classification-level">Sensitivitas</label>
+        <select id="gov-classification-level" name="sensitivityLevel">${bfStatusOptions(['public', 'internal', 'confidential', 'restricted'], 'internal')}</select>
+      </div>
+      <div class="form-field">
+        <label for="gov-classification-retention">Retensi (hari)</label>
+        <input id="gov-classification-retention" name="retentionDays" type="number" min="1" placeholder="365" />
+      </div>
+    `,
+    submit: (raw) =>
+      api('/governance/classifications', {
+        method: 'POST',
+        body: {
+          name: raw.name,
+          category: bfOptional(raw.category),
+          sensitivityLevel: raw.sensitivityLevel,
+          retentionDays: bfNumber(raw.retentionDays),
+          isActive: true,
+        },
+      }),
+    success: async () => {
+      showToast('Klasifikasi dibuat', 'Klasifikasi data siap dipakai.');
+      await loadGovernance(true);
+    },
+  });
+}
+
+function openGovConsentModal() {
+  bfFormModal({
+    title: 'Catat consent pengguna',
+    kicker: 'SYS-06 · Consent',
+    subtitle: 'Catat persetujuan penggunaan data. Kosongkan pengguna untuk akun Anda.',
+    formId: 'gov-consent-form',
+    submitLabel: 'Simpan consent',
+    fields: `
+      <div class="form-field full">
+        <label for="gov-consent-user">ID pengguna</label>
+        <input id="gov-consent-user" name="userId" type="text" placeholder="UUID pengguna (opsional)" />
+      </div>
+      <div class="form-field">
+        <label for="gov-consent-type">Tipe consent</label>
+        <select id="gov-consent-type" name="consentType">${bfStatusOptions(['marketing', 'analytics', 'data_sharing', 'profiling', 'terms', 'privacy_policy'], 'privacy_policy')}</select>
+      </div>
+      <div class="form-field">
+        <label for="gov-consent-status">Status</label>
+        <select id="gov-consent-status" name="status">${bfStatusOptions(['pending', 'granted', 'withdrawn', 'expired'], 'granted')}</select>
+      </div>
+      <div class="form-field full">
+        <label for="gov-consent-purpose">Tujuan</label>
+        <input id="gov-consent-purpose" name="purpose" type="text" placeholder="Pengiriman promosi produk" />
+      </div>
+      <div class="form-field">
+        <label for="gov-consent-version">Versi</label>
+        <input id="gov-consent-version" name="version" type="text" value="1.0" />
+      </div>
+      <div class="form-field">
+        <label for="gov-consent-source">Sumber</label>
+        <input id="gov-consent-source" name="source" type="text" value="admin" />
+      </div>
+    `,
+    submit: (raw) =>
+      api('/governance/consents', {
+        method: 'POST',
+        body: {
+          userId: bfOptional(raw.userId),
+          consentType: raw.consentType,
+          status: raw.status,
+          purpose: bfOptional(raw.purpose),
+          version: raw.version || '1.0',
+          source: bfOptional(raw.source),
+        },
+      }),
+    success: async () => {
+      showToast('Consent dicatat', 'Persetujuan pengguna tersimpan.');
+      await loadGovernance(true);
+    },
+  });
+}
+
+function openGovPolicyModal(data) {
+  bfFormModal({
+    title: 'Tambah kebijakan akses',
+    kicker: 'SYS-06 · Kebijakan',
+    subtitle: 'Atur efek izin/tolak untuk sumber daya dan klasifikasi data.',
+    formId: 'gov-policy-form',
+    submitLabel: 'Simpan kebijakan',
+    fields: `
+      <div class="form-field full">
+        <label for="gov-policy-name">Nama kebijakan <span>*</span></label>
+        <input id="gov-policy-name" name="name" type="text" required minlength="2" />
+      </div>
+      <div class="form-field">
+        <label for="gov-policy-classification">Klasifikasi</label>
+        <select id="gov-policy-classification" name="dataClassificationId">${bfNamedOptions(data.classifications, 'name', '', 'Tanpa klasifikasi')}</select>
+      </div>
+      <div class="form-field">
+        <label for="gov-policy-type">Tipe</label>
+        <select id="gov-policy-type" name="policyType">${bfStatusOptions(['role_based', 'attribute_based', 'purpose_based', 'data_sharing'], 'role_based')}</select>
+      </div>
+      <div class="form-field">
+        <label for="gov-policy-effect">Efek</label>
+        <select id="gov-policy-effect" name="effect">${bfStatusOptions(['allow', 'deny'], 'allow')}</select>
+      </div>
+      <div class="form-field">
+        <label for="gov-policy-status">Status</label>
+        <select id="gov-policy-status" name="status">${bfStatusOptions(['draft', 'active', 'inactive'], 'active')}</select>
+      </div>
+      <div class="form-field full">
+        <label for="gov-policy-resource">Sumber daya</label>
+        <input id="gov-policy-resource" name="resource" type="text" placeholder="customers" />
+      </div>
+      <div class="form-field full">
+        <label for="gov-policy-actions">Aksi</label>
+        <input id="gov-policy-actions" name="actions" type="text" value="read" placeholder="read, export" />
+        <small class="form-hint">Pisahkan beberapa aksi dengan koma.</small>
+      </div>
+      <div class="form-field">
+        <label for="gov-policy-priority">Prioritas</label>
+        <input id="gov-policy-priority" name="priority" type="number" min="0" max="9999" value="100" />
+      </div>
+    `,
+    submit: (raw) =>
+      api('/governance/access-policies', {
+        method: 'POST',
+        body: {
+          name: raw.name,
+          dataClassificationId: bfOptional(raw.dataClassificationId),
+          policyType: raw.policyType,
+          effect: raw.effect,
+          status: raw.status,
+          resource: bfOptional(raw.resource),
+          actions: (raw.actions || '')
+            .split(',')
+            .map((item) => item.trim())
+            .filter(Boolean),
+          priority: bfNumber(raw.priority) ?? 100,
+        },
+      }),
+    success: async () => {
+      showToast('Kebijakan dibuat', 'Kebijakan akses siap diaktifkan.');
+      await loadGovernance(true);
+    },
+  });
+}
+
+function openGovAccessLogModal(data) {
+  bfFormModal({
+    title: 'Catat akses data',
+    kicker: 'SYS-06 · Log akses',
+    subtitle: 'Catat aktivitas akses data untuk audit perlindungan data.',
+    formId: 'gov-access-log-form',
+    submitLabel: 'Simpan log',
+    fields: `
+      <div class="form-field">
+        <label for="gov-access-resource-type">Tipe sumber daya <span>*</span></label>
+        <input id="gov-access-resource-type" name="resourceType" type="text" required placeholder="customer" />
+      </div>
+      <div class="form-field">
+        <label for="gov-access-resource-id">ID sumber daya</label>
+        <input id="gov-access-resource-id" name="resourceId" type="text" placeholder="UUID / kode" />
+      </div>
+      <div class="form-field">
+        <label for="gov-access-classification">Klasifikasi</label>
+        <select id="gov-access-classification" name="dataClassificationId">${bfNamedOptions(data.classifications, 'name', '', 'Tanpa klasifikasi')}</select>
+      </div>
+      <div class="form-field">
+        <label for="gov-access-action">Aksi</label>
+        <select id="gov-access-action" name="action">${bfStatusOptions(['read', 'create', 'update', 'delete', 'export', 'share'], 'read')}</select>
+      </div>
+      <div class="form-field">
+        <label for="gov-access-status">Status</label>
+        <select id="gov-access-status" name="status">${bfStatusOptions(['granted', 'denied', 'error'], 'granted')}</select>
+      </div>
+      <div class="form-field">
+        <label for="gov-access-purpose">Tujuan</label>
+        <input id="gov-access-purpose" name="purpose" type="text" placeholder="Verifikasi merchant" />
+      </div>
+    `,
+    submit: (raw) =>
+      api('/governance/access-logs', {
+        method: 'POST',
+        body: {
+          resourceType: raw.resourceType,
+          resourceId: bfOptional(raw.resourceId),
+          dataClassificationId: bfOptional(raw.dataClassificationId),
+          action: raw.action,
+          status: raw.status,
+          purpose: bfOptional(raw.purpose),
+        },
+      }),
+    success: async () => {
+      showToast('Log dicatat', 'Aktivitas akses data tersimpan.');
+      await loadGovernance(true);
+    },
+  });
+}
+
+function openGovRetentionModal(data) {
+  bfFormModal({
+    title: 'Tambah kebijakan retensi',
+    kicker: 'SYS-06 · Retensi',
+    subtitle: 'Tentukan umur simpan dan tindakan akhir untuk setiap entitas data.',
+    formId: 'gov-retention-form',
+    submitLabel: 'Simpan retensi',
+    fields: `
+      <div class="form-field full">
+        <label for="gov-retention-name">Nama kebijakan <span>*</span></label>
+        <input id="gov-retention-name" name="name" type="text" required minlength="2" />
+      </div>
+      <div class="form-field">
+        <label for="gov-retention-entity">Tipe entitas <span>*</span></label>
+        <input id="gov-retention-entity" name="entityType" type="text" required placeholder="customer" />
+      </div>
+      <div class="form-field">
+        <label for="gov-retention-classification">Klasifikasi</label>
+        <select id="gov-retention-classification" name="dataClassificationId">${bfNamedOptions(data.classifications, 'name', '', 'Tanpa klasifikasi')}</select>
+      </div>
+      <div class="form-field">
+        <label for="gov-retention-days">Retensi (hari) <span>*</span></label>
+        <input id="gov-retention-days" name="retentionDays" type="number" min="1" required value="365" />
+      </div>
+      <div class="form-field">
+        <label for="gov-retention-action">Tindakan</label>
+        <select id="gov-retention-action" name="action">${bfStatusOptions(['archive', 'delete', 'anonymize', 'review'], 'archive')}</select>
+      </div>
+      <div class="form-field full">
+        <label for="gov-retention-legal">Dasar hukum</label>
+        <input id="gov-retention-legal" name="legalBasis" type="text" placeholder="Kewajiban pelaporan" />
+      </div>
+      <div class="form-field">
+        <label for="gov-retention-status">Status</label>
+        <select id="gov-retention-status" name="status">${bfStatusOptions(['active', 'inactive'], 'active')}</select>
+      </div>
+    `,
+    submit: (raw) =>
+      api('/governance/retention-policies', {
+        method: 'POST',
+        body: {
+          name: raw.name,
+          entityType: raw.entityType,
+          dataClassificationId: bfOptional(raw.dataClassificationId),
+          retentionDays: bfNumber(raw.retentionDays) ?? 365,
+          action: raw.action,
+          legalBasis: bfOptional(raw.legalBasis),
+          status: raw.status,
+        },
+      }),
+    success: async () => {
+      showToast('Retensi dibuat', 'Kebijakan retensi data tersimpan.');
+      await loadGovernance(true);
+    },
+  });
+}
+
+function openGovIncidentModal(data) {
+  bfFormModal({
+    title: 'Catat insiden keamanan',
+    kicker: 'SYS-06 · Insiden',
+    subtitle: 'Dokumentasikan insiden agar penanganan dan pencegahan tercatat.',
+    formId: 'gov-incident-form',
+    submitLabel: 'Simpan insiden',
+    fields: `
+      <div class="form-field full">
+        <label for="gov-incident-title">Judul insiden <span>*</span></label>
+        <input id="gov-incident-title" name="title" type="text" required minlength="2" />
+      </div>
+      <div class="form-field">
+        <label for="gov-incident-category">Kategori</label>
+        <select id="gov-incident-category" name="category">${bfStatusOptions(['data_breach', 'unauthorized_access', 'malware', 'phishing', 'denial_of_service', 'misconfiguration', 'other'], 'other')}</select>
+      </div>
+      <div class="form-field">
+        <label for="gov-incident-severity">Keparahan</label>
+        <select id="gov-incident-severity" name="severity">${bfStatusOptions(['low', 'medium', 'high', 'critical'], 'medium')}</select>
+      </div>
+      <div class="form-field">
+        <label for="gov-incident-status">Status</label>
+        <select id="gov-incident-status" name="status">${bfStatusOptions(['open', 'investigating', 'contained', 'resolved', 'closed'], 'open')}</select>
+      </div>
+      <div class="form-field">
+        <label for="gov-incident-classification">Klasifikasi data</label>
+        <select id="gov-incident-classification" name="dataClassificationId">${bfNamedOptions(data.classifications, 'name', '', 'Tanpa klasifikasi')}</select>
+      </div>
+      <div class="form-field">
+        <label for="gov-incident-records">Data terdampak</label>
+        <input id="gov-incident-records" name="affectedRecords" type="number" min="0" />
+      </div>
+      <div class="form-field full">
+        <label for="gov-incident-systems">Sistem terdampak</label>
+        <input id="gov-incident-systems" name="affectedSystems" type="text" placeholder="api, database" />
+        <small class="form-hint">Pisahkan beberapa sistem dengan koma.</small>
+      </div>
+      <div class="form-field full">
+        <label for="gov-incident-description">Deskripsi</label>
+        <textarea id="gov-incident-description" name="description" rows="3"></textarea>
+      </div>
+    `,
+    submit: (raw) =>
+      api('/governance/incidents', {
+        method: 'POST',
+        body: {
+          title: raw.title,
+          category: raw.category,
+          severity: raw.severity,
+          status: raw.status,
+          dataClassificationId: bfOptional(raw.dataClassificationId),
+          affectedRecords: bfNumber(raw.affectedRecords),
+          affectedSystems: (raw.affectedSystems || '')
+            .split(',')
+            .map((item) => item.trim())
+            .filter(Boolean),
+          description: bfOptional(raw.description),
+        },
+      }),
+    success: async () => {
+      showToast('Insiden dicatat', 'Insiden keamanan masuk daftar penanganan.');
+      await loadGovernance(true);
+    },
+  });
+}
+
+function openGovPrivacyModal() {
+  bfFormModal({
+    title: 'Catat permintaan privasi',
+    kicker: 'SYS-06 · Privasi',
+    subtitle: 'Dokumentasikan permintaan akses, koreksi, atau penghapusan data.',
+    formId: 'gov-privacy-form',
+    submitLabel: 'Simpan permintaan',
+    fields: `
+      <div class="form-field full">
+        <label for="gov-privacy-name">Nama pemohon <span>*</span></label>
+        <input id="gov-privacy-name" name="requesterName" type="text" required minlength="2" />
+      </div>
+      <div class="form-field full">
+        <label for="gov-privacy-email">Email pemohon <span>*</span></label>
+        <input id="gov-privacy-email" name="requesterEmail" type="email" required />
+      </div>
+      <div class="form-field">
+        <label for="gov-privacy-type">Tipe permintaan</label>
+        <select id="gov-privacy-type" name="requestType">${bfStatusOptions(['access', 'correction', 'deletion', 'portability', 'objection', 'restriction'], 'access')}</select>
+      </div>
+      <div class="form-field">
+        <label for="gov-privacy-status">Status</label>
+        <select id="gov-privacy-status" name="status">${bfStatusOptions(['submitted', 'verified', 'processing', 'completed', 'rejected', 'cancelled'], 'submitted')}</select>
+      </div>
+      <div class="form-field">
+        <label for="gov-privacy-due">Jatuh tempo</label>
+        <input id="gov-privacy-due" name="dueAt" type="date" />
+      </div>
+      <div class="form-field full">
+        <label for="gov-privacy-description">Deskripsi</label>
+        <textarea id="gov-privacy-description" name="description" rows="3"></textarea>
+      </div>
+    `,
+    submit: (raw) =>
+      api('/governance/privacy-requests', {
+        method: 'POST',
+        body: {
+          requesterName: raw.requesterName,
+          requesterEmail: raw.requesterEmail,
+          requestType: raw.requestType,
+          status: raw.status,
+          dueAt: bfOptional(raw.dueAt),
+          description: bfOptional(raw.description),
+        },
+      }),
+    success: async () => {
+      showToast('Permintaan dicatat', 'Permintaan privasi siap diproses.');
+      await loadGovernance(true);
+    },
+  });
+}
+
+async function govRunAction(action, id) {
+  try {
+    if (action === 'withdraw-consent') {
+      await api(`/governance/consents/${id}/withdraw`, { method: 'POST', body: {} });
+      showToast('Consent dicabut', 'Persetujuan pengguna telah dicabut.');
+    } else if (action === 'review-retention') {
+      await api(`/governance/retention-policies/${id}/review`, { method: 'POST', body: {} });
+      showToast('Retensi ditinjau', 'Tanggal tinjauan diperbarui.');
+    } else if (action === 'resolve-incident') {
+      await api(`/governance/incidents/${id}/resolve`, { method: 'POST', body: {} });
+      showToast('Insiden diselesaikan', 'Insiden ditandai selesai.');
+    } else if (action === 'complete-privacy') {
+      await api(`/governance/privacy-requests/${id}/complete`, { method: 'POST', body: {} });
+      showToast('Permintaan selesai', 'Permintaan privasi telah diselesaikan.');
+    }
+    await loadGovernance(true);
+  } catch (error) {
+    showToast('Aksi gagal', error.message, 'error');
+  }
+}
+
 /* -------------------------------- Events ------------------------------ */
 
 function bindEvents() {
@@ -14337,6 +15045,25 @@ function bindEvents() {
     });
   }
 
+  $('#refresh-gov-all')?.addEventListener('click', () => loadGovernance(true));
+  for (const [selector, open] of [
+    ['#create-gov-classification-button', openGovClassificationModal],
+    ['#create-gov-consent-button', openGovConsentModal],
+    ['#create-gov-policy-button', openGovPolicyModal],
+    ['#create-gov-access-log-button', openGovAccessLogModal],
+    ['#create-gov-retention-button', openGovRetentionModal],
+    ['#create-gov-incident-button', openGovIncidentModal],
+    ['#create-gov-privacy-button', openGovPrivacyModal],
+  ]) {
+    $(selector)?.addEventListener('click', async () => {
+      try {
+        open(await bfGovernanceData());
+      } catch (error) {
+        showToast('Gagal memuat data pendukung', error.message, 'error');
+      }
+    });
+  }
+
   $('#audit-search').addEventListener(
     'input',
     debounce((event) => {
@@ -14458,6 +15185,11 @@ function bindEvents() {
       loadAnalytics(true);
       return;
     }
+    const retryGov = event.target.closest('[data-gov-retry]');
+    if (retryGov) {
+      loadGovernance(true);
+      return;
+    }
 
     const intAction = event.target.closest('[data-int-action]');
     if (intAction) {
@@ -14482,6 +15214,11 @@ function bindEvents() {
     const anaAction = event.target.closest('[data-ana-action]');
     if (anaAction) {
       void anaRunAction(anaAction.dataset.anaAction, anaAction.dataset.anaId);
+      return;
+    }
+    const govAction = event.target.closest('[data-gov-action]');
+    if (govAction) {
+      void govRunAction(govAction.dataset.govAction, govAction.dataset.govId);
       return;
     }
 

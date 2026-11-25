@@ -78,6 +78,13 @@
       "when": 1795600720017,
       "tag": "0010_unique_bug",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795608561688,
+      "tag": "0011_broad_firebird",
+      "breakpoints": true
     }
   ]
 }

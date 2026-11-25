@@ -24,6 +24,11 @@ Fokus tahap ini adalah fondasi database dan API (Bagian 17 dokumen):
 17. **2MD-03** Funding Proposal & Document Management
 18. **2MD-04** Funding Marketplace Management
 19. **2MD-05** Financing & Risk Management
+20. **SYS-03** API Gateway & Integration Management
+21. **SYS-04** Notification & Communication Management
+22. **SYS-05** Configuration & Feature Management
+23. **SYS-07** Artificial Intelligence Management
+24. **SYS-08** Reporting & Data Warehouse Management
 
 Stack: **Bun + Hono + Drizzle ORM + PostgreSQL + Zod**.
 
@@ -180,6 +185,11 @@ src/
     schema/marketing.ts     # 18 tabel: kampanye, promosi, kupon, pelanggan, loyalty, CRM
     schema/business.ts      # 13 tabel: profil bisnis, periode, KPI, target, laporan
     schema/funding.ts       # 25 tabel: proposal, peluang, investor, pengajuan, pembiayaan, risiko
+    schema/integration.ts   # 9 tabel platform: provider, koneksi, klien API, endpoint, webhook
+    schema/notification.ts  # 6 tabel platform: kanal, template, pesan, penerima, log
+    schema/config.ts        # 7 tabel platform: grup, setelan, referensi, feature flag
+    schema/ai.ts            # 8 tabel platform: model, sesi, pesan, request, rekomendasi, forecast
+    schema/analytics.ts     # 7 tabel analytics: sumber data, ETL, data mart, laporan, snapshot
     migrate.ts              # Migration runner
     seed.ts                 # Seed role/permission/reference
   lib/
@@ -263,6 +273,16 @@ src/
       marketplace.ts        # Peluang, investor, pengajuan, match, minat, referral
       financing.ts          # Fasilitas, agreement, pencairan, angsuran, risiko
       shared.ts             # Akses funding, ownership, getter, numeric
+    integrations/           # API gateway & integrasi (SYS-03)
+      index.ts              # Provider, koneksi, klien, kunci, endpoint, webhook, log, mapping
+    notifications/          # Notifikasi & komunikasi (SYS-04)
+      index.ts              # Kanal, template, pesan, penerima, log, preferensi
+    config/                 # Konfigurasi platform (SYS-05)
+      index.ts              # Grup, setelan, referensi, feature flag, parameter, lokalisasi
+    ai/                     # Kecerdasan artifisial (SYS-07)
+      index.ts              # Model, sesi, pesan, request, rekomendasi, forecast, usage
+    analytics/              # Pelaporan & data warehouse (SYS-08)
+      index.ts              # Sumber data, ETL, data mart, laporan, eksekusi, snapshot
     reference.ts            # Master reference data
     audit.ts                # Audit log viewer
   services/auth.ts          # Session & profile service
@@ -281,6 +301,7 @@ docs/inventory-database.md  # Detail desain database inventori (MKT-08)
 docs/supply-chain-database.md # Detail desain database rantai pasok (SCM-01/02)
 docs/marketing-crm-database.md # Detail desain database pemasaran & CRM (MKT-12/13)
 docs/business-funding-database.md # Detail desain database bisnis & pendanaan (2MD)
+docs/platform-analytics-database.md # Detail desain database platform & analitik (SYS-03/04/05/07/08)
 ```
 
 ---
@@ -824,6 +845,102 @@ Tidak memerlukan login. Hanya menampilkan storefront `published` milik merchant
 | GET | `/storefronts/:slug/products/:productSlug` | Detail produk + varian/SKU/gambar |
 | GET | `/products` | Pencarian produk lintas storefront |
 
+### Integrasi — `/api/v1/integrations` (SYS-03)
+
+| Method | Path | Permission | Keterangan |
+| --- | --- | --- | --- |
+| GET/POST | `/providers` | `integration:read` / `integration:write` | Daftar / buat provider |
+| GET/PATCH/DELETE | `/providers/:id` | `integration:read` / `integration:write` / `integration:manage` | Detail / ubah / hapus provider |
+| GET/POST | `/connections` | `integration:read` / `integration:write` | Daftar / buat koneksi |
+| GET/PATCH/DELETE | `/connections/:id` | `integration:read` / `integration:write` / `integration:manage` | Detail / ubah / hapus koneksi |
+| POST | `/connections/:id/test` | `integration:write` | Uji koneksi provider |
+| GET/POST | `/clients` | `integration:read` / `integration:write` | Daftar / buat klien API |
+| GET/PATCH/DELETE | `/clients/:id` | `integration:read` / `integration:write` / `integration:manage` | Detail / ubah / hapus klien API |
+| GET/POST | `/clients/:id/keys` | `integration:read` / `integration:manage` | Daftar / buat kunci API |
+| POST | `/keys/:id/revoke` | `integration:manage` | Cabut kunci API |
+| GET/POST | `/endpoints` | `integration:read` / `integration:write` | Daftar / buat endpoint gateway |
+| PATCH/DELETE | `/endpoints/:id` | `integration:write` / `integration:manage` | Ubah / hapus endpoint |
+| GET/POST | `/webhooks` | `integration:read` / `integration:write` | Daftar / buat langganan webhook |
+| PATCH/DELETE | `/webhooks/:id` | `integration:write` / `integration:manage` | Ubah / hapus webhook |
+| GET | `/webhook-events` | `integration:read` | Daftar event webhook |
+| POST | `/webhook-events/:id/retry` | `integration:write` | Kirim ulang event webhook |
+| GET | `/logs` | `integration:read` | Log integrasi masuk/keluar |
+| GET/POST | `/mapping-rules` | `integration:read` / `integration:write` | Daftar / buat aturan pemetaan |
+| PATCH/DELETE | `/mapping-rules/:id` | `integration:write` / `integration:manage` | Ubah / hapus aturan pemetaan |
+
+### Notifikasi — `/api/v1/notifications` (SYS-04)
+
+| Method | Path | Permission | Keterangan |
+| --- | --- | --- | --- |
+| GET/POST | `/channels` | `notification:read` / `notification:write` | Daftar / buat kanal |
+| PATCH/DELETE | `/channels/:id` | `notification:write` / `notification:manage` | Ubah / hapus kanal |
+| GET/POST | `/templates` | `notification:read` / `notification:write` | Daftar / buat template |
+| PATCH/DELETE | `/templates/:id` | `notification:write` / `notification:manage` | Ubah / hapus template |
+| POST | `/templates/:id/activate` | `notification:write` | Aktifkan template |
+| GET/POST | `/messages` | `notification:read` / `notification:write` | Daftar / buat pesan |
+| POST | `/messages/:id/send` | `notification:write` | Kirim pesan |
+| POST | `/messages/:id/cancel` | `notification:write` | Batalkan pesan |
+| GET | `/recipients` | `notification:read` | Daftar penerima pesan |
+| GET | `/delivery-logs` | `notification:read` | Log pengiriman |
+| GET/POST | `/preferences` | `notification:read` / `notification:write` | Daftar / buat preferensi komunikasi |
+| PATCH/DELETE | `/preferences/:id` | `notification:write` / `notification:manage` | Ubah / hapus preferensi |
+
+### Konfigurasi — `/api/v1/config` (SYS-05)
+
+| Method | Path | Permission | Keterangan |
+| --- | --- | --- | --- |
+| GET/POST | `/groups` | `config:read` / `config:write` | Daftar / buat grup konfigurasi |
+| PATCH/DELETE | `/groups/:id` | `config:write` / `config:manage` | Ubah / hapus grup |
+| GET/POST | `/settings` | `config:read` / `config:write` | Daftar / buat pengaturan sistem |
+| PATCH/DELETE | `/settings/:id` | `config:write` / `config:manage` | Ubah / hapus pengaturan |
+| PATCH | `/settings/bulk` | `config:write` | Ubah beberapa pengaturan sekaligus |
+| GET/POST | `/reference-codes` | `config:read` / `config:write` | Daftar / buat kode referensi |
+| GET/POST | `/reference-codes/:id/values` | `config:read` / `config:write` | Daftar / tambah nilai referensi |
+| PATCH/DELETE | `/reference-values/:id` | `config:write` / `config:manage` | Ubah / hapus nilai referensi |
+| GET/POST | `/feature-flags` | `config:read` / `config:write` | Daftar / buat feature flag |
+| PATCH/DELETE | `/feature-flags/:id` | `config:write` / `config:manage` | Ubah / hapus feature flag |
+| POST | `/feature-flags/:id/toggle` | `config:write` | Ubah status flag |
+| GET/POST | `/service-parameters` | `config:read` / `config:write` | Daftar / buat parameter layanan |
+| PATCH/DELETE | `/service-parameters/:id` | `config:write` / `config:manage` | Ubah / hapus parameter |
+| GET/POST | `/localization` | `config:read` / `config:write` | Daftar / buat lokalisasi |
+| PATCH/DELETE | `/localization/:id` | `config:write` / `config:manage` | Ubah / hapus lokalisasi |
+| POST | `/localization/:id/default` | `config:write` | Jadikan locale default |
+
+### AI — `/api/v1/ai` (SYS-07)
+
+| Method | Path | Permission | Keterangan |
+| --- | --- | --- | --- |
+| GET/POST | `/models` | `ai:read` / `ai:manage` | Daftar / buat model AI |
+| PATCH/DELETE | `/models/:id` | `ai:manage` | Ubah / hapus model |
+| GET/POST | `/sessions` | `ai:read` / `ai:write` | Daftar / buat sesi AI |
+| GET/POST | `/sessions/:id/messages` | `ai:read` / `ai:write` | Daftar / kirim pesan sesi |
+| GET/POST | `/requests` | `ai:read` / `ai:write` | Daftar / buat request AI |
+| POST | `/requests/:id/complete` | `ai:write` | Selesaikan request AI |
+| GET/POST | `/responses` | `ai:read` / `ai:write` | Daftar / simpan respons model |
+| GET/POST | `/recommendations` | `ai:read` / `ai:write` | Daftar / buat rekomendasi |
+| GET/POST | `/forecast-jobs` | `ai:read` / `ai:write` | Daftar / buat job forecast |
+| POST | `/forecast-jobs/:id/run` | `ai:write` | Jalankan job forecast |
+| GET | `/usage-logs` | `ai:read` | Log penggunaan token dan biaya |
+
+### Analitik — `/api/v1/analytics` (SYS-08)
+
+| Method | Path | Permission | Keterangan |
+| --- | --- | --- | --- |
+| GET/POST | `/data-sources` | `analytics:read` / `analytics:write` | Daftar / buat sumber data |
+| PATCH/DELETE | `/data-sources/:id` | `analytics:write` / `analytics:manage` | Ubah / hapus sumber data |
+| GET/POST | `/etl-jobs` | `analytics:read` / `analytics:manage` | Daftar / buat job ETL |
+| PATCH/DELETE | `/etl-jobs/:id` | `analytics:manage` | Ubah / hapus job ETL |
+| POST | `/etl-jobs/:id/run` | `analytics:write` | Jalankan job ETL |
+| GET | `/load-logs` | `analytics:read` | Log pemuatan data |
+| GET/POST | `/data-marts` | `analytics:read` / `analytics:manage` | Daftar / buat data mart |
+| PATCH/DELETE | `/data-marts/:id` | `analytics:manage` | Ubah / hapus data mart |
+| POST | `/data-marts/:id/refresh` | `analytics:write` | Segarkan data mart |
+| GET/POST | `/reports` | `analytics:read` / `analytics:write` | Daftar / buat definisi laporan |
+| PATCH/DELETE | `/reports/:id` | `analytics:write` / `analytics:manage` | Ubah / hapus laporan |
+| POST | `/reports/:id/run` | `analytics:write` | Jalankan laporan |
+| GET | `/report-runs` | `analytics:read` | Riwayat eksekusi laporan |
+| GET/POST | `/snapshots` | `analytics:read` / `analytics:write` | Daftar / buat snapshot historis |
+
 ### Reference & Audit
 
 | Method | Path | Permission |
@@ -841,7 +958,7 @@ Tidak memerlukan login. Hanya menampilkan storefront `published` milik merchant
 | Role | Ringkasan akses |
 | --- | --- |
 | `platform_admin` | Wildcard `*` (semua akses) |
-| `market_admin` | Kelola pasar/okupansi, verifikasi merchant, master katalog, kanal commerce, lihat pembayaran, lihat POS, lihat inventori, lihat rantai pasok, lihat pemasaran & CRM, lihat bisnis & pendanaan, lihat audit |
+| `market_admin` | Kelola pasar/okupansi, verifikasi merchant, master katalog, kanal commerce, lihat pembayaran, lihat POS, lihat inventori, lihat rantai pasok, lihat pemasaran & CRM, lihat bisnis & pendanaan, lihat integrasi/notifikasi/konfigurasi/AI/analitik, lihat audit |
 | `member` | Buat organisasi, kelola merchant/toko/produk/storefront miliknya, belanja, kelola pembayaran/refund merchant, kelola POS, inventori, rantai pasok, pemasaran & CRM, bisnis, serta pendanaan merchant |
 
 Permission yang tersedia: `user:read`, `user:write`, `role:manage`,
@@ -855,7 +972,11 @@ Permission yang tersedia: `user:read`, `user:write`, `role:manage`,
 `supply_chain:write`, `supply_chain:manage`, `marketing:read`,
 `marketing:write`, `marketing:manage`, `crm:read`, `crm:write`,
 `crm:manage`, `business:read`, `business:write`, `business:manage`,
-`funding:read`, `funding:write`, `funding:manage`, `audit:read`.
+`funding:read`, `funding:write`, `funding:manage`, `integration:read`,
+`integration:write`, `integration:manage`, `notification:read`,
+`notification:write`, `notification:manage`, `config:read`, `config:write`,
+`config:manage`, `ai:read`, `ai:write`, `ai:manage`, `analytics:read`,
+`analytics:write`, `analytics:manage`, `audit:read`.
 
 ### Model otorisasi
 
@@ -928,6 +1049,20 @@ Satu database PostgreSQL dengan schema logis:
   promosi, aturan diskon, kupon, redemption kupon, pelanggan, profil, grup,
   anggota grup, segmen, anggota segmen, akun loyalty, transaksi loyalty,
   interaksi, dan keluhan (18 tabel).
+- `business` — profil bisnis, periode kinerja, KPI, nilai KPI, target, growth
+  snapshot, laporan performa, lokasi, dokumen legalitas, aktivitas, verifikasi,
+  dan share profil (13 tabel).
+- `funding` — proposal, versi, rencana bisnis, proyeksi keuangan, kebutuhan
+  dana, penggunaan dana, dokumen, data room, peluang, investor, pengajuan,
+  match, minat, referral, fasilitas pembiayaan, perjanjian, pencairan,
+  angsuran, laporan, indikator risiko, dan penilaian risiko (25 tabel).
+- `platform` — integrasi (provider, koneksi, klien API, kunci, endpoint,
+  webhook, event, log, mapping), notifikasi (kanal, template, pesan, penerima,
+  log, preferensi), konfigurasi (grup, setelan, referensi, feature flag,
+  parameter, lokalisasi), dan AI (model, sesi, pesan, request, respons,
+  rekomendasi, forecast, usage) (30 tabel).
+- `analytics` — sumber data, job ETL, log pemuatan, data mart, definisi
+  laporan, eksekusi laporan, dan snapshot historis (7 tabel).
 - `governance` — `audit_logs` (1 tabel).
 
 Detail tabel, relasi, enum, dan keputusan desain ada di
@@ -938,14 +1073,17 @@ Detail tabel, relasi, enum, dan keputusan desain ada di
 [`docs/payment-database.md`](docs/payment-database.md),
 [`docs/pos-database.md`](docs/pos-database.md),
 [`docs/inventory-database.md`](docs/inventory-database.md),
-[`docs/supply-chain-database.md`](docs/supply-chain-database.md), dan
-[`docs/marketing-crm-database.md`](docs/marketing-crm-database.md).
+[`docs/supply-chain-database.md`](docs/supply-chain-database.md),
+[`docs/marketing-crm-database.md`](docs/marketing-crm-database.md),
+[`docs/business-funding-database.md`](docs/business-funding-database.md), dan
+[`docs/platform-analytics-database.md`](docs/platform-analytics-database.md).
 
 Migration SQL: `drizzle/0000_*.sql` (core), `drizzle/0001_*.sql` (catalog),
 `drizzle/0002_*.sql` (commerce), `drizzle/0003_*.sql` (order),
 `drizzle/0004_*.sql` (payment), `drizzle/0005_*.sql` (POS),
-`drizzle/0006_*.sql` (inventori), `drizzle/0007_*.sql` (rantai pasok), dan
-`drizzle/0008_*.sql` (pemasaran & CRM).
+`drizzle/0006_*.sql` (inventori), `drizzle/0007_*.sql` (rantai pasok),
+`drizzle/0008_*.sql` (pemasaran & CRM), `drizzle/0009_*.sql` (bisnis &
+pendanaan), dan `drizzle/0010_*.sql` (platform & analitik).
 
 ---
 
@@ -971,7 +1109,10 @@ Migration SQL: `drizzle/0000_*.sql` (core), `drizzle/0001_*.sql` (catalog),
   pembelian kolektif, kampanye, channel, performa kampanye, iklan, promosi,
   aturan diskon, kupon, redemption kupon, pelanggan, profil pelanggan, grup
   pelanggan, segmen pelanggan, akun loyalty, transaksi loyalty, interaksi
-  pelanggan, dan keluhan).
+  pelanggan, keluhan, provider/koneksi/klien API/endpoint/webhook integrasi,
+  template/pesan/kanal notifikasi, grup/setelan/referensi/feature flag/parameter
+  konfigurasi, model/sesi/rekomendasi/forecast AI, serta sumber data/ETL/data
+  mart/laporan/snapshot analitik).
 - Belum termasuk: email verification, MFA, refresh token, rate limiting.
   Semua ini masuk roadmap SYS-01/SYS-06.
 
@@ -1009,11 +1150,21 @@ dokumen, dan data room. 2MD-04 mencakup peluang pendanaan, profil investor,
 pengajuan, match, minat investor, referral, dan riwayat status pengajuan.
 2MD-05 mencakup fasilitas pembiayaan, perjanjian, pencairan, jadwal angsuran,
 pembayaran angsuran, laporan penggunaan dana, laporan monitoring, indikator
-risiko, dan penilaian risiko. Dashboard admin memiliki menu **Commerce**,
-**Pesanan**, **Pembayaran**, **POS**, **Inventori**, **Rantai Pasok**,
-**Pemasaran**, **CRM**, **Bisnis**, dan **Pendanaan**. Urutan berikutnya:
+risiko, dan penilaian risiko. SYS-03 mencakup provider, koneksi, klien API,
+kunci, endpoint gateway, webhook, event webhook, log integrasi, dan aturan
+pemetaan data. SYS-04 mencakup kanal, template, pesan, penerima, log
+pengiriman, dan preferensi komunikasi. SYS-05 mencakup grup konfigurasi,
+pengaturan sistem, kode referensi, feature flag, parameter layanan, dan
+lokalisasi. SYS-07 mencakup model, sesi, pesan, request, respons, rekomendasi,
+forecast, dan log penggunaan AI. SYS-08 mencakup sumber data, job ETL, log
+pemuatan, data mart, definisi laporan, eksekusi laporan, dan snapshot historis.
+Dashboard admin memiliki menu **Commerce**, **Pesanan**, **Pembayaran**,
+**POS**, **Inventori**, **Rantai Pasok**, **Pemasaran**, **CRM**, **Bisnis**,
+**Pendanaan**, **Integrasi**, **Notifikasi**, **Konfigurasi**, **AI**,
+**Analitik**, dan **Audit Log**. Urutan berikutnya:
 
-1. **SYS-03/04/05/07/08** - integration, notification, config, AI, warehouse.
+1. **SYS-06** Security, Compliance & Risk Management.
+2. **SYS-09/10/11** community, government, dan modul lanjutan.
 
 Schema PostgreSQL sudah disiapkan untuk ditambah per domain (`catalog`,
 `commerce`, `payment`, `inventory`, `supply_chain`, `marketing`, `business`,

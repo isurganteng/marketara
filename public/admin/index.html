@@ -202,6 +202,28 @@
             <svg class="icon"><use href="#i-wallet"></use></svg>
             <span>Pendanaan</span>
           </button>
+          <p class="nav-section">Platform</p>
+          <button class="nav-item" type="button" data-view="integrations">
+            <svg class="icon"><use href="#i-pos"></use></svg>
+            <span>Integrasi</span>
+          </button>
+          <button class="nav-item" type="button" data-view="notifications">
+            <svg class="icon"><use href="#i-receipt"></use></svg>
+            <span>Notifikasi</span>
+          </button>
+          <button class="nav-item" type="button" data-view="config">
+            <svg class="icon"><use href="#i-shield"></use></svg>
+            <span>Konfigurasi</span>
+          </button>
+          <button class="nav-item" type="button" data-view="ai">
+            <svg class="icon"><use href="#i-spark"></use></svg>
+            <span>AI</span>
+          </button>
+          <button class="nav-item" type="button" data-view="analytics">
+            <svg class="icon"><use href="#i-product"></use></svg>
+            <span>Analitik</span>
+          </button>
+          <p class="nav-section">Governance</p>
           <button class="nav-item" type="button" data-view="audit">
             <svg class="icon"><use href="#i-audit"></use></svg>
             <span>Audit log</span>
@@ -2283,6 +2305,517 @@
               <div class="table-host" id="fund-risks-table">
                 <div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div>
               </div>
+            </article>
+          </section>
+
+          <section class="view" id="view-integrations" hidden>
+            <div class="section-head">
+              <div>
+                <p class="panel-kicker">SYS-03 · API gateway &amp; integrasi</p>
+                <h2>Integrasi</h2>
+                <p class="section-text">Kelola provider, koneksi, klien API, endpoint, webhook, log, dan pemetaan data.</p>
+              </div>
+              <div class="section-actions">
+                <button class="icon-button" id="refresh-int-all" type="button" aria-label="Segarkan integrasi" title="Segarkan">
+                  <svg class="icon"><use href="#i-refresh"></use></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="stats-grid">
+              <article class="stat-card" data-tone="green">
+                <div class="stat-top"><span class="stat-icon"><svg class="icon"><use href="#i-grid"></use></svg></span><span class="stat-trend">Provider</span></div>
+                <p class="stat-label">Provider terdaftar</p>
+                <p class="stat-value" id="int-stat-providers">-</p>
+                <p class="stat-sub">Mitra terintegrasi.</p>
+              </article>
+              <article class="stat-card" data-tone="blue">
+                <div class="stat-top"><span class="stat-icon"><svg class="icon"><use href="#i-pos"></use></svg></span><span class="stat-trend">Koneksi</span></div>
+                <p class="stat-label">Koneksi aktif</p>
+                <p class="stat-value" id="int-stat-connections">-</p>
+                <p class="stat-sub">Siap bertukar data.</p>
+              </article>
+              <article class="stat-card" data-tone="gold">
+                <div class="stat-top"><span class="stat-icon"><svg class="icon"><use href="#i-shield"></use></svg></span><span class="stat-trend">Klien API</span></div>
+                <p class="stat-label">Klien API</p>
+                <p class="stat-value" id="int-stat-clients">-</p>
+                <p class="stat-sub">Aplikasi terhubung.</p>
+              </article>
+              <article class="stat-card" data-tone="rose">
+                <div class="stat-top"><span class="stat-icon"><svg class="icon"><use href="#i-receipt"></use></svg></span><span class="stat-trend">Webhook</span></div>
+                <p class="stat-label">Langganan webhook</p>
+                <p class="stat-value" id="int-stat-webhooks">-</p>
+                <p class="stat-sub">Notifikasi event.</p>
+              </article>
+            </div>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Provider</p><h3>Provider integrasi</h3></div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="int-provider-count" hidden>0 provider</span>
+                  <button class="button button-primary button-sm" id="create-int-provider-button" type="button" hidden><svg class="icon"><use href="#i-plus"></use></svg> Provider</button>
+                </div>
+              </div>
+              <div class="table-host" id="int-providers-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Koneksi</p><h3>Koneksi integrasi</h3></div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="int-connection-count" hidden>0 koneksi</span>
+                  <button class="button button-primary button-sm" id="create-int-connection-button" type="button" hidden><svg class="icon"><use href="#i-plus"></use></svg> Koneksi</button>
+                </div>
+              </div>
+              <div class="table-host" id="int-connections-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Klien API</p><h3>Klien &amp; kunci API</h3></div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="int-client-count" hidden>0 klien</span>
+                  <button class="button button-primary button-sm" id="create-int-client-button" type="button" hidden><svg class="icon"><use href="#i-plus"></use></svg> Klien</button>
+                </div>
+              </div>
+              <div class="table-host" id="int-clients-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Endpoint</p><h3>Endpoint API</h3></div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="int-endpoint-count" hidden>0 endpoint</span>
+                  <button class="button button-primary button-sm" id="create-int-endpoint-button" type="button" hidden><svg class="icon"><use href="#i-plus"></use></svg> Endpoint</button>
+                </div>
+              </div>
+              <div class="table-host" id="int-endpoints-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Webhook</p><h3>Langganan webhook</h3></div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="int-webhook-count" hidden>0 webhook</span>
+                  <button class="button button-primary button-sm" id="create-int-webhook-button" type="button" hidden><svg class="icon"><use href="#i-plus"></use></svg> Webhook</button>
+                </div>
+              </div>
+              <div class="table-host" id="int-webhooks-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Log</p><h3>Log integrasi</h3></div>
+                <div class="panel-actions"><span class="section-badge neutral" id="int-log-count" hidden>0 log</span></div>
+              </div>
+              <div class="table-host" id="int-logs-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+          </section>
+
+          <section class="view" id="view-notifications" hidden>
+            <div class="section-head">
+              <div>
+                <p class="panel-kicker">SYS-04 · Notifikasi &amp; komunikasi</p>
+                <h2>Notifikasi</h2>
+                <p class="section-text">Kelola template, kanal, pesan, penerima, log pengiriman, dan preferensi komunikasi.</p>
+              </div>
+              <div class="section-actions">
+                <button class="icon-button" id="refresh-notif-all" type="button" aria-label="Segarkan notifikasi" title="Segarkan">
+                  <svg class="icon"><use href="#i-refresh"></use></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="stats-grid">
+              <article class="stat-card" data-tone="green">
+                <div class="stat-top"><span class="stat-icon"><svg class="icon"><use href="#i-receipt"></use></svg></span><span class="stat-trend">Template</span></div>
+                <p class="stat-label">Template aktif</p>
+                <p class="stat-value" id="notif-stat-templates">-</p>
+                <p class="stat-sub">Siap digunakan.</p>
+              </article>
+              <article class="stat-card" data-tone="blue">
+                <div class="stat-top"><span class="stat-icon"><svg class="icon"><use href="#i-merchants"></use></svg></span><span class="stat-trend">Pesan</span></div>
+                <p class="stat-label">Total pesan</p>
+                <p class="stat-value" id="notif-stat-messages">-</p>
+                <p class="stat-sub">Semua status.</p>
+              </article>
+              <article class="stat-card" data-tone="gold">
+                <div class="stat-top"><span class="stat-icon"><svg class="icon"><use href="#i-check"></use></svg></span><span class="stat-trend">Terkirim</span></div>
+                <p class="stat-label">Terkirim</p>
+                <p class="stat-value" id="notif-stat-sent">-</p>
+                <p class="stat-sub">Berhasil dikirim.</p>
+              </article>
+              <article class="stat-card" data-tone="rose">
+                <div class="stat-top"><span class="stat-icon"><svg class="icon"><use href="#i-wallet"></use></svg></span><span class="stat-trend">Kanal</span></div>
+                <p class="stat-label">Kanal aktif</p>
+                <p class="stat-value" id="notif-stat-channels">-</p>
+                <p class="stat-sub">Email, SMS, push.</p>
+              </article>
+            </div>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Template</p><h3>Template notifikasi</h3></div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="notif-template-count" hidden>0 template</span>
+                  <button class="button button-primary button-sm" id="create-notif-template-button" type="button" hidden><svg class="icon"><use href="#i-plus"></use></svg> Template</button>
+                </div>
+              </div>
+              <div class="table-host" id="notif-templates-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Pesan</p><h3>Pesan notifikasi</h3></div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="notif-message-count" hidden>0 pesan</span>
+                  <button class="button button-primary button-sm" id="create-notif-message-button" type="button" hidden><svg class="icon"><use href="#i-plus"></use></svg> Pesan</button>
+                </div>
+              </div>
+              <div class="table-host" id="notif-messages-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Kanal</p><h3>Kanal notifikasi</h3></div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="notif-channel-count" hidden>0 kanal</span>
+                  <button class="button button-primary button-sm" id="create-notif-channel-button" type="button" hidden><svg class="icon"><use href="#i-plus"></use></svg> Kanal</button>
+                </div>
+              </div>
+              <div class="table-host" id="notif-channels-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Preferensi</p><h3>Preferensi komunikasi</h3></div>
+                <div class="panel-actions"><span class="section-badge neutral" id="notif-preference-count" hidden>0 preferensi</span></div>
+              </div>
+              <div class="table-host" id="notif-preferences-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Pengiriman</p><h3>Log pengiriman</h3></div>
+                <div class="panel-actions"><span class="section-badge neutral" id="notif-log-count" hidden>0 log</span></div>
+              </div>
+              <div class="table-host" id="notif-logs-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+          </section>
+
+          <section class="view" id="view-config" hidden>
+            <div class="section-head">
+              <div>
+                <p class="panel-kicker">SYS-05 · Konfigurasi platform</p>
+                <h2>Konfigurasi</h2>
+                <p class="section-text">Atur pengaturan sistem, grup, data referensi, feature flag, parameter layanan, dan lokalisasi.</p>
+              </div>
+              <div class="section-actions">
+                <button class="icon-button" id="refresh-cfg-all" type="button" aria-label="Segarkan konfigurasi" title="Segarkan">
+                  <svg class="icon"><use href="#i-refresh"></use></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="stats-grid">
+              <article class="stat-card" data-tone="green">
+                <div class="stat-top"><span class="stat-icon"><svg class="icon"><use href="#i-grid"></use></svg></span><span class="stat-trend">Grup</span></div>
+                <p class="stat-label">Grup konfigurasi</p>
+                <p class="stat-value" id="cfg-stat-groups">-</p>
+                <p class="stat-sub">Pengelompokan setelan.</p>
+              </article>
+              <article class="stat-card" data-tone="blue">
+                <div class="stat-top"><span class="stat-icon"><svg class="icon"><use href="#i-shield"></use></svg></span><span class="stat-trend">Setelan</span></div>
+                <p class="stat-label">Pengaturan</p>
+                <p class="stat-value" id="cfg-stat-settings">-</p>
+                <p class="stat-sub">Kunci konfigurasi.</p>
+              </article>
+              <article class="stat-card" data-tone="gold">
+                <div class="stat-top"><span class="stat-icon"><svg class="icon"><use href="#i-spark"></use></svg></span><span class="stat-trend">Feature flag</span></div>
+                <p class="stat-label">Flag aktif</p>
+                <p class="stat-value" id="cfg-stat-flags">-</p>
+                <p class="stat-sub">Fitur dinyalakan.</p>
+              </article>
+              <article class="stat-card" data-tone="rose">
+                <div class="stat-top"><span class="stat-icon"><svg class="icon"><use href="#i-product"></use></svg></span><span class="stat-trend">Referensi</span></div>
+                <p class="stat-label">Kode referensi</p>
+                <p class="stat-value" id="cfg-stat-references">-</p>
+                <p class="stat-sub">Data acuan.</p>
+              </article>
+            </div>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Grup</p><h3>Grup konfigurasi</h3></div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="cfg-group-count" hidden>0 grup</span>
+                  <button class="button button-primary button-sm" id="create-cfg-group-button" type="button" hidden><svg class="icon"><use href="#i-plus"></use></svg> Grup</button>
+                </div>
+              </div>
+              <div class="table-host" id="cfg-groups-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Setelan</p><h3>Pengaturan sistem</h3></div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="cfg-setting-count" hidden>0 setelan</span>
+                  <button class="button button-primary button-sm" id="create-cfg-setting-button" type="button" hidden><svg class="icon"><use href="#i-plus"></use></svg> Setelan</button>
+                </div>
+              </div>
+              <div class="table-host" id="cfg-settings-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Referensi</p><h3>Kode referensi</h3></div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="cfg-reference-count" hidden>0 referensi</span>
+                  <button class="button button-primary button-sm" id="create-cfg-reference-button" type="button" hidden><svg class="icon"><use href="#i-plus"></use></svg> Referensi</button>
+                </div>
+              </div>
+              <div class="table-host" id="cfg-references-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Feature flag</p><h3>Feature flag</h3></div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="cfg-flag-count" hidden>0 flag</span>
+                  <button class="button button-primary button-sm" id="create-cfg-flag-button" type="button" hidden><svg class="icon"><use href="#i-plus"></use></svg> Flag</button>
+                </div>
+              </div>
+              <div class="table-host" id="cfg-flags-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Parameter</p><h3>Parameter layanan</h3></div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="cfg-parameter-count" hidden>0 parameter</span>
+                  <button class="button button-primary button-sm" id="create-cfg-parameter-button" type="button" hidden><svg class="icon"><use href="#i-plus"></use></svg> Parameter</button>
+                </div>
+              </div>
+              <div class="table-host" id="cfg-parameters-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Lokalisasi</p><h3>Pengaturan lokalisasi</h3></div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="cfg-localization-count" hidden>0 lokal</span>
+                  <button class="button button-primary button-sm" id="create-cfg-localization-button" type="button" hidden><svg class="icon"><use href="#i-plus"></use></svg> Lokalisasi</button>
+                </div>
+              </div>
+              <div class="table-host" id="cfg-localization-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+          </section>
+
+          <section class="view" id="view-ai" hidden>
+            <div class="section-head">
+              <div>
+                <p class="panel-kicker">SYS-07 · Kecerdasan artifisial</p>
+                <h2>AI</h2>
+                <p class="section-text">Kelola model, sesi, request, rekomendasi, forecast, dan log penggunaan AI.</p>
+              </div>
+              <div class="section-actions">
+                <button class="icon-button" id="refresh-ai-all" type="button" aria-label="Segarkan AI" title="Segarkan">
+                  <svg class="icon"><use href="#i-refresh"></use></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="stats-grid">
+              <article class="stat-card" data-tone="green">
+                <div class="stat-top"><span class="stat-icon"><svg class="icon"><use href="#i-spark"></use></svg></span><span class="stat-trend">Model</span></div>
+                <p class="stat-label">Model aktif</p>
+                <p class="stat-value" id="ai-stat-models">-</p>
+                <p class="stat-sub">Siap dipakai.</p>
+              </article>
+              <article class="stat-card" data-tone="blue">
+                <div class="stat-top"><span class="stat-icon"><svg class="icon"><use href="#i-merchants"></use></svg></span><span class="stat-trend">Sesi</span></div>
+                <p class="stat-label">Sesi aktif</p>
+                <p class="stat-value" id="ai-stat-sessions">-</p>
+                <p class="stat-sub">Percakapan berjalan.</p>
+              </article>
+              <article class="stat-card" data-tone="gold">
+                <div class="stat-top"><span class="stat-icon"><svg class="icon"><use href="#i-receipt"></use></svg></span><span class="stat-trend">Request</span></div>
+                <p class="stat-label">Total request</p>
+                <p class="stat-value" id="ai-stat-requests">-</p>
+                <p class="stat-sub">Semua status.</p>
+              </article>
+              <article class="stat-card" data-tone="rose">
+                <div class="stat-top"><span class="stat-icon"><svg class="icon"><use href="#i-product"></use></svg></span><span class="stat-trend">Rekomendasi</span></div>
+                <p class="stat-label">Rekomendasi</p>
+                <p class="stat-value" id="ai-stat-recommendations">-</p>
+                <p class="stat-sub">Hasil personalisasi.</p>
+              </article>
+            </div>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Model</p><h3>Model AI</h3></div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="ai-model-count" hidden>0 model</span>
+                  <button class="button button-primary button-sm" id="create-ai-model-button" type="button" hidden><svg class="icon"><use href="#i-plus"></use></svg> Model</button>
+                </div>
+              </div>
+              <div class="table-host" id="ai-models-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Sesi</p><h3>Sesi AI</h3></div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="ai-session-count" hidden>0 sesi</span>
+                  <button class="button button-primary button-sm" id="create-ai-session-button" type="button" hidden><svg class="icon"><use href="#i-plus"></use></svg> Sesi</button>
+                </div>
+              </div>
+              <div class="table-host" id="ai-sessions-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Request</p><h3>Request AI</h3></div>
+                <div class="panel-actions"><span class="section-badge neutral" id="ai-request-count" hidden>0 request</span></div>
+              </div>
+              <div class="table-host" id="ai-requests-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Rekomendasi</p><h3>Rekomendasi AI</h3></div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="ai-recommendation-count" hidden>0 rekomendasi</span>
+                  <button class="button button-primary button-sm" id="create-ai-recommendation-button" type="button" hidden><svg class="icon"><use href="#i-plus"></use></svg> Rekomendasi</button>
+                </div>
+              </div>
+              <div class="table-host" id="ai-recommendations-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Forecast</p><h3>Job forecast</h3></div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="ai-forecast-count" hidden>0 job</span>
+                  <button class="button button-primary button-sm" id="create-ai-forecast-button" type="button" hidden><svg class="icon"><use href="#i-plus"></use></svg> Forecast</button>
+                </div>
+              </div>
+              <div class="table-host" id="ai-forecasts-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Penggunaan</p><h3>Log penggunaan AI</h3></div>
+                <div class="panel-actions"><span class="section-badge neutral" id="ai-usage-count" hidden>0 log</span></div>
+              </div>
+              <div class="table-host" id="ai-usage-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+          </section>
+
+          <section class="view" id="view-analytics" hidden>
+            <div class="section-head">
+              <div>
+                <p class="panel-kicker">SYS-08 · Pelaporan &amp; data warehouse</p>
+                <h2>Analitik</h2>
+                <p class="section-text">Kelola sumber data, job ETL, data mart, definisi laporan, eksekusi, dan snapshot historis.</p>
+              </div>
+              <div class="section-actions">
+                <button class="icon-button" id="refresh-ana-all" type="button" aria-label="Segarkan analitik" title="Segarkan">
+                  <svg class="icon"><use href="#i-refresh"></use></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="stats-grid">
+              <article class="stat-card" data-tone="green">
+                <div class="stat-top"><span class="stat-icon"><svg class="icon"><use href="#i-grid"></use></svg></span><span class="stat-trend">Sumber</span></div>
+                <p class="stat-label">Sumber data</p>
+                <p class="stat-value" id="ana-stat-sources">-</p>
+                <p class="stat-sub">Terhubung.</p>
+              </article>
+              <article class="stat-card" data-tone="blue">
+                <div class="stat-top"><span class="stat-icon"><svg class="icon"><use href="#i-refresh"></use></svg></span><span class="stat-trend">ETL</span></div>
+                <p class="stat-label">Job ETL</p>
+                <p class="stat-value" id="ana-stat-jobs">-</p>
+                <p class="stat-sub">Pipeline data.</p>
+              </article>
+              <article class="stat-card" data-tone="gold">
+                <div class="stat-top"><span class="stat-icon"><svg class="icon"><use href="#i-product"></use></svg></span><span class="stat-trend">Data mart</span></div>
+                <p class="stat-label">Data mart</p>
+                <p class="stat-value" id="ana-stat-marts">-</p>
+                <p class="stat-sub">Siap analisis.</p>
+              </article>
+              <article class="stat-card" data-tone="rose">
+                <div class="stat-top"><span class="stat-icon"><svg class="icon"><use href="#i-receipt"></use></svg></span><span class="stat-trend">Laporan</span></div>
+                <p class="stat-label">Definisi laporan</p>
+                <p class="stat-value" id="ana-stat-reports">-</p>
+                <p class="stat-sub">Siap dijalankan.</p>
+              </article>
+            </div>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Sumber</p><h3>Sumber data</h3></div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="ana-source-count" hidden>0 sumber</span>
+                  <button class="button button-primary button-sm" id="create-ana-source-button" type="button" hidden><svg class="icon"><use href="#i-plus"></use></svg> Sumber</button>
+                </div>
+              </div>
+              <div class="table-host" id="ana-sources-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">ETL</p><h3>Job ETL</h3></div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="ana-job-count" hidden>0 job</span>
+                  <button class="button button-primary button-sm" id="create-ana-job-button" type="button" hidden><svg class="icon"><use href="#i-plus"></use></svg> Job</button>
+                </div>
+              </div>
+              <div class="table-host" id="ana-jobs-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Data mart</p><h3>Data mart</h3></div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="ana-mart-count" hidden>0 mart</span>
+                  <button class="button button-primary button-sm" id="create-ana-mart-button" type="button" hidden><svg class="icon"><use href="#i-plus"></use></svg> Data mart</button>
+                </div>
+              </div>
+              <div class="table-host" id="ana-marts-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Laporan</p><h3>Definisi laporan</h3></div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="ana-report-count" hidden>0 laporan</span>
+                  <button class="button button-primary button-sm" id="create-ana-report-button" type="button" hidden><svg class="icon"><use href="#i-plus"></use></svg> Laporan</button>
+                </div>
+              </div>
+              <div class="table-host" id="ana-reports-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Eksekusi</p><h3>Riwayat eksekusi laporan</h3></div>
+                <div class="panel-actions"><span class="section-badge neutral" id="ana-run-count" hidden>0 eksekusi</span></div>
+              </div>
+              <div class="table-host" id="ana-runs-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div><p class="panel-kicker">Snapshot</p><h3>Snapshot historis</h3></div>
+                <div class="panel-actions">
+                  <span class="section-badge neutral" id="ana-snapshot-count" hidden>0 snapshot</span>
+                  <button class="button button-primary button-sm" id="create-ana-snapshot-button" type="button" hidden><svg class="icon"><use href="#i-plus"></use></svg> Snapshot</button>
+                </div>
+              </div>
+              <div class="table-host" id="ana-snapshots-table"><div class="table-loading"><span class="skeleton skeleton-row"></span><span class="skeleton skeleton-row"></span></div></div>
             </article>
           </section>
 

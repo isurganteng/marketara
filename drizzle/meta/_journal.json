@@ -71,6 +71,13 @@
       "when": 1795441484421,
       "tag": "0009_serious_the_initiative",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795600720017,
+      "tag": "0010_unique_bug",
+      "breakpoints": true
     }
   ]
 }

@@ -17,6 +17,11 @@ const VIEW_TITLES = {
   crm: 'CRM',
   business: 'Bisnis',
   funding: 'Pendanaan',
+  integrations: 'Integrasi',
+  notifications: 'Notifikasi',
+  config: 'Konfigurasi',
+  ai: 'AI',
+  analytics: 'Analitik',
   audit: 'Audit log',
 };
 
@@ -296,6 +301,11 @@ const state = {
   crm: null,
   business: null,
   funding: null,
+  integrations: null,
+  notifications: null,
+  config: null,
+  ai: null,
+  analytics: null,
   audit: null,
   pendingCount: 0,
   canWriteCommerce: false,
@@ -316,6 +326,16 @@ const state = {
   canManageBusiness: false,
   canWriteFunding: false,
   canManageFunding: false,
+  canWriteIntegrations: false,
+  canManageIntegrations: false,
+  canWriteNotifications: false,
+  canManageNotifications: false,
+  canWriteConfig: false,
+  canManageConfig: false,
+  canWriteAi: false,
+  canManageAi: false,
+  canWriteAnalytics: false,
+  canManageAnalytics: false,
   sequences: {
     overview: 0,
     markets: 0,
@@ -331,6 +351,11 @@ const state = {
     crm: 0,
     business: 0,
     funding: 0,
+    integrations: 0,
+    notifications: 0,
+    config: 0,
+    ai: 0,
+    analytics: 0,
     audit: 0,
   },
   filters: {
@@ -652,6 +677,13 @@ function applyProfile(profile) {
   const canCrm = permissions.includes('*') || permissions.includes('crm:read');
   const canBusiness = permissions.includes('*') || permissions.includes('business:read');
   const canFunding = permissions.includes('*') || permissions.includes('funding:read');
+  const canIntegrations =
+    permissions.includes('*') || permissions.includes('integration:read');
+  const canNotifications =
+    permissions.includes('*') || permissions.includes('notification:read');
+  const canConfig = permissions.includes('*') || permissions.includes('config:read');
+  const canAi = permissions.includes('*') || permissions.includes('ai:read');
+  const canAnalytics = permissions.includes('*') || permissions.includes('analytics:read');
   state.canWriteCommerce = permissions.includes('*') || permissions.includes('commerce:write');
   state.canManageCommerce = permissions.includes('*') || permissions.includes('commerce:manage');
   state.canWritePayments = permissions.includes('*') || permissions.includes('payment:write');
@@ -672,6 +704,22 @@ function applyProfile(profile) {
   state.canManageBusiness = permissions.includes('*') || permissions.includes('business:manage');
   state.canWriteFunding = permissions.includes('*') || permissions.includes('funding:write');
   state.canManageFunding = permissions.includes('*') || permissions.includes('funding:manage');
+  state.canWriteIntegrations =
+    permissions.includes('*') || permissions.includes('integration:write');
+  state.canManageIntegrations =
+    permissions.includes('*') || permissions.includes('integration:manage');
+  state.canWriteNotifications =
+    permissions.includes('*') || permissions.includes('notification:write');
+  state.canManageNotifications =
+    permissions.includes('*') || permissions.includes('notification:manage');
+  state.canWriteConfig = permissions.includes('*') || permissions.includes('config:write');
+  state.canManageConfig = permissions.includes('*') || permissions.includes('config:manage');
+  state.canWriteAi = permissions.includes('*') || permissions.includes('ai:write');
+  state.canManageAi = permissions.includes('*') || permissions.includes('ai:manage');
+  state.canWriteAnalytics =
+    permissions.includes('*') || permissions.includes('analytics:write');
+  state.canManageAnalytics =
+    permissions.includes('*') || permissions.includes('analytics:manage');
   const commerceNav = $('[data-view="commerce"]');
   if (commerceNav) commerceNav.hidden = !canCommerce;
   const ordersNav = $('[data-view="orders"]');
@@ -692,6 +740,16 @@ function applyProfile(profile) {
   if (businessNav) businessNav.hidden = !canBusiness;
   const fundingNav = $('[data-view="funding"]');
   if (fundingNav) fundingNav.hidden = !canFunding;
+  const integrationsNav = $('[data-view="integrations"]');
+  if (integrationsNav) integrationsNav.hidden = !canIntegrations;
+  const notificationsNav = $('[data-view="notifications"]');
+  if (notificationsNav) notificationsNav.hidden = !canNotifications;
+  const configNav = $('[data-view="config"]');
+  if (configNav) configNav.hidden = !canConfig;
+  const aiNav = $('[data-view="ai"]');
+  if (aiNav) aiNav.hidden = !canAi;
+  const analyticsNav = $('[data-view="analytics"]');
+  if (analyticsNav) analyticsNav.hidden = !canAnalytics;
   for (const selector of [
     '#create-mkt-campaign-button',
     '#create-mkt-promotion-button',
@@ -732,6 +790,54 @@ function applyProfile(profile) {
   ]) {
     const button = $(selector);
     if (button) button.hidden = !state.canWriteFunding;
+  }
+  for (const selector of [
+    '#create-int-provider-button',
+    '#create-int-connection-button',
+    '#create-int-client-button',
+    '#create-int-endpoint-button',
+    '#create-int-webhook-button',
+  ]) {
+    const button = $(selector);
+    if (button) button.hidden = !state.canWriteIntegrations;
+  }
+  for (const selector of [
+    '#create-notif-template-button',
+    '#create-notif-message-button',
+    '#create-notif-channel-button',
+  ]) {
+    const button = $(selector);
+    if (button) button.hidden = !state.canWriteNotifications;
+  }
+  for (const selector of [
+    '#create-cfg-group-button',
+    '#create-cfg-setting-button',
+    '#create-cfg-reference-button',
+    '#create-cfg-flag-button',
+    '#create-cfg-parameter-button',
+    '#create-cfg-localization-button',
+  ]) {
+    const button = $(selector);
+    if (button) button.hidden = !state.canWriteConfig;
+  }
+  for (const selector of [
+    '#create-ai-model-button',
+    '#create-ai-session-button',
+    '#create-ai-recommendation-button',
+    '#create-ai-forecast-button',
+  ]) {
+    const button = $(selector);
+    if (button) button.hidden = !state.canWriteAi;
+  }
+  for (const selector of [
+    '#create-ana-source-button',
+    '#create-ana-job-button',
+    '#create-ana-mart-button',
+    '#create-ana-report-button',
+    '#create-ana-snapshot-button',
+  ]) {
+    const button = $(selector);
+    if (button) button.hidden = !state.canWriteAnalytics;
   }
   for (const selector of [
     '#create-sc-supplier-button',
@@ -919,6 +1025,11 @@ function loadView(view) {
   if (view === 'crm') return loadCrm(true);
   if (view === 'business') return loadBusiness(true);
   if (view === 'funding') return loadFunding(true);
+  if (view === 'integrations') return loadIntegrations(true);
+  if (view === 'notifications') return loadNotifications(true);
+  if (view === 'config') return loadConfig(true);
+  if (view === 'ai') return loadAi(true);
+  if (view === 'analytics') return loadAnalytics(true);
   if (view === 'audit') return loadAudit();
   return undefined;
 }
@@ -10665,6 +10776,82 @@ const BF_STATUS_LABELS = {
   final: 'Final',
   defaulted: 'Gagal bayar',
   disbursing: 'Pencairan',
+  inactive: 'Nonaktif',
+  deprecated: 'Usang',
+  error: 'Galat',
+  sandbox: 'Sandbox',
+  production: 'Produksi',
+  disabled: 'Nonaktif',
+  enabled: 'Aktif',
+  rollout: 'Bertahap',
+  paused: 'Dijeda',
+  dead_letter: 'Gagal permanen',
+  delivered: 'Terkirim',
+  success: 'Berhasil',
+  partial: 'Sebagian',
+  bounced: 'Terpantul',
+  read: 'Dibaca',
+  queued: 'Dalam antrean',
+  scheduled: 'Terjadwal',
+  processing: 'Diproses',
+  sent: 'Terkirim',
+  failed: 'Gagal',
+  running: 'Berjalan',
+  generated: 'Dihasilkan',
+  viewed: 'Dilihat',
+  accepted: 'Diterima',
+  dismissed: 'Diabaikan',
+  filtered: 'Terfilter',
+  revoked: 'Dicabut',
+  expired: 'Kedaluwarsa',
+  low: 'Rendah',
+  high: 'Tinggi',
+  critical: 'Kritis',
+  string: 'Teks',
+  boolean: 'Boolean',
+  json: 'JSON',
+  secret: 'Rahasia',
+  global: 'Global',
+  organization: 'Organisasi',
+  merchant: 'Merchant',
+  user: 'Pengguna',
+  email: 'Email',
+  sms: 'SMS',
+  whatsapp: 'WhatsApp',
+  push: 'Push',
+  in_app: 'Dalam aplikasi',
+  webhook: 'Webhook',
+  chat: 'Chat',
+  embedding: 'Embedding',
+  image: 'Gambar',
+  speech: 'Suara',
+  recommendation: 'Rekomendasi',
+  forecasting: 'Forecast',
+  product: 'Produk',
+  market: 'Pasar',
+  content: 'Konten',
+  sales: 'Penjualan',
+  demand: 'Permintaan',
+  cashflow: 'Arus kas',
+  inventory: 'Inventori',
+  postgres: 'PostgreSQL',
+  api: 'API',
+  file: 'Berkas',
+  manual: 'Manual',
+  extract: 'Ekstraksi',
+  transform: 'Transformasi',
+  load: 'Muat',
+  full: 'Penuh',
+  incremental: 'Inkremental',
+  table: 'Tabel',
+  csv: 'CSV',
+  pdf: 'PDF',
+  hourly: 'Per jam',
+  sales_report: 'Laporan penjualan',
+  general: 'Umum',
+  draft: 'Draft',
+  active: 'Aktif',
+  other: 'Lainnya',
 };
 
 function bfStatus(value) {
@@ -10785,6 +10972,31 @@ async function bfBusinessData() {
 async function bfFundingData() {
   if (!state.funding) await loadFunding(true);
   return state.funding;
+}
+
+async function bfIntegrationsData() {
+  if (!state.integrations) await loadIntegrations(true);
+  return state.integrations;
+}
+
+async function bfNotificationsData() {
+  if (!state.notifications) await loadNotifications(true);
+  return state.notifications;
+}
+
+async function bfConfigData() {
+  if (!state.config) await loadConfig(true);
+  return state.config;
+}
+
+async function bfAiData() {
+  if (!state.ai) await loadAi(true);
+  return state.ai;
+}
+
+async function bfAnalyticsData() {
+  if (!state.analytics) await loadAnalytics(true);
+  return state.analytics;
 }
 
 /* ------------------------------- Bisnis ------------------------------- */
@@ -11753,6 +11965,1949 @@ async function bfRunFundingAction(action, id) {
   }
 }
 
+/* ------------------------------ Integrasi ----------------------------- */
+
+const INT_TABLES = [
+  '#int-providers-table',
+  '#int-connections-table',
+  '#int-clients-table',
+  '#int-endpoints-table',
+  '#int-webhooks-table',
+  '#int-logs-table',
+];
+
+async function loadIntegrations(force = false) {
+  const sequence = ++state.sequences.integrations;
+  if (!force && state.integrations) {
+    renderIntegrations();
+    return;
+  }
+  for (const selector of INT_TABLES) {
+    const host = $(selector);
+    if (host) host.innerHTML = tableLoading(2);
+  }
+  try {
+    const results = await Promise.all([
+      api('/integrations/providers?limit=100'),
+      api('/integrations/connections?limit=100'),
+      api('/integrations/clients?limit=100'),
+      api('/integrations/endpoints?limit=100'),
+      api('/integrations/webhooks?limit=100'),
+      api('/integrations/logs?limit=50'),
+    ]);
+    if (sequence !== state.sequences.integrations) return;
+    state.integrations = {
+      providers: results[0].data ?? [],
+      connections: results[1].data ?? [],
+      clients: results[2].data ?? [],
+      endpoints: results[3].data ?? [],
+      webhooks: results[4].data ?? [],
+      logs: results[5].data ?? [],
+    };
+    renderIntegrations();
+  } catch (error) {
+    if (sequence !== state.sequences.integrations) return;
+    for (const selector of INT_TABLES) {
+      const host = $(selector);
+      if (host) host.innerHTML = errorState(error.message, 'data-int-retry');
+    }
+    showToast('Gagal memuat integrasi', error.message, 'error');
+  }
+}
+
+function renderIntegrations() {
+  const data = state.integrations;
+  if (!data) return;
+  const activeConnections = data.connections.filter((row) => row.status === 'active').length;
+  scSetText('#int-stat-providers', formatNumber(data.providers.length));
+  scSetText('#int-stat-connections', formatNumber(activeConnections));
+  scSetText('#int-stat-clients', formatNumber(data.clients.length));
+  scSetText('#int-stat-webhooks', formatNumber(data.webhooks.length));
+  scSetBadge('#int-provider-count', data.providers.length, 'provider');
+  scSetBadge('#int-connection-count', data.connections.length, 'koneksi');
+  scSetBadge('#int-client-count', data.clients.length, 'klien');
+  scSetBadge('#int-endpoint-count', data.endpoints.length, 'endpoint');
+  scSetBadge('#int-webhook-count', data.webhooks.length, 'webhook');
+  scSetBadge('#int-log-count', data.logs.length, 'log');
+
+  scRenderTable(
+    '#int-providers-table',
+    ['Provider', 'Tipe', 'Base URL', 'Status'],
+    data.providers,
+    (row) => `
+      <tr>
+        <td><span class="cell-main">${escapeHtml(row.name)}</span><span class="cell-sub cell-code">${escapeHtml(row.code)}</span></td>
+        <td>${bfStatus(row.type)}</td>
+        <td class="cell-muted">${escapeHtml(row.baseUrl ?? '—')}</td>
+        <td>${bfStatus(row.status)}</td>
+      </tr>
+    `,
+    'Belum ada provider',
+    'Daftarkan provider untuk mulai menghubungkan layanan eksternal.',
+  );
+
+  scRenderTable(
+    '#int-connections-table',
+    ['Koneksi', 'Provider', 'Lingkungan', 'Sinkronisasi', 'Status', 'Aksi'],
+    data.connections,
+    (row) => {
+      const actions = [];
+      if (state.canWriteIntegrations) {
+        actions.push(
+          scButton('Uji', `data-int-action="test" data-int-id="${escapeHtml(row.id)}"`),
+        );
+      }
+      return `
+        <tr>
+          <td><span class="cell-main">${escapeHtml(row.name)}</span><span class="cell-sub cell-code">${escapeHtml(row.code)}</span></td>
+          <td>${escapeHtml(row.providerName ?? '—')}</td>
+          <td>${bfStatus(row.environment)}</td>
+          <td class="cell-muted">${escapeHtml(row.lastSyncAt ? formatDateTime(row.lastSyncAt) : 'Belum pernah')}</td>
+          <td>${bfStatus(row.status)}</td>
+          <td>${scActions(actions)}</td>
+        </tr>
+      `;
+    },
+    'Belum ada koneksi',
+    'Buat koneksi untuk menghubungkan provider dengan organisasi.',
+  );
+
+  scRenderTable(
+    '#int-clients-table',
+    ['Klien', 'Batas/menit', 'Status'],
+    data.clients,
+    (row) => `
+      <tr>
+        <td><span class="cell-main">${escapeHtml(row.name)}</span><span class="cell-sub cell-code">${escapeHtml(row.code)}</span></td>
+        <td>${formatNumber(row.rateLimitPerMinute)}</td>
+        <td>${bfStatus(row.status)}</td>
+      </tr>
+    `,
+    'Belum ada klien API',
+    'Klien API memberi akses terukur ke endpoint platform.',
+  );
+
+  scRenderTable(
+    '#int-endpoints-table',
+    ['Endpoint', 'Metode', 'Path', 'Versi', 'Status'],
+    data.endpoints,
+    (row) => `
+      <tr>
+        <td><span class="cell-main">${escapeHtml(row.name)}</span><span class="cell-sub cell-code">${escapeHtml(row.code)}</span></td>
+        <td>${bfStatus(row.method)}</td>
+        <td class="cell-code">${escapeHtml(row.path)}</td>
+        <td>${escapeHtml(row.version)}</td>
+        <td>${bfStatus(row.isActive ? 'active' : 'inactive')}</td>
+      </tr>
+    `,
+    'Belum ada endpoint',
+    'Daftarkan endpoint agar dapat dipakai klien API.',
+  );
+
+  scRenderTable(
+    '#int-webhooks-table',
+    ['Webhook', 'Klien', 'Event', 'Kegagalan', 'Status'],
+    data.webhooks,
+    (row) => `
+      <tr>
+        <td><span class="cell-main">${escapeHtml(row.name)}</span><span class="cell-sub cell-muted">${escapeHtml(row.url)}</span></td>
+        <td>${escapeHtml(row.clientName ?? '—')}</td>
+        <td class="cell-muted">${escapeHtml((row.events ?? []).join(', ') || '—')}</td>
+        <td>${formatNumber(row.failureCount)}</td>
+        <td>${bfStatus(row.status)}</td>
+      </tr>
+    `,
+    'Belum ada webhook',
+    'Langganan webhook menerima event dari platform.',
+  );
+
+  scRenderTable(
+    '#int-logs-table',
+    ['Waktu', 'Arah', 'Metode', 'Path', 'Kode', 'Durasi', 'Status'],
+    data.logs,
+    (row) => `
+      <tr>
+        <td class="cell-muted">${escapeHtml(formatDateTime(row.createdAt))}</td>
+        <td>${bfStatus(row.direction)}</td>
+        <td>${bfStatus(row.method)}</td>
+        <td class="cell-code">${escapeHtml(row.path)}</td>
+        <td>${escapeHtml(row.statusCode ?? '—')}</td>
+        <td>${row.durationMs === null ? '—' : `${formatNumber(row.durationMs)} ms`}</td>
+        <td>${bfStatus(row.status)}</td>
+      </tr>
+    `,
+    'Belum ada log',
+    'Log integrasi muncul setelah terjadi pertukaran data.',
+  );
+}
+
+function openIntProviderModal() {
+  bfFormModal({
+    title: 'Tambah provider integrasi',
+    kicker: 'SYS-03 · Provider',
+    subtitle: 'Provider adalah layanan eksternal yang dihubungkan ke platform.',
+    formId: 'int-provider-form',
+    submitLabel: 'Simpan provider',
+    fields: `
+      <div class="form-field full">
+        <label for="int-provider-name">Nama provider <span>*</span></label>
+        <input id="int-provider-name" name="name" type="text" required minlength="2" placeholder="Contoh: Payment Gateway X" />
+      </div>
+      <div class="form-field">
+        <label for="int-provider-type">Tipe</label>
+        <select id="int-provider-type" name="type">${bfStatusOptions(['marketplace', 'payment', 'logistics', 'government', 'messaging', 'analytics', 'erp', 'crm', 'other'], 'payment')}</select>
+      </div>
+      <div class="form-field">
+        <label for="int-provider-status">Status</label>
+        <select id="int-provider-status" name="status">${bfStatusOptions(['active', 'inactive', 'deprecated'], 'active')}</select>
+      </div>
+      <div class="form-field full">
+        <label for="int-provider-url">Base URL</label>
+        <input id="int-provider-url" name="baseUrl" type="url" placeholder="https://api.contoh.id" />
+      </div>
+    `,
+    submit: (raw) =>
+      api('/integrations/providers', {
+        method: 'POST',
+        body: {
+          name: raw.name,
+          type: raw.type,
+          status: raw.status,
+          baseUrl: bfOptional(raw.baseUrl),
+        },
+      }),
+    success: async () => {
+      showToast('Provider dibuat', 'Provider siap dihubungkan.');
+      await loadIntegrations(true);
+    },
+  });
+}
+
+function openIntConnectionModal(data) {
+  bfFormModal({
+    title: 'Tambah koneksi integrasi',
+    kicker: 'SYS-03 · Koneksi',
+    subtitle: 'Koneksi menyimpan konfigurasi lingkungan provider.',
+    formId: 'int-connection-form',
+    submitLabel: 'Simpan koneksi',
+    fields: `
+      <div class="form-field full">
+        <label for="int-connection-provider">Provider <span>*</span></label>
+        <select id="int-connection-provider" name="providerId" required>${bfNamedOptions(data.providers, 'name')}</select>
+      </div>
+      <div class="form-field full">
+        <label for="int-connection-name">Nama koneksi <span>*</span></label>
+        <input id="int-connection-name" name="name" type="text" required minlength="2" />
+      </div>
+      <div class="form-field">
+        <label for="int-connection-env">Lingkungan</label>
+        <select id="int-connection-env" name="environment">${bfStatusOptions(['sandbox', 'production'], 'sandbox')}</select>
+      </div>
+      <div class="form-field">
+        <label for="int-connection-status">Status</label>
+        <select id="int-connection-status" name="status">${bfStatusOptions(['pending', 'active', 'disabled', 'error'], 'pending')}</select>
+      </div>
+    `,
+    submit: (raw) =>
+      api('/integrations/connections', {
+        method: 'POST',
+        body: {
+          providerId: raw.providerId,
+          name: raw.name,
+          environment: raw.environment,
+          status: raw.status,
+        },
+      }),
+    success: async () => {
+      showToast('Koneksi dibuat', 'Uji koneksi untuk memastikan siap dipakai.');
+      await loadIntegrations(true);
+    },
+  });
+}
+
+function openIntClientModal() {
+  bfFormModal({
+    title: 'Tambah klien API',
+    kicker: 'SYS-03 · Klien API',
+    subtitle: 'Klien API mewakili aplikasi yang mengakses platform.',
+    formId: 'int-client-form',
+    submitLabel: 'Simpan klien',
+    fields: `
+      <div class="form-field full">
+        <label for="int-client-name">Nama klien <span>*</span></label>
+        <input id="int-client-name" name="name" type="text" required minlength="2" placeholder="Contoh: Aplikasi Mitra" />
+      </div>
+      <div class="form-field">
+        <label for="int-client-limit">Batas per menit</label>
+        <input id="int-client-limit" name="rateLimitPerMinute" type="number" min="1" value="60" />
+      </div>
+      <div class="form-field">
+        <label for="int-client-status">Status</label>
+        <select id="int-client-status" name="status">${bfStatusOptions(['active', 'suspended', 'revoked'], 'active')}</select>
+      </div>
+    `,
+    submit: (raw) =>
+      api('/integrations/clients', {
+        method: 'POST',
+        body: {
+          name: raw.name,
+          rateLimitPerMinute: bfNumber(raw.rateLimitPerMinute) ?? 60,
+          status: raw.status,
+        },
+      }),
+    success: async () => {
+      showToast('Klien dibuat', 'Klien API siap menerima kunci akses.');
+      await loadIntegrations(true);
+    },
+  });
+}
+
+function openIntEndpointModal() {
+  bfFormModal({
+    title: 'Tambah endpoint API',
+    kicker: 'SYS-03 · Endpoint',
+    subtitle: 'Endpoint mendefinisikan rute yang dapat dipanggil klien.',
+    formId: 'int-endpoint-form',
+    submitLabel: 'Simpan endpoint',
+    fields: `
+      <div class="form-field full">
+        <label for="int-endpoint-name">Nama endpoint <span>*</span></label>
+        <input id="int-endpoint-name" name="name" type="text" required minlength="2" />
+      </div>
+      <div class="form-field">
+        <label for="int-endpoint-method">Metode</label>
+        <select id="int-endpoint-method" name="method">${bfStatusOptions(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], 'GET')}</select>
+      </div>
+      <div class="form-field">
+        <label for="int-endpoint-version">Versi</label>
+        <input id="int-endpoint-version" name="version" type="text" value="v1" />
+      </div>
+      <div class="form-field full">
+        <label for="int-endpoint-path">Path <span>*</span></label>
+        <input id="int-endpoint-path" name="path" type="text" required placeholder="/merchants" />
+      </div>
+    `,
+    submit: (raw) =>
+      api('/integrations/endpoints', {
+        method: 'POST',
+        body: {
+          name: raw.name,
+          method: raw.method,
+          version: raw.version || 'v1',
+          path: raw.path,
+          isActive: true,
+        },
+      }),
+    success: async () => {
+      showToast('Endpoint dibuat', 'Endpoint terdaftar pada gateway.');
+      await loadIntegrations(true);
+    },
+  });
+}
+
+function openIntWebhookModal(data) {
+  bfFormModal({
+    title: 'Tambah langganan webhook',
+    kicker: 'SYS-03 · Webhook',
+    subtitle: 'Webhook mengirim event platform ke URL klien.',
+    formId: 'int-webhook-form',
+    submitLabel: 'Simpan webhook',
+    fields: `
+      <div class="form-field full">
+        <label for="int-webhook-client">Klien API <span>*</span></label>
+        <select id="int-webhook-client" name="clientId" required>${bfNamedOptions(data.clients, 'name')}</select>
+      </div>
+      <div class="form-field full">
+        <label for="int-webhook-name">Nama webhook <span>*</span></label>
+        <input id="int-webhook-name" name="name" type="text" required minlength="2" />
+      </div>
+      <div class="form-field full">
+        <label for="int-webhook-url">URL <span>*</span></label>
+        <input id="int-webhook-url" name="url" type="url" required placeholder="https://contoh.id/webhook" />
+      </div>
+      <div class="form-field full">
+        <label for="int-webhook-events">Event <span>*</span></label>
+        <input id="int-webhook-events" name="events" type="text" required placeholder="order.created, payment.paid" />
+        <small class="form-hint">Pisahkan beberapa event dengan koma.</small>
+      </div>
+      <div class="form-field">
+        <label for="int-webhook-status">Status</label>
+        <select id="int-webhook-status" name="status">${bfStatusOptions(['active', 'paused', 'disabled'], 'active')}</select>
+      </div>
+    `,
+    submit: (raw) =>
+      api('/integrations/webhooks', {
+        method: 'POST',
+        body: {
+          clientId: raw.clientId,
+          name: raw.name,
+          url: raw.url,
+          events: (raw.events || '')
+            .split(',')
+            .map((item) => item.trim())
+            .filter(Boolean),
+          status: raw.status,
+        },
+      }),
+    success: async () => {
+      showToast('Webhook dibuat', 'Langganan webhook aktif.');
+      await loadIntegrations(true);
+    },
+  });
+}
+
+async function intRunAction(action, id) {
+  try {
+    if (action === 'test') {
+      await api(`/integrations/connections/${id}/test`, { method: 'POST', body: {} });
+      showToast('Koneksi diuji', 'Koneksi berhasil tersambung.');
+    }
+    await loadIntegrations(true);
+  } catch (error) {
+    showToast('Aksi gagal', error.message, 'error');
+  }
+}
+
+/* ------------------------------ Notifikasi ---------------------------- */
+
+const NTF_TABLES = [
+  '#notif-templates-table',
+  '#notif-messages-table',
+  '#notif-channels-table',
+  '#notif-preferences-table',
+  '#notif-logs-table',
+];
+
+async function loadNotifications(force = false) {
+  const sequence = ++state.sequences.notifications;
+  if (!force && state.notifications) {
+    renderNotifications();
+    return;
+  }
+  for (const selector of NTF_TABLES) {
+    const host = $(selector);
+    if (host) host.innerHTML = tableLoading(2);
+  }
+  try {
+    const results = await Promise.all([
+      api('/notifications/templates?limit=100'),
+      api('/notifications/messages?limit=100'),
+      api('/notifications/channels?limit=100'),
+      api('/notifications/preferences?limit=100'),
+      api('/notifications/delivery-logs?limit=50'),
+    ]);
+    if (sequence !== state.sequences.notifications) return;
+    state.notifications = {
+      templates: results[0].data ?? [],
+      messages: results[1].data ?? [],
+      channels: results[2].data ?? [],
+      preferences: results[3].data ?? [],
+      logs: results[4].data ?? [],
+    };
+    renderNotifications();
+  } catch (error) {
+    if (sequence !== state.sequences.notifications) return;
+    for (const selector of NTF_TABLES) {
+      const host = $(selector);
+      if (host) host.innerHTML = errorState(error.message, 'data-notif-retry');
+    }
+    showToast('Gagal memuat notifikasi', error.message, 'error');
+  }
+}
+
+function renderNotifications() {
+  const data = state.notifications;
+  if (!data) return;
+  const activeTemplates = data.templates.filter((row) => row.status === 'active').length;
+  const sent = data.messages.filter((row) => row.status === 'sent').length;
+  const activeChannels = data.channels.filter((row) => row.isActive).length;
+  scSetText('#notif-stat-templates', formatNumber(activeTemplates));
+  scSetText('#notif-stat-messages', formatNumber(data.messages.length));
+  scSetText('#notif-stat-sent', formatNumber(sent));
+  scSetText('#notif-stat-channels', formatNumber(activeChannels));
+  scSetBadge('#notif-template-count', data.templates.length, 'template');
+  scSetBadge('#notif-message-count', data.messages.length, 'pesan');
+  scSetBadge('#notif-channel-count', data.channels.length, 'kanal');
+  scSetBadge('#notif-preference-count', data.preferences.length, 'preferensi');
+  scSetBadge('#notif-log-count', data.logs.length, 'log');
+
+  scRenderTable(
+    '#notif-templates-table',
+    ['Template', 'Kanal', 'Kategori', 'Locale', 'Versi', 'Status'],
+    data.templates,
+    (row) => `
+      <tr>
+        <td><span class="cell-main">${escapeHtml(row.name)}</span><span class="cell-sub cell-code">${escapeHtml(row.code)}</span></td>
+        <td>${bfStatus(row.channelType)}</td>
+        <td>${bfStatus(row.category)}</td>
+        <td>${escapeHtml(row.locale)}</td>
+        <td>v${formatNumber(row.version)}</td>
+        <td>${bfStatus(row.status)}</td>
+      </tr>
+    `,
+    'Belum ada template',
+    'Buat template agar pesan konsisten dan mudah dikelola.',
+  );
+
+  scRenderTable(
+    '#notif-messages-table',
+    ['Pesan', 'Kanal', 'Kategori', 'Jadwal', 'Status', 'Aksi'],
+    data.messages,
+    (row) => {
+      const actions = [];
+      if (state.canWriteNotifications) {
+        if (['queued', 'scheduled', 'failed'].includes(row.status)) {
+          actions.push(scButton('Kirim', `data-notif-action="send" data-notif-id="${escapeHtml(row.id)}"`));
+        }
+        if (['queued', 'scheduled'].includes(row.status)) {
+          actions.push(scButton('Batal', `data-notif-action="cancel" data-notif-id="${escapeHtml(row.id)}"`));
+        }
+      }
+      return `
+        <tr>
+          <td><span class="cell-main">${escapeHtml(row.subject || '(tanpa subjek)')}</span><span class="cell-sub cell-code">${escapeHtml(row.messageNumber)}</span></td>
+          <td>${bfStatus(row.channelType)}</td>
+          <td>${bfStatus(row.category)}</td>
+          <td class="cell-muted">${escapeHtml(row.scheduledAt ? formatDateTime(row.scheduledAt) : 'Sekarang')}</td>
+          <td>${bfStatus(row.status)}</td>
+          <td>${scActions(actions)}</td>
+        </tr>
+      `;
+    },
+    'Belum ada pesan',
+    'Pesan akan tampil setelah dibuat dari template atau manual.',
+  );
+
+  scRenderTable(
+    '#notif-channels-table',
+    ['Kanal', 'Tipe', 'Provider', 'Status'],
+    data.channels,
+    (row) => `
+      <tr>
+        <td><span class="cell-main">${escapeHtml(row.name)}</span><span class="cell-sub cell-code">${escapeHtml(row.code)}</span></td>
+        <td>${bfStatus(row.type)}</td>
+        <td class="cell-muted">${escapeHtml(row.provider ?? '—')}</td>
+        <td>${bfStatus(row.isActive ? 'active' : 'inactive')}</td>
+      </tr>
+    `,
+    'Belum ada kanal',
+    'Tambahkan kanal email, SMS, WhatsApp, atau push.',
+  );
+
+  scRenderTable(
+    '#notif-preferences-table',
+    ['Kategori', 'Kanal', 'Aktif', 'Jam tenang'],
+    data.preferences,
+    (row) => `
+      <tr>
+        <td>${bfStatus(row.category)}</td>
+        <td>${bfStatus(row.channelType)}</td>
+        <td>${bfStatus(row.isEnabled ? 'active' : 'inactive')}</td>
+        <td class="cell-muted">${escapeHtml(row.quietHoursStart ? `${row.quietHoursStart} – ${row.quietHoursEnd ?? ''}` : '—')}</td>
+      </tr>
+    `,
+    'Belum ada preferensi',
+    'Preferensi mengatur kanal komunikasi yang diizinkan.',
+  );
+
+  scRenderTable(
+    '#notif-logs-table',
+    ['Waktu', 'Kanal', 'Provider', 'Status'],
+    data.logs,
+    (row) => `
+      <tr>
+        <td class="cell-muted">${escapeHtml(formatDateTime(row.attemptedAt))}</td>
+        <td>${bfStatus(row.channelType)}</td>
+        <td class="cell-muted">${escapeHtml(row.provider ?? '—')}</td>
+        <td>${bfStatus(row.status)}</td>
+      </tr>
+    `,
+    'Belum ada log pengiriman',
+    'Log muncul setelah pesan dikirim melalui kanal.',
+  );
+}
+
+function openNtfChannelModal() {
+  bfFormModal({
+    title: 'Tambah kanal notifikasi',
+    kicker: 'SYS-04 · Kanal',
+    subtitle: 'Kanal menentukan jalur pengiriman pesan.',
+    formId: 'notif-channel-form',
+    submitLabel: 'Simpan kanal',
+    fields: `
+      <div class="form-field full">
+        <label for="notif-channel-name">Nama kanal <span>*</span></label>
+        <input id="notif-channel-name" name="name" type="text" required minlength="2" />
+      </div>
+      <div class="form-field">
+        <label for="notif-channel-type">Tipe</label>
+        <select id="notif-channel-type" name="type">${bfStatusOptions(['email', 'sms', 'whatsapp', 'push', 'in_app', 'webhook'], 'email')}</select>
+      </div>
+      <div class="form-field">
+        <label for="notif-channel-provider">Provider</label>
+        <input id="notif-channel-provider" name="provider" type="text" placeholder="Contoh: SMTP internal" />
+      </div>
+    `,
+    submit: (raw) =>
+      api('/notifications/channels', {
+        method: 'POST',
+        body: {
+          name: raw.name,
+          type: raw.type,
+          provider: bfOptional(raw.provider),
+          isActive: true,
+        },
+      }),
+    success: async () => {
+      showToast('Kanal dibuat', 'Kanal siap dipakai untuk pengiriman.');
+      await loadNotifications(true);
+    },
+  });
+}
+
+function openNtfTemplateModal(data) {
+  bfFormModal({
+    title: 'Tambah template notifikasi',
+    kicker: 'SYS-04 · Template',
+    subtitle: 'Gunakan variabel seperti {{name}} pada isi pesan.',
+    formId: 'notif-template-form',
+    submitLabel: 'Simpan template',
+    fields: `
+      <div class="form-field full">
+        <label for="notif-template-name">Nama template <span>*</span></label>
+        <input id="notif-template-name" name="name" type="text" required minlength="2" />
+      </div>
+      <div class="form-field">
+        <label for="notif-template-channel">Tipe kanal</label>
+        <select id="notif-template-channel" name="channelType">${bfStatusOptions(['email', 'sms', 'whatsapp', 'push', 'in_app', 'webhook'], 'email')}</select>
+      </div>
+      <div class="form-field">
+        <label for="notif-template-category">Kategori</label>
+        <input id="notif-template-category" name="category" type="text" value="general" />
+      </div>
+      <div class="form-field full">
+        <label for="notif-template-subject">Subjek</label>
+        <input id="notif-template-subject" name="subject" type="text" placeholder="Subjek email" />
+      </div>
+      <div class="form-field full">
+        <label for="notif-template-body">Isi pesan <span>*</span></label>
+        <textarea id="notif-template-body" name="body" required rows="5" placeholder="Halo {{name}}, ..."></textarea>
+      </div>
+      <div class="form-field">
+        <label for="notif-template-status">Status</label>
+        <select id="notif-template-status" name="status">${bfStatusOptions(['draft', 'active', 'archived'], 'draft')}</select>
+      </div>
+    `,
+    submit: (raw) =>
+      api('/notifications/templates', {
+        method: 'POST',
+        body: {
+          name: raw.name,
+          channelType: raw.channelType,
+          category: raw.category || 'general',
+          subject: bfOptional(raw.subject),
+          body: raw.body,
+          status: raw.status,
+        },
+      }),
+    success: async () => {
+      showToast('Template dibuat', 'Aktifkan template agar dapat dipakai.');
+      await loadNotifications(true);
+    },
+  });
+}
+
+function openNtfMessageModal() {
+  bfFormModal({
+    title: 'Buat pesan notifikasi',
+    kicker: 'SYS-04 · Pesan',
+    subtitle: 'Pesan dapat langsung dikirim atau dijadwalkan.',
+    formId: 'notif-message-form',
+    submitLabel: 'Simpan pesan',
+    fields: `
+      <div class="form-field">
+        <label for="notif-message-channel">Tipe kanal</label>
+        <select id="notif-message-channel" name="channelType">${bfStatusOptions(['email', 'sms', 'whatsapp', 'push', 'in_app', 'webhook'], 'email')}</select>
+      </div>
+      <div class="form-field">
+        <label for="notif-message-category">Kategori</label>
+        <input id="notif-message-category" name="category" type="text" value="general" />
+      </div>
+      <div class="form-field full">
+        <label for="notif-message-subject">Subjek</label>
+        <input id="notif-message-subject" name="subject" type="text" />
+      </div>
+      <div class="form-field full">
+        <label for="notif-message-body">Isi pesan <span>*</span></label>
+        <textarea id="notif-message-body" name="body" required rows="4"></textarea>
+      </div>
+      <div class="form-field">
+        <label for="notif-message-email">Email penerima <span>*</span></label>
+        <input id="notif-message-email" name="email" type="email" required placeholder="penerima@contoh.id" />
+      </div>
+      <div class="form-field">
+        <label for="notif-message-name">Nama penerima</label>
+        <input id="notif-message-name" name="recipientName" type="text" />
+      </div>
+    `,
+    submit: (raw) =>
+      api('/notifications/messages', {
+        method: 'POST',
+        body: {
+          channelType: raw.channelType,
+          category: raw.category || 'general',
+          subject: bfOptional(raw.subject),
+          body: raw.body,
+          recipients: [
+            {
+              email: raw.email,
+              name: bfOptional(raw.recipientName),
+            },
+          ],
+        },
+      }),
+    success: async () => {
+      showToast('Pesan dibuat', 'Pesan masuk antrean pengiriman.');
+      await loadNotifications(true);
+    },
+  });
+}
+
+async function ntfRunAction(action, id) {
+  try {
+    if (action === 'send') {
+      await api(`/notifications/messages/${id}/send`, { method: 'POST', body: {} });
+      showToast('Pesan dikirim', 'Pesan berhasil diproses.');
+    } else if (action === 'cancel') {
+      await api(`/notifications/messages/${id}/cancel`, { method: 'POST', body: {} });
+      showToast('Pesan dibatalkan', 'Pesan tidak akan dikirim.');
+    }
+    await loadNotifications(true);
+  } catch (error) {
+    showToast('Aksi gagal', error.message, 'error');
+  }
+}
+
+/* ------------------------------ Konfigurasi --------------------------- */
+
+const CFG_TABLES = [
+  '#cfg-groups-table',
+  '#cfg-settings-table',
+  '#cfg-references-table',
+  '#cfg-flags-table',
+  '#cfg-parameters-table',
+  '#cfg-localization-table',
+];
+
+async function loadConfig(force = false) {
+  const sequence = ++state.sequences.config;
+  if (!force && state.config) {
+    renderConfig();
+    return;
+  }
+  for (const selector of CFG_TABLES) {
+    const host = $(selector);
+    if (host) host.innerHTML = tableLoading(2);
+  }
+  try {
+    const results = await Promise.all([
+      api('/config/groups?limit=100'),
+      api('/config/settings?limit=100'),
+      api('/config/reference-codes?limit=100'),
+      api('/config/feature-flags?limit=100'),
+      api('/config/service-parameters?limit=100'),
+      api('/config/localization?limit=100'),
+    ]);
+    if (sequence !== state.sequences.config) return;
+    state.config = {
+      groups: results[0].data ?? [],
+      settings: results[1].data ?? [],
+      references: results[2].data ?? [],
+      flags: results[3].data ?? [],
+      parameters: results[4].data ?? [],
+      localization: results[5].data ?? [],
+    };
+    renderConfig();
+  } catch (error) {
+    if (sequence !== state.sequences.config) return;
+    for (const selector of CFG_TABLES) {
+      const host = $(selector);
+      if (host) host.innerHTML = errorState(error.message, 'data-cfg-retry');
+    }
+    showToast('Gagal memuat konfigurasi', error.message, 'error');
+  }
+}
+
+function renderConfig() {
+  const data = state.config;
+  if (!data) return;
+  const enabledFlags = data.flags.filter((row) => row.status === 'enabled').length;
+  scSetText('#cfg-stat-groups', formatNumber(data.groups.length));
+  scSetText('#cfg-stat-settings', formatNumber(data.settings.length));
+  scSetText('#cfg-stat-flags', formatNumber(enabledFlags));
+  scSetText('#cfg-stat-references', formatNumber(data.references.length));
+  scSetBadge('#cfg-group-count', data.groups.length, 'grup');
+  scSetBadge('#cfg-setting-count', data.settings.length, 'setelan');
+  scSetBadge('#cfg-reference-count', data.references.length, 'referensi');
+  scSetBadge('#cfg-flag-count', data.flags.length, 'flag');
+  scSetBadge('#cfg-parameter-count', data.parameters.length, 'parameter');
+  scSetBadge('#cfg-localization-count', data.localization.length, 'lokalisasi');
+
+  scRenderTable(
+    '#cfg-groups-table',
+    ['Grup', 'Urutan', 'Status'],
+    data.groups,
+    (row) => `
+      <tr>
+        <td><span class="cell-main">${escapeHtml(row.name)}</span><span class="cell-sub cell-code">${escapeHtml(row.code)}</span></td>
+        <td>${formatNumber(row.sortOrder)}</td>
+        <td>${bfStatus(row.isActive ? 'active' : 'inactive')}</td>
+      </tr>
+    `,
+    'Belum ada grup',
+    'Kelompokkan pengaturan berdasarkan domain.',
+  );
+
+  scRenderTable(
+    '#cfg-settings-table',
+    ['Kunci', 'Grup', 'Tipe', 'Scope', 'Nilai', 'Status'],
+    data.settings,
+    (row) => `
+      <tr>
+        <td><span class="cell-main">${escapeHtml(row.label)}</span><span class="cell-sub cell-code">${escapeHtml(row.key)}</span></td>
+        <td>${escapeHtml(row.groupName ?? '—')}</td>
+        <td>${bfStatus(row.valueType)}</td>
+        <td>${bfStatus(row.scope)}</td>
+        <td class="cell-code">${escapeHtml(row.value ?? '—')}</td>
+        <td>${bfStatus(row.status)}</td>
+      </tr>
+    `,
+    'Belum ada pengaturan',
+    'Tambahkan pengaturan sistem untuk mengatur perilaku platform.',
+  );
+
+  scRenderTable(
+    '#cfg-references-table',
+    ['Referensi', 'Sistem', 'Status'],
+    data.references,
+    (row) => `
+      <tr>
+        <td><span class="cell-main">${escapeHtml(row.name)}</span><span class="cell-sub cell-code">${escapeHtml(row.code)}</span></td>
+        <td>${bfStatus(row.isSystem ? 'active' : 'inactive')}</td>
+        <td>${bfStatus(row.isActive ? 'active' : 'inactive')}</td>
+      </tr>
+    `,
+    'Belum ada referensi',
+    'Kode referensi menyimpan daftar nilai acuan.',
+  );
+
+  scRenderTable(
+    '#cfg-flags-table',
+    ['Feature flag', 'Rollout', 'Status', 'Aksi'],
+    data.flags,
+    (row) => {
+      const actions = [];
+      if (state.canWriteConfig) {
+        actions.push(
+          scButton('Ubah', `data-cfg-action="toggle" data-cfg-id="${escapeHtml(row.id)}"`),
+        );
+      }
+      return `
+        <tr>
+          <td><span class="cell-main">${escapeHtml(row.name)}</span><span class="cell-sub cell-code">${escapeHtml(row.key)}</span></td>
+          <td>${formatNumber(row.rolloutPercentage)}%</td>
+          <td>${bfStatus(row.status)}</td>
+          <td>${scActions(actions)}</td>
+        </tr>
+      `;
+    },
+    'Belum ada feature flag',
+    'Feature flag mengontrol aktivasi fitur secara bertahap.',
+  );
+
+  scRenderTable(
+    '#cfg-parameters-table',
+    ['Parameter', 'Layanan', 'Tipe', 'Nilai', 'Rahasia'],
+    data.parameters,
+    (row) => `
+      <tr>
+        <td><span class="cell-main">${escapeHtml(row.label)}</span><span class="cell-sub cell-code">${escapeHtml(row.key)}</span></td>
+        <td>${escapeHtml(row.service)}</td>
+        <td>${bfStatus(row.valueType)}</td>
+        <td class="cell-code">${escapeHtml(row.value ?? '—')}</td>
+        <td>${bfStatus(row.isSecret ? 'active' : 'inactive')}</td>
+      </tr>
+    `,
+    'Belum ada parameter',
+    'Parameter layanan mengatur batas dan perilaku integrasi.',
+  );
+
+  scRenderTable(
+    '#cfg-localization-table',
+    ['Locale', 'Bahasa', 'Mata uang', 'Zona waktu', 'Default', 'Status'],
+    data.localization,
+    (row) => `
+      <tr>
+        <td class="cell-code">${escapeHtml(row.locale)}</td>
+        <td>${escapeHtml(row.language)}</td>
+        <td>${escapeHtml(row.currency)}</td>
+        <td>${escapeHtml(row.timezone)}</td>
+        <td>${bfStatus(row.isDefault ? 'active' : 'inactive')}</td>
+        <td>${bfStatus(row.status)}</td>
+      </tr>
+    `,
+    'Belum ada lokalisasi',
+    'Tambahkan locale untuk mendukung banyak bahasa.',
+  );
+}
+
+function openCfgGroupModal() {
+  bfFormModal({
+    title: 'Tambah grup konfigurasi',
+    kicker: 'SYS-05 · Grup',
+    subtitle: 'Grup memudahkan pengelompokan pengaturan.',
+    formId: 'cfg-group-form',
+    submitLabel: 'Simpan grup',
+    fields: `
+      <div class="form-field full">
+        <label for="cfg-group-name">Nama grup <span>*</span></label>
+        <input id="cfg-group-name" name="name" type="text" required minlength="2" />
+      </div>
+      <div class="form-field">
+        <label for="cfg-group-order">Urutan</label>
+        <input id="cfg-group-order" name="sortOrder" type="number" min="0" value="0" />
+      </div>
+    `,
+    submit: (raw) =>
+      api('/config/groups', {
+        method: 'POST',
+        body: {
+          name: raw.name,
+          sortOrder: bfNumber(raw.sortOrder) ?? 0,
+          isActive: true,
+        },
+      }),
+    success: async () => {
+      showToast('Grup dibuat', 'Grup konfigurasi siap dipakai.');
+      await loadConfig(true);
+    },
+  });
+}
+
+function openCfgSettingModal(data) {
+  bfFormModal({
+    title: 'Tambah pengaturan sistem',
+    kicker: 'SYS-05 · Setelan',
+    subtitle: 'Gunakan kunci unik agar mudah dirujuk oleh layanan.',
+    formId: 'cfg-setting-form',
+    submitLabel: 'Simpan setelan',
+    fields: `
+      <div class="form-field full">
+        <label for="cfg-setting-group">Grup</label>
+        <select id="cfg-setting-group" name="groupId">${bfNamedOptions(data.groups, 'name', '', 'Tanpa grup')}</select>
+      </div>
+      <div class="form-field full">
+        <label for="cfg-setting-key">Kunci <span>*</span></label>
+        <input id="cfg-setting-key" name="key" type="text" required placeholder="app.maintenance_mode" />
+      </div>
+      <div class="form-field full">
+        <label for="cfg-setting-label">Label <span>*</span></label>
+        <input id="cfg-setting-label" name="label" type="text" required minlength="2" />
+      </div>
+      <div class="form-field">
+        <label for="cfg-setting-type">Tipe nilai</label>
+        <select id="cfg-setting-type" name="valueType">${bfStatusOptions(['string', 'number', 'boolean', 'json', 'secret'], 'string')}</select>
+      </div>
+      <div class="form-field">
+        <label for="cfg-setting-scope">Scope</label>
+        <select id="cfg-setting-scope" name="scope">${bfStatusOptions(['global', 'organization', 'merchant', 'user'], 'global')}</select>
+      </div>
+      <div class="form-field full">
+        <label for="cfg-setting-value">Nilai</label>
+        <input id="cfg-setting-value" name="value" type="text" />
+      </div>
+    `,
+    submit: (raw) =>
+      api('/config/settings', {
+        method: 'POST',
+        body: {
+          groupId: bfOptional(raw.groupId),
+          key: raw.key,
+          label: raw.label,
+          valueType: raw.valueType,
+          scope: raw.scope,
+          value: bfOptional(raw.value),
+          status: 'active',
+        },
+      }),
+    success: async () => {
+      showToast('Setelan dibuat', 'Pengaturan sistem tersimpan.');
+      await loadConfig(true);
+    },
+  });
+}
+
+function openCfgReferenceModal() {
+  bfFormModal({
+    title: 'Tambah kode referensi',
+    kicker: 'SYS-05 · Referensi',
+    subtitle: 'Kode referensi menjadi induk dari kumpulan nilai.',
+    formId: 'cfg-reference-form',
+    submitLabel: 'Simpan referensi',
+    fields: `
+      <div class="form-field full">
+        <label for="cfg-reference-name">Nama referensi <span>*</span></label>
+        <input id="cfg-reference-name" name="name" type="text" required minlength="2" />
+      </div>
+    `,
+    submit: (raw) =>
+      api('/config/reference-codes', {
+        method: 'POST',
+        body: { name: raw.name, isActive: true },
+      }),
+    success: async () => {
+      showToast('Referensi dibuat', 'Kode referensi siap diisi nilainya.');
+      await loadConfig(true);
+    },
+  });
+}
+
+function openCfgFlagModal() {
+  bfFormModal({
+    title: 'Tambah feature flag',
+    kicker: 'SYS-05 · Feature flag',
+    subtitle: 'Kontrol aktivasi fitur untuk audiens tertentu.',
+    formId: 'cfg-flag-form',
+    submitLabel: 'Simpan flag',
+    fields: `
+      <div class="form-field full">
+        <label for="cfg-flag-name">Nama flag <span>*</span></label>
+        <input id="cfg-flag-name" name="name" type="text" required minlength="2" />
+      </div>
+      <div class="form-field full">
+        <label for="cfg-flag-key">Kunci <span>*</span></label>
+        <input id="cfg-flag-key" name="key" type="text" required placeholder="feature.new_dashboard" />
+      </div>
+      <div class="form-field">
+        <label for="cfg-flag-status">Status</label>
+        <select id="cfg-flag-status" name="status">${bfStatusOptions(['enabled', 'disabled', 'rollout'], 'disabled')}</select>
+      </div>
+      <div class="form-field">
+        <label for="cfg-flag-rollout">Rollout (%)</label>
+        <input id="cfg-flag-rollout" name="rolloutPercentage" type="number" min="0" max="100" value="0" />
+      </div>
+    `,
+    submit: (raw) =>
+      api('/config/feature-flags', {
+        method: 'POST',
+        body: {
+          name: raw.name,
+          key: raw.key,
+          status: raw.status,
+          rolloutPercentage: bfNumber(raw.rolloutPercentage) ?? 0,
+        },
+      }),
+    success: async () => {
+      showToast('Feature flag dibuat', 'Flag siap diaktifkan.');
+      await loadConfig(true);
+    },
+  });
+}
+
+function openCfgParameterModal() {
+  bfFormModal({
+    title: 'Tambah parameter layanan',
+    kicker: 'SYS-05 · Parameter',
+    subtitle: 'Parameter mengatur batas dan opsi operasional layanan.',
+    formId: 'cfg-parameter-form',
+    submitLabel: 'Simpan parameter',
+    fields: `
+      <div class="form-field">
+        <label for="cfg-parameter-service">Layanan <span>*</span></label>
+        <input id="cfg-parameter-service" name="service" type="text" required placeholder="payment" />
+      </div>
+      <div class="form-field">
+        <label for="cfg-parameter-key">Kunci <span>*</span></label>
+        <input id="cfg-parameter-key" name="key" type="text" required placeholder="max_retry" />
+      </div>
+      <div class="form-field full">
+        <label for="cfg-parameter-label">Label <span>*</span></label>
+        <input id="cfg-parameter-label" name="label" type="text" required minlength="2" />
+      </div>
+      <div class="form-field">
+        <label for="cfg-parameter-type">Tipe nilai</label>
+        <select id="cfg-parameter-type" name="valueType">${bfStatusOptions(['string', 'number', 'boolean', 'json', 'secret'], 'string')}</select>
+      </div>
+      <div class="form-field">
+        <label for="cfg-parameter-value">Nilai</label>
+        <input id="cfg-parameter-value" name="value" type="text" />
+      </div>
+    `,
+    submit: (raw) =>
+      api('/config/service-parameters', {
+        method: 'POST',
+        body: {
+          service: raw.service,
+          key: raw.key,
+          label: raw.label,
+          valueType: raw.valueType,
+          value: bfOptional(raw.value),
+        },
+      }),
+    success: async () => {
+      showToast('Parameter dibuat', 'Parameter layanan tersimpan.');
+      await loadConfig(true);
+    },
+  });
+}
+
+function openCfgLocalizationModal() {
+  bfFormModal({
+    title: 'Tambah lokalisasi',
+    kicker: 'SYS-05 · Lokalisasi',
+    subtitle: 'Atur bahasa, mata uang, dan format tanggal.',
+    formId: 'cfg-localization-form',
+    submitLabel: 'Simpan lokalisasi',
+    fields: `
+      <div class="form-field">
+        <label for="cfg-localization-locale">Locale <span>*</span></label>
+        <input id="cfg-localization-locale" name="locale" type="text" required placeholder="id-ID" />
+      </div>
+      <div class="form-field">
+        <label for="cfg-localization-language">Bahasa <span>*</span></label>
+        <input id="cfg-localization-language" name="language" type="text" required placeholder="Bahasa Indonesia" />
+      </div>
+      <div class="form-field">
+        <label for="cfg-localization-currency">Mata uang</label>
+        <input id="cfg-localization-currency" name="currency" type="text" value="IDR" maxlength="3" />
+      </div>
+      <div class="form-field">
+        <label for="cfg-localization-timezone">Zona waktu</label>
+        <input id="cfg-localization-timezone" name="timezone" type="text" value="Asia/Jakarta" />
+      </div>
+      <div class="form-field full">
+        <label class="checkbox-field"><input id="cfg-localization-default" name="isDefault" type="checkbox" value="true" /> Jadikan default</label>
+      </div>
+    `,
+    submit: (raw) =>
+      api('/config/localization', {
+        method: 'POST',
+        body: {
+          locale: raw.locale,
+          language: raw.language,
+          currency: raw.currency || 'IDR',
+          timezone: raw.timezone || 'Asia/Jakarta',
+          isDefault: raw.isDefault === 'true',
+          status: 'active',
+        },
+      }),
+    success: async () => {
+      showToast('Lokalisasi dibuat', 'Pengaturan bahasa tersimpan.');
+      await loadConfig(true);
+    },
+  });
+}
+
+async function cfgRunAction(action, id) {
+  try {
+    if (action === 'toggle') {
+      await api(`/config/feature-flags/${id}/toggle`, { method: 'POST', body: {} });
+      showToast('Feature flag diubah', 'Status flag diperbarui.');
+    }
+    await loadConfig(true);
+  } catch (error) {
+    showToast('Aksi gagal', error.message, 'error');
+  }
+}
+
+/* ---------------------------------- AI -------------------------------- */
+
+const AI_TABLES = [
+  '#ai-models-table',
+  '#ai-sessions-table',
+  '#ai-requests-table',
+  '#ai-recommendations-table',
+  '#ai-forecasts-table',
+  '#ai-usage-table',
+];
+
+async function loadAi(force = false) {
+  const sequence = ++state.sequences.ai;
+  if (!force && state.ai) {
+    renderAi();
+    return;
+  }
+  for (const selector of AI_TABLES) {
+    const host = $(selector);
+    if (host) host.innerHTML = tableLoading(2);
+  }
+  try {
+    const results = await Promise.all([
+      api('/ai/models?limit=100'),
+      api('/ai/sessions?limit=100'),
+      api('/ai/requests?limit=100'),
+      api('/ai/recommendations?limit=100'),
+      api('/ai/forecast-jobs?limit=100'),
+      api('/ai/usage-logs?limit=50'),
+      api('/merchants?limit=100'),
+    ]);
+    if (sequence !== state.sequences.ai) return;
+    state.ai = {
+      models: results[0].data ?? [],
+      sessions: results[1].data ?? [],
+      requests: results[2].data ?? [],
+      recommendations: results[3].data ?? [],
+      forecasts: results[4].data ?? [],
+      usage: results[5].data ?? [],
+      merchants: results[6].data ?? [],
+    };
+    renderAi();
+  } catch (error) {
+    if (sequence !== state.sequences.ai) return;
+    for (const selector of AI_TABLES) {
+      const host = $(selector);
+      if (host) host.innerHTML = errorState(error.message, 'data-ai-retry');
+    }
+    showToast('Gagal memuat AI', error.message, 'error');
+  }
+}
+
+function renderAi() {
+  const data = state.ai;
+  if (!data) return;
+  const activeModels = data.models.filter((row) => row.status === 'active').length;
+  const activeSessions = data.sessions.filter((row) => row.status === 'active').length;
+  scSetText('#ai-stat-models', formatNumber(activeModels));
+  scSetText('#ai-stat-sessions', formatNumber(activeSessions));
+  scSetText('#ai-stat-requests', formatNumber(data.requests.length));
+  scSetText('#ai-stat-recommendations', formatNumber(data.recommendations.length));
+  scSetBadge('#ai-model-count', data.models.length, 'model');
+  scSetBadge('#ai-session-count', data.sessions.length, 'sesi');
+  scSetBadge('#ai-request-count', data.requests.length, 'request');
+  scSetBadge('#ai-recommendation-count', data.recommendations.length, 'rekomendasi');
+  scSetBadge('#ai-forecast-count', data.forecasts.length, 'job');
+  scSetBadge('#ai-usage-count', data.usage.length, 'log');
+
+  scRenderTable(
+    '#ai-models-table',
+    ['Model', 'Provider', 'Tipe', 'Default', 'Status'],
+    data.models,
+    (row) => `
+      <tr>
+        <td><span class="cell-main">${escapeHtml(row.name)}</span><span class="cell-sub cell-code">${escapeHtml(row.code)}</span></td>
+        <td>${escapeHtml(row.provider)}</td>
+        <td>${bfStatus(row.type)}</td>
+        <td>${bfStatus(row.isDefault ? 'active' : 'inactive')}</td>
+        <td>${bfStatus(row.status)}</td>
+      </tr>
+    `,
+    'Belum ada model',
+    'Daftarkan model AI untuk dipakai layanan cerdas.',
+  );
+
+  scRenderTable(
+    '#ai-sessions-table',
+    ['Sesi', 'Pengguna', 'Merchant', 'Status', 'Dibuat'],
+    data.sessions,
+    (row) => `
+      <tr>
+        <td><span class="cell-main">${escapeHtml(row.title || '(tanpa judul)')}</span><span class="cell-sub cell-code">${escapeHtml(row.sessionKey)}</span></td>
+        <td class="cell-muted">${escapeHtml(shortId(row.userId))}</td>
+        <td>${escapeHtml(row.merchantName ?? '—')}</td>
+        <td>${bfStatus(row.status)}</td>
+        <td class="cell-muted">${escapeHtml(formatDateTime(row.createdAt))}</td>
+      </tr>
+    `,
+    'Belum ada sesi',
+    'Sesi akan muncul saat pengguna berinteraksi dengan asisten AI.',
+  );
+
+  scRenderTable(
+    '#ai-requests-table',
+    ['Request', 'Model', 'Fitur', 'Latensi', 'Status'],
+    data.requests,
+    (row) => `
+      <tr>
+        <td><span class="cell-main">${escapeHtml(row.requestNumber)}</span><span class="cell-sub cell-muted">${escapeHtml(formatDateTime(row.createdAt))}</span></td>
+        <td>${escapeHtml(row.modelName ?? '—')}</td>
+        <td>${bfStatus(row.feature)}</td>
+        <td>${row.latencyMs === null ? '—' : `${formatNumber(row.latencyMs)} ms`}</td>
+        <td>${bfStatus(row.status)}</td>
+      </tr>
+    `,
+    'Belum ada request',
+    'Request AI tercatat untuk audit dan pemantauan biaya.',
+  );
+
+  scRenderTable(
+    '#ai-recommendations-table',
+    ['Rekomendasi', 'Tipe', 'Skor', 'Status', 'Dibuat'],
+    data.recommendations,
+    (row) => `
+      <tr>
+        <td><span class="cell-main">${escapeHtml(row.title)}</span><span class="cell-sub">${escapeHtml(row.summary ?? '')}</span></td>
+        <td>${bfStatus(row.type)}</td>
+        <td>${escapeHtml(row.score ?? '—')}</td>
+        <td>${bfStatus(row.status)}</td>
+        <td class="cell-muted">${escapeHtml(formatDateTime(row.createdAt))}</td>
+      </tr>
+    `,
+    'Belum ada rekomendasi',
+    'Rekomendasi personalisasi akan tampil di sini.',
+  );
+
+  scRenderTable(
+    '#ai-forecasts-table',
+    ['Job', 'Tipe', 'Horizon', 'Status', 'Aksi'],
+    data.forecasts,
+    (row) => {
+      const actions = [];
+      if (state.canWriteAi && row.status !== 'running') {
+        actions.push(
+          scButton('Jalankan', `data-ai-action="run" data-ai-id="${escapeHtml(row.id)}"`),
+        );
+      }
+      return `
+        <tr>
+          <td><span class="cell-main">${escapeHtml(row.jobNumber)}</span><span class="cell-sub cell-muted">${escapeHtml(row.dataSource ?? '—')}</span></td>
+          <td>${bfStatus(row.type)}</td>
+          <td>${formatNumber(row.horizonDays)} hari</td>
+          <td>${bfStatus(row.status)}</td>
+          <td>${scActions(actions)}</td>
+        </tr>
+      `;
+    },
+    'Belum ada job forecast',
+    'Buat job forecast untuk memproyeksikan penjualan atau permintaan.',
+  );
+
+  scRenderTable(
+    '#ai-usage-table',
+    ['Fitur', 'Token prompt', 'Token selesai', 'Total', 'Biaya', 'Status'],
+    data.usage,
+    (row) => `
+      <tr>
+        <td>${bfStatus(row.feature)}</td>
+        <td>${formatNumber(row.promptTokens)}</td>
+        <td>${formatNumber(row.completionTokens)}</td>
+        <td>${formatNumber(row.totalTokens)}</td>
+        <td>${escapeHtml(row.cost ?? '0')}</td>
+        <td>${bfStatus(row.status)}</td>
+      </tr>
+    `,
+    'Belum ada penggunaan',
+    'Log penggunaan muncul setelah request AI selesai.',
+  );
+}
+
+function openAiModelModal() {
+  bfFormModal({
+    title: 'Tambah model AI',
+    kicker: 'SYS-07 · Model',
+    subtitle: 'Model mewakili penyedia kecerdasan artifisial.',
+    formId: 'ai-model-form',
+    submitLabel: 'Simpan model',
+    fields: `
+      <div class="form-field full">
+        <label for="ai-model-name">Nama model <span>*</span></label>
+        <input id="ai-model-name" name="name" type="text" required minlength="2" />
+      </div>
+      <div class="form-field">
+        <label for="ai-model-code">Kode <span>*</span></label>
+        <input id="ai-model-code" name="code" type="text" required placeholder="gpt-4o" />
+      </div>
+      <div class="form-field">
+        <label for="ai-model-provider">Provider <span>*</span></label>
+        <input id="ai-model-provider" name="provider" type="text" required placeholder="OpenAI" />
+      </div>
+      <div class="form-field">
+        <label for="ai-model-type">Tipe</label>
+        <select id="ai-model-type" name="type">${bfStatusOptions(['chat', 'embedding', 'image', 'speech', 'recommendation', 'forecasting'], 'chat')}</select>
+      </div>
+      <div class="form-field">
+        <label for="ai-model-status">Status</label>
+        <select id="ai-model-status" name="status">${bfStatusOptions(['active', 'inactive', 'deprecated'], 'active')}</select>
+      </div>
+    `,
+    submit: (raw) =>
+      api('/ai/models', {
+        method: 'POST',
+        body: {
+          name: raw.name,
+          code: raw.code,
+          provider: raw.provider,
+          type: raw.type,
+          status: raw.status,
+        },
+      }),
+    success: async () => {
+      showToast('Model dibuat', 'Model AI siap digunakan.');
+      await loadAi(true);
+    },
+  });
+}
+
+function openAiSessionModal(data) {
+  bfFormModal({
+    title: 'Buat sesi AI',
+    kicker: 'SYS-07 · Sesi',
+    subtitle: 'Sesi menjadi wadah percakapan dengan model.',
+    formId: 'ai-session-form',
+    submitLabel: 'Buat sesi',
+    fields: `
+      <div class="form-field full">
+        <label for="ai-session-title">Judul sesi</label>
+        <input id="ai-session-title" name="title" type="text" placeholder="Konsultasi produk" />
+      </div>
+      <div class="form-field">
+        <label for="ai-session-model">Model</label>
+        <select id="ai-session-model" name="modelId">${bfNamedOptions(data.models, 'name', '', 'Model default')}</select>
+      </div>
+      <div class="form-field">
+        <label for="ai-session-merchant">Merchant</label>
+        <select id="ai-session-merchant" name="merchantId">${bfNamedOptions(data.merchants, 'businessName', '', 'Tanpa merchant')}</select>
+      </div>
+    `,
+    submit: (raw) =>
+      api('/ai/sessions', {
+        method: 'POST',
+        body: {
+          title: bfOptional(raw.title),
+          modelId: bfOptional(raw.modelId),
+          merchantId: bfOptional(raw.merchantId),
+        },
+      }),
+    success: async () => {
+      showToast('Sesi dibuat', 'Sesi AI aktif dan siap menerima pesan.');
+      await loadAi(true);
+    },
+  });
+}
+
+function openAiRecommendationModal(data) {
+  bfFormModal({
+    title: 'Buat rekomendasi',
+    kicker: 'SYS-07 · Rekomendasi',
+    subtitle: 'Rekomendasi dapat dihasilkan untuk produk, pendanaan, atau konten.',
+    formId: 'ai-recommendation-form',
+    submitLabel: 'Simpan rekomendasi',
+    fields: `
+      <div class="form-field full">
+        <label for="ai-recommendation-title">Judul <span>*</span></label>
+        <input id="ai-recommendation-title" name="title" type="text" required minlength="2" />
+      </div>
+      <div class="form-field">
+        <label for="ai-recommendation-type">Tipe</label>
+        <select id="ai-recommendation-type" name="type">${bfStatusOptions(['product', 'funding', 'merchant', 'market', 'content'], 'product')}</select>
+      </div>
+      <div class="form-field">
+        <label for="ai-recommendation-score">Skor</label>
+        <input id="ai-recommendation-score" name="score" type="number" step="0.01" min="0" max="1" value="0.8" />
+      </div>
+      <div class="form-field full">
+        <label for="ai-recommendation-summary">Ringkasan</label>
+        <textarea id="ai-recommendation-summary" name="summary" rows="3"></textarea>
+      </div>
+    `,
+    submit: (raw) =>
+      api('/ai/recommendations', {
+        method: 'POST',
+        body: {
+          title: raw.title,
+          type: raw.type,
+          score: bfOptional(raw.score),
+          summary: bfOptional(raw.summary),
+        },
+      }),
+    success: async () => {
+      showToast('Rekomendasi dibuat', 'Rekomendasi tersimpan.');
+      await loadAi(true);
+    },
+  });
+}
+
+function openAiForecastModal(data) {
+  bfFormModal({
+    title: 'Buat job forecast',
+    kicker: 'SYS-07 · Forecast',
+    subtitle: 'Forecast memproyeksikan metrik bisnis ke depan.',
+    formId: 'ai-forecast-form',
+    submitLabel: 'Simpan job',
+    fields: `
+      <div class="form-field">
+        <label for="ai-forecast-type">Tipe</label>
+        <select id="ai-forecast-type" name="type">${bfStatusOptions(['sales', 'demand', 'revenue', 'cashflow', 'inventory'], 'sales')}</select>
+      </div>
+      <div class="form-field">
+        <label for="ai-forecast-horizon">Horizon (hari)</label>
+        <input id="ai-forecast-horizon" name="horizonDays" type="number" min="1" max="3650" value="30" />
+      </div>
+      <div class="form-field full">
+        <label for="ai-forecast-merchant">Merchant</label>
+        <select id="ai-forecast-merchant" name="merchantId">${bfNamedOptions(data.merchants, 'businessName', '', 'Tanpa merchant')}</select>
+      </div>
+      <div class="form-field full">
+        <label for="ai-forecast-source">Sumber data</label>
+        <input id="ai-forecast-source" name="dataSource" type="text" placeholder="orders" />
+      </div>
+    `,
+    submit: (raw) =>
+      api('/ai/forecast-jobs', {
+        method: 'POST',
+        body: {
+          type: raw.type,
+          horizonDays: bfNumber(raw.horizonDays) ?? 30,
+          merchantId: bfOptional(raw.merchantId),
+          dataSource: bfOptional(raw.dataSource),
+        },
+      }),
+    success: async () => {
+      showToast('Forecast dibuat', 'Jalankan job untuk menghasilkan proyeksi.');
+      await loadAi(true);
+    },
+  });
+}
+
+async function aiRunAction(action, id) {
+  try {
+    if (action === 'run') {
+      await api(`/ai/forecast-jobs/${id}/run`, { method: 'POST', body: {} });
+      showToast('Forecast selesai', 'Proyeksi berhasil dihasilkan.');
+    }
+    await loadAi(true);
+  } catch (error) {
+    showToast('Aksi gagal', error.message, 'error');
+  }
+}
+
+/* ------------------------------- Analitik ----------------------------- */
+
+const ANA_TABLES = [
+  '#ana-sources-table',
+  '#ana-jobs-table',
+  '#ana-marts-table',
+  '#ana-reports-table',
+  '#ana-runs-table',
+  '#ana-snapshots-table',
+];
+
+async function loadAnalytics(force = false) {
+  const sequence = ++state.sequences.analytics;
+  if (!force && state.analytics) {
+    renderAnalytics();
+    return;
+  }
+  for (const selector of ANA_TABLES) {
+    const host = $(selector);
+    if (host) host.innerHTML = tableLoading(2);
+  }
+  try {
+    const results = await Promise.all([
+      api('/analytics/data-sources?limit=100'),
+      api('/analytics/etl-jobs?limit=100'),
+      api('/analytics/data-marts?limit=100'),
+      api('/analytics/reports?limit=100'),
+      api('/analytics/report-runs?limit=50'),
+      api('/analytics/snapshots?limit=100'),
+    ]);
+    if (sequence !== state.sequences.analytics) return;
+    state.analytics = {
+      sources: results[0].data ?? [],
+      jobs: results[1].data ?? [],
+      marts: results[2].data ?? [],
+      reports: results[3].data ?? [],
+      runs: results[4].data ?? [],
+      snapshots: results[5].data ?? [],
+    };
+    renderAnalytics();
+  } catch (error) {
+    if (sequence !== state.sequences.analytics) return;
+    for (const selector of ANA_TABLES) {
+      const host = $(selector);
+      if (host) host.innerHTML = errorState(error.message, 'data-ana-retry');
+    }
+    showToast('Gagal memuat analitik', error.message, 'error');
+  }
+}
+
+function renderAnalytics() {
+  const data = state.analytics;
+  if (!data) return;
+  scSetText('#ana-stat-sources', formatNumber(data.sources.length));
+  scSetText('#ana-stat-jobs', formatNumber(data.jobs.length));
+  scSetText('#ana-stat-marts', formatNumber(data.marts.length));
+  scSetText('#ana-stat-reports', formatNumber(data.reports.length));
+  scSetBadge('#ana-source-count', data.sources.length, 'sumber');
+  scSetBadge('#ana-job-count', data.jobs.length, 'job');
+  scSetBadge('#ana-mart-count', data.marts.length, 'mart');
+  scSetBadge('#ana-report-count', data.reports.length, 'laporan');
+  scSetBadge('#ana-run-count', data.runs.length, 'eksekusi');
+  scSetBadge('#ana-snapshot-count', data.snapshots.length, 'snapshot');
+
+  scRenderTable(
+    '#ana-sources-table',
+    ['Sumber', 'Tipe', 'Pemeriksaan terakhir', 'Status'],
+    data.sources,
+    (row) => `
+      <tr>
+        <td><span class="cell-main">${escapeHtml(row.name)}</span><span class="cell-sub cell-code">${escapeHtml(row.code)}</span></td>
+        <td>${bfStatus(row.type)}</td>
+        <td class="cell-muted">${escapeHtml(row.lastCheckedAt ? formatDateTime(row.lastCheckedAt) : 'Belum pernah')}</td>
+        <td>${bfStatus(row.status)}</td>
+      </tr>
+    `,
+    'Belum ada sumber data',
+    'Tambahkan sumber data untuk memulai pipeline analitik.',
+  );
+
+  scRenderTable(
+    '#ana-jobs-table',
+    ['Job', 'Sumber', 'Tipe', 'Jadwal', 'Terakhir', 'Status', 'Aksi'],
+    data.jobs,
+    (row) => {
+      const actions = [];
+      if (state.canWriteAnalytics && row.status !== 'running') {
+        actions.push(
+          scButton('Jalankan', `data-ana-action="run-job" data-ana-id="${escapeHtml(row.id)}"`),
+        );
+      }
+      return `
+        <tr>
+          <td><span class="cell-main">${escapeHtml(row.name)}</span><span class="cell-sub cell-code">${escapeHtml(row.code)}</span></td>
+          <td>${escapeHtml(row.dataSourceName ?? '—')}</td>
+          <td>${bfStatus(row.type)}</td>
+          <td class="cell-code">${escapeHtml(row.schedule ?? '—')}</td>
+          <td class="cell-muted">${escapeHtml(row.lastRunAt ? formatDateTime(row.lastRunAt) : 'Belum pernah')}</td>
+          <td>${bfStatus(row.status)}</td>
+          <td>${scActions(actions)}</td>
+        </tr>
+      `;
+    },
+    'Belum ada job ETL',
+    'Job ETL memindahkan data dari sumber ke warehouse.',
+  );
+
+  scRenderTable(
+    '#ana-marts-table',
+    ['Data mart', 'Tabel', 'Refresh', 'Terakhir', 'Status', 'Aksi'],
+    data.marts,
+    (row) => {
+      const actions = [];
+      if (state.canWriteAnalytics) {
+        actions.push(
+          scButton('Segarkan', `data-ana-action="refresh-mart" data-ana-id="${escapeHtml(row.id)}"`),
+        );
+      }
+      return `
+        <tr>
+          <td><span class="cell-main">${escapeHtml(row.name)}</span><span class="cell-sub cell-code">${escapeHtml(row.code)}</span></td>
+          <td class="cell-code">${escapeHtml(`${row.schemaName}.${row.tableName}`)}</td>
+          <td>${bfStatus(row.refreshMode)}</td>
+          <td class="cell-muted">${escapeHtml(row.lastRefreshedAt ? formatDateTime(row.lastRefreshedAt) : 'Belum pernah')}</td>
+          <td>${bfStatus(row.status)}</td>
+          <td>${scActions(actions)}</td>
+        </tr>
+      `;
+    },
+    'Belum ada data mart',
+    'Data mart menyiapkan data ringkas untuk analisis.',
+  );
+
+  scRenderTable(
+    '#ana-reports-table',
+    ['Laporan', 'Kategori', 'Data mart', 'Format', 'Status', 'Aksi'],
+    data.reports,
+    (row) => {
+      const actions = [];
+      if (state.canWriteAnalytics && row.status !== 'archived') {
+        actions.push(
+          scButton('Jalankan', `data-ana-action="run-report" data-ana-id="${escapeHtml(row.id)}"`),
+        );
+      }
+      return `
+        <tr>
+          <td><span class="cell-main">${escapeHtml(row.name)}</span><span class="cell-sub cell-code">${escapeHtml(row.code)}</span></td>
+          <td>${bfStatus(row.category)}</td>
+          <td>${escapeHtml(row.dataMartName ?? '—')}</td>
+          <td>${bfStatus(row.format)}</td>
+          <td>${bfStatus(row.status)}</td>
+          <td>${scActions(actions)}</td>
+        </tr>
+      `;
+    },
+    'Belum ada laporan',
+    'Definisikan laporan dari data mart yang tersedia.',
+  );
+
+  scRenderTable(
+    '#ana-runs-table',
+    ['Eksekusi', 'Laporan', 'Baris', 'Waktu', 'Status'],
+    data.runs,
+    (row) => `
+      <tr>
+        <td class="cell-code">${escapeHtml(row.runNumber)}</td>
+        <td>${escapeHtml(row.reportName ?? '—')}</td>
+        <td>${formatNumber(row.rowCount)}</td>
+        <td class="cell-muted">${escapeHtml(formatDateTime(row.createdAt))}</td>
+        <td>${bfStatus(row.status)}</td>
+      </tr>
+    `,
+    'Belum ada eksekusi',
+    'Riwayat eksekusi laporan muncul di sini.',
+  );
+
+  scRenderTable(
+    '#ana-snapshots-table',
+    ['Snapshot', 'Entitas', 'Tanggal', 'Baris', 'Status'],
+    data.snapshots,
+    (row) => `
+      <tr>
+        <td><span class="cell-main">${escapeHtml(row.name)}</span><span class="cell-sub cell-code">${escapeHtml(row.snapshotKey)}</span></td>
+        <td>${bfStatus(row.entityType)}</td>
+        <td class="cell-muted">${escapeHtml(row.snapshotDate)}</td>
+        <td>${formatNumber(row.rowCount)}</td>
+        <td>${bfStatus(row.status)}</td>
+      </tr>
+    `,
+    'Belum ada snapshot',
+    'Snapshot menyimpan kondisi historis data untuk perbandingan.',
+  );
+}
+
+function openAnaSourceModal() {
+  bfFormModal({
+    title: 'Tambah sumber data',
+    kicker: 'SYS-08 · Sumber data',
+    subtitle: 'Sumber data menjadi titik awal pipeline ETL.',
+    formId: 'ana-source-form',
+    submitLabel: 'Simpan sumber',
+    fields: `
+      <div class="form-field full">
+        <label for="ana-source-name">Nama sumber <span>*</span></label>
+        <input id="ana-source-name" name="name" type="text" required minlength="2" />
+      </div>
+      <div class="form-field">
+        <label for="ana-source-type">Tipe</label>
+        <select id="ana-source-type" name="type">${bfStatusOptions(['postgres', 'api', 'file', 'manual'], 'postgres')}</select>
+      </div>
+      <div class="form-field">
+        <label for="ana-source-status">Status</label>
+        <select id="ana-source-status" name="status">${bfStatusOptions(['active', 'inactive', 'error'], 'active')}</select>
+      </div>
+    `,
+    submit: (raw) =>
+      api('/analytics/data-sources', {
+        method: 'POST',
+        body: { name: raw.name, type: raw.type, status: raw.status },
+      }),
+    success: async () => {
+      showToast('Sumber dibuat', 'Sumber data siap dipakai pipeline.');
+      await loadAnalytics(true);
+    },
+  });
+}
+
+function openAnaJobModal(data) {
+  bfFormModal({
+    title: 'Tambah job ETL',
+    kicker: 'SYS-08 · ETL',
+    subtitle: 'Job ETL mengekstrak, mentransformasi, dan memuat data.',
+    formId: 'ana-job-form',
+    submitLabel: 'Simpan job',
+    fields: `
+      <div class="form-field full">
+        <label for="ana-job-name">Nama job <span>*</span></label>
+        <input id="ana-job-name" name="name" type="text" required minlength="2" />
+      </div>
+      <div class="form-field">
+        <label for="ana-job-source">Sumber data</label>
+        <select id="ana-job-source" name="dataSourceId">${bfNamedOptions(data.sources, 'name', '', 'Tanpa sumber')}</select>
+      </div>
+      <div class="form-field">
+        <label for="ana-job-type">Tipe</label>
+        <select id="ana-job-type" name="type">${bfStatusOptions(['extract', 'transform', 'load', 'full', 'incremental'], 'full')}</select>
+      </div>
+      <div class="form-field">
+        <label for="ana-job-schedule">Jadwal (cron)</label>
+        <input id="ana-job-schedule" name="schedule" type="text" placeholder="0 2 * * *" />
+      </div>
+      <div class="form-field">
+        <label for="ana-job-target">Tabel target</label>
+        <input id="ana-job-target" name="targetTable" type="text" placeholder="fact_orders" />
+      </div>
+    `,
+    submit: (raw) =>
+      api('/analytics/etl-jobs', {
+        method: 'POST',
+        body: {
+          name: raw.name,
+          dataSourceId: bfOptional(raw.dataSourceId),
+          type: raw.type,
+          schedule: bfOptional(raw.schedule),
+          targetTable: bfOptional(raw.targetTable),
+          status: 'scheduled',
+        },
+      }),
+    success: async () => {
+      showToast('Job dibuat', 'Job ETL siap dijalankan.');
+      await loadAnalytics(true);
+    },
+  });
+}
+
+function openAnaMartModal() {
+  bfFormModal({
+    title: 'Tambah data mart',
+    kicker: 'SYS-08 · Data mart',
+    subtitle: 'Data mart menyimpan tabel ringkas untuk analisis.',
+    formId: 'ana-mart-form',
+    submitLabel: 'Simpan data mart',
+    fields: `
+      <div class="form-field full">
+        <label for="ana-mart-name">Nama data mart <span>*</span></label>
+        <input id="ana-mart-name" name="name" type="text" required minlength="2" />
+      </div>
+      <div class="form-field full">
+        <label for="ana-mart-table">Nama tabel <span>*</span></label>
+        <input id="ana-mart-table" name="tableName" type="text" required placeholder="dim_merchant" />
+      </div>
+      <div class="form-field">
+        <label for="ana-mart-refresh">Mode refresh</label>
+        <select id="ana-mart-refresh" name="refreshMode">${bfStatusOptions(['manual', 'scheduled'], 'manual')}</select>
+      </div>
+      <div class="form-field">
+        <label for="ana-mart-status">Status</label>
+        <select id="ana-mart-status" name="status">${bfStatusOptions(['draft', 'active', 'archived'], 'draft')}</select>
+      </div>
+    `,
+    submit: (raw) =>
+      api('/analytics/data-marts', {
+        method: 'POST',
+        body: {
+          name: raw.name,
+          tableName: raw.tableName,
+          refreshMode: raw.refreshMode,
+          status: raw.status,
+        },
+      }),
+    success: async () => {
+      showToast('Data mart dibuat', 'Data mart siap diisi pipeline.');
+      await loadAnalytics(true);
+    },
+  });
+}
+
+function openAnaReportModal(data) {
+  bfFormModal({
+    title: 'Tambah definisi laporan',
+    kicker: 'SYS-08 · Laporan',
+    subtitle: 'Laporan dijalankan dari data mart yang tersedia.',
+    formId: 'ana-report-form',
+    submitLabel: 'Simpan laporan',
+    fields: `
+      <div class="form-field full">
+        <label for="ana-report-name">Nama laporan <span>*</span></label>
+        <input id="ana-report-name" name="name" type="text" required minlength="2" />
+      </div>
+      <div class="form-field">
+        <label for="ana-report-category">Kategori</label>
+        <input id="ana-report-category" name="category" type="text" value="general" />
+      </div>
+      <div class="form-field">
+        <label for="ana-report-format">Format</label>
+        <select id="ana-report-format" name="format">${bfStatusOptions(['table', 'csv', 'json', 'pdf'], 'table')}</select>
+      </div>
+      <div class="form-field full">
+        <label for="ana-report-mart">Data mart</label>
+        <select id="ana-report-mart" name="dataMartId">${bfNamedOptions(data.marts, 'name', '', 'Tanpa data mart')}</select>
+      </div>
+    `,
+    submit: (raw) =>
+      api('/analytics/reports', {
+        method: 'POST',
+        body: {
+          name: raw.name,
+          category: raw.category || 'general',
+          format: raw.format,
+          dataMartId: bfOptional(raw.dataMartId),
+          status: 'active',
+        },
+      }),
+    success: async () => {
+      showToast('Laporan dibuat', 'Laporan siap dijalankan.');
+      await loadAnalytics(true);
+    },
+  });
+}
+
+function openAnaSnapshotModal() {
+  bfFormModal({
+    title: 'Tambah snapshot historis',
+    kicker: 'SYS-08 · Snapshot',
+    subtitle: 'Snapshot menyimpan kondisi data pada tanggal tertentu.',
+    formId: 'ana-snapshot-form',
+    submitLabel: 'Simpan snapshot',
+    fields: `
+      <div class="form-field full">
+        <label for="ana-snapshot-name">Nama snapshot <span>*</span></label>
+        <input id="ana-snapshot-name" name="name" type="text" required minlength="2" />
+      </div>
+      <div class="form-field">
+        <label for="ana-snapshot-entity">Tipe entitas <span>*</span></label>
+        <input id="ana-snapshot-entity" name="entityType" type="text" required placeholder="merchant" />
+      </div>
+      <div class="form-field">
+        <label for="ana-snapshot-date">Tanggal <span>*</span></label>
+        <input id="ana-snapshot-date" name="snapshotDate" type="date" required />
+      </div>
+      <div class="form-field full">
+        <label for="ana-snapshot-data">Data JSON <span>*</span></label>
+        <textarea id="ana-snapshot-data" name="data" rows="4" required placeholder='{"total": 120}'></textarea>
+      </div>
+    `,
+    submit: (raw) => {
+      let data;
+      try {
+        data = JSON.parse(raw.data);
+      } catch {
+        throw new Error('Data snapshot harus berformat JSON yang valid');
+      }
+      return api('/analytics/snapshots', {
+        method: 'POST',
+        body: {
+          name: raw.name,
+          entityType: raw.entityType,
+          snapshotDate: raw.snapshotDate,
+          data,
+          rowCount: 0,
+        },
+      });
+    },
+    success: async () => {
+      showToast('Snapshot dibuat', 'Snapshot historis tersimpan.');
+      await loadAnalytics(true);
+    },
+  });
+}
+
+async function anaRunAction(action, id) {
+  try {
+    if (action === 'run-job') {
+      await api(`/analytics/etl-jobs/${id}/run`, { method: 'POST', body: {} });
+      showToast('Job dijalankan', 'Job ETL selesai diproses.');
+    } else if (action === 'refresh-mart') {
+      await api(`/analytics/data-marts/${id}/refresh`, { method: 'POST', body: {} });
+      showToast('Data mart disegarkan', 'Data terbaru telah dimuat.');
+    } else if (action === 'run-report') {
+      await api(`/analytics/reports/${id}/run`, { method: 'POST', body: {} });
+      showToast('Laporan dijalankan', 'Hasil laporan telah dibuat.');
+    }
+    await loadAnalytics(true);
+  } catch (error) {
+    showToast('Aksi gagal', error.message, 'error');
+  }
+}
+
 /* -------------------------------- Events ------------------------------ */
 
 function bindEvents() {
@@ -12103,6 +14258,85 @@ function bindEvents() {
     });
   }
 
+  $('#refresh-int-all')?.addEventListener('click', () => loadIntegrations(true));
+  for (const [selector, open] of [
+    ['#create-int-provider-button', openIntProviderModal],
+    ['#create-int-connection-button', openIntConnectionModal],
+    ['#create-int-client-button', openIntClientModal],
+    ['#create-int-endpoint-button', openIntEndpointModal],
+    ['#create-int-webhook-button', openIntWebhookModal],
+  ]) {
+    $(selector)?.addEventListener('click', async () => {
+      try {
+        open(await bfIntegrationsData());
+      } catch (error) {
+        showToast('Gagal memuat data pendukung', error.message, 'error');
+      }
+    });
+  }
+  $('#refresh-notif-all')?.addEventListener('click', () => loadNotifications(true));
+  for (const [selector, open] of [
+    ['#create-notif-channel-button', openNtfChannelModal],
+    ['#create-notif-template-button', openNtfTemplateModal],
+    ['#create-notif-message-button', openNtfMessageModal],
+  ]) {
+    $(selector)?.addEventListener('click', async () => {
+      try {
+        open(await bfNotificationsData());
+      } catch (error) {
+        showToast('Gagal memuat data pendukung', error.message, 'error');
+      }
+    });
+  }
+  $('#refresh-cfg-all')?.addEventListener('click', () => loadConfig(true));
+  for (const [selector, open] of [
+    ['#create-cfg-group-button', openCfgGroupModal],
+    ['#create-cfg-setting-button', openCfgSettingModal],
+    ['#create-cfg-reference-button', openCfgReferenceModal],
+    ['#create-cfg-flag-button', openCfgFlagModal],
+    ['#create-cfg-parameter-button', openCfgParameterModal],
+    ['#create-cfg-localization-button', openCfgLocalizationModal],
+  ]) {
+    $(selector)?.addEventListener('click', async () => {
+      try {
+        open(await bfConfigData());
+      } catch (error) {
+        showToast('Gagal memuat data pendukung', error.message, 'error');
+      }
+    });
+  }
+  $('#refresh-ai-all')?.addEventListener('click', () => loadAi(true));
+  for (const [selector, open] of [
+    ['#create-ai-model-button', openAiModelModal],
+    ['#create-ai-session-button', openAiSessionModal],
+    ['#create-ai-recommendation-button', openAiRecommendationModal],
+    ['#create-ai-forecast-button', openAiForecastModal],
+  ]) {
+    $(selector)?.addEventListener('click', async () => {
+      try {
+        open(await bfAiData());
+      } catch (error) {
+        showToast('Gagal memuat data pendukung', error.message, 'error');
+      }
+    });
+  }
+  $('#refresh-ana-all')?.addEventListener('click', () => loadAnalytics(true));
+  for (const [selector, open] of [
+    ['#create-ana-source-button', openAnaSourceModal],
+    ['#create-ana-job-button', openAnaJobModal],
+    ['#create-ana-mart-button', openAnaMartModal],
+    ['#create-ana-report-button', openAnaReportModal],
+    ['#create-ana-snapshot-button', openAnaSnapshotModal],
+  ]) {
+    $(selector)?.addEventListener('click', async () => {
+      try {
+        open(await bfAnalyticsData());
+      } catch (error) {
+        showToast('Gagal memuat data pendukung', error.message, 'error');
+      }
+    });
+  }
+
   $('#audit-search').addEventListener(
     'input',
     debounce((event) => {
@@ -12196,6 +14430,58 @@ function bindEvents() {
     const retryFunding = event.target.closest('[data-fund-retry]');
     if (retryFunding) {
       loadFunding(true);
+      return;
+    }
+
+    const retryInt = event.target.closest('[data-int-retry]');
+    if (retryInt) {
+      loadIntegrations(true);
+      return;
+    }
+    const retryNotif = event.target.closest('[data-notif-retry]');
+    if (retryNotif) {
+      loadNotifications(true);
+      return;
+    }
+    const retryCfg = event.target.closest('[data-cfg-retry]');
+    if (retryCfg) {
+      loadConfig(true);
+      return;
+    }
+    const retryAi = event.target.closest('[data-ai-retry]');
+    if (retryAi) {
+      loadAi(true);
+      return;
+    }
+    const retryAna = event.target.closest('[data-ana-retry]');
+    if (retryAna) {
+      loadAnalytics(true);
+      return;
+    }
+
+    const intAction = event.target.closest('[data-int-action]');
+    if (intAction) {
+      void intRunAction(intAction.dataset.intAction, intAction.dataset.intId);
+      return;
+    }
+    const notifAction = event.target.closest('[data-notif-action]');
+    if (notifAction) {
+      void ntfRunAction(notifAction.dataset.notifAction, notifAction.dataset.notifId);
+      return;
+    }
+    const cfgAction = event.target.closest('[data-cfg-action]');
+    if (cfgAction) {
+      void cfgRunAction(cfgAction.dataset.cfgAction, cfgAction.dataset.cfgId);
+      return;
+    }
+    const aiAction = event.target.closest('[data-ai-action]');
+    if (aiAction) {
+      void aiRunAction(aiAction.dataset.aiAction, aiAction.dataset.aiId);
+      return;
+    }
+    const anaAction = event.target.closest('[data-ana-action]');
+    if (anaAction) {
+      void anaRunAction(anaAction.dataset.anaAction, anaAction.dataset.anaId);
       return;
     }
 
